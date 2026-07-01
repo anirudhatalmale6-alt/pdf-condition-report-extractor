@@ -4,10 +4,16 @@
     "report_type": "combined",
     "detected_report_type": "combined",
     "address": null,
+    "report_number": null,
+    "tenant_name": null,
+    "landlord_name": null,
+    "property_manager": null,
     "date_received": null,
+    "start_date": null,
+    "end_date": null,
     "source_file": "NSW_condition_report.pdf",
     "total_pages": 12,
-    "extraction_timestamp": "2026-07-01T12:58:43.962255+00:00",
+    "extraction_timestamp": "2026-07-01T13:06:04.769346+00:00",
     "extractor_version": "1.0.0"
   },
   "rooms": [

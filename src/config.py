@@ -1,6 +1,9 @@
 VERSION = "1.0.0"
 APP_NAME = "PDF Condition Report Extractor"
 
+CLOUD_SYNC_URL = "https://app.orbas.com.au/api/sync"
+LICENSE_VALIDATE_URL = "https://app.orbas.com.au/api/license/validate"
+
 JURISDICTIONS = [
     ("NSW", "New South Wales"),
     ("VIC", "Victoria"),

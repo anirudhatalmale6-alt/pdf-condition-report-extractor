@@ -4,12 +4,89 @@ import threading
 import tkinter as tk
 from tkinter import ttk, filedialog, messagebox, scrolledtext
 
-from .config import APP_NAME, VERSION, JURISDICTIONS, REPORT_TYPES
+from .config import APP_NAME, VERSION, JURISDICTIONS, REPORT_TYPES, CLOUD_SYNC_URL
 from .extractor import extract_pdf
 from .cloud_sync import CloudSync
+from .license import validate_license
+
+
+class LicenseDialog:
+    def __init__(self, parent):
+        self.result = None
+        self.dialog = tk.Toplevel(parent)
+        self.dialog.title("License Activation")
+        self.dialog.geometry("450x200")
+        self.dialog.resizable(False, False)
+        self.dialog.transient(parent)
+        self.dialog.grab_set()
+
+        self._center(parent)
+        self._build_ui()
+        self.dialog.protocol("WM_DELETE_WINDOW", self._on_close)
+
+    def _center(self, parent):
+        self.dialog.update_idletasks()
+        x = parent.winfo_x() + (parent.winfo_width() - 450) // 2
+        y = parent.winfo_y() + (parent.winfo_height() - 200) // 2
+        self.dialog.geometry(f"+{x}+{y}")
+
+    def _build_ui(self):
+        frame = ttk.Frame(self.dialog, padding=20)
+        frame.pack(fill=tk.BOTH, expand=True)
+
+        ttk.Label(frame, text="Enter your product license key:", font=("Segoe UI", 11)).pack(anchor=tk.W)
+        ttk.Label(frame, text="A valid license is required to use this application.",
+                  foreground="gray").pack(anchor=tk.W, pady=(0, 10))
+
+        self.key_var = tk.StringVar()
+        self.key_entry = ttk.Entry(frame, textvariable=self.key_var, width=50, font=("Consolas", 11))
+        self.key_entry.pack(fill=tk.X, pady=(0, 10))
+        self.key_entry.focus_set()
+        self.key_entry.bind("<Return>", lambda e: self._activate())
+
+        btn_frame = ttk.Frame(frame)
+        btn_frame.pack(fill=tk.X)
+
+        self.status_label = ttk.Label(btn_frame, text="", foreground="red")
+        self.status_label.pack(side=tk.LEFT)
+
+        self.activate_btn = ttk.Button(btn_frame, text="Activate", command=self._activate)
+        self.activate_btn.pack(side=tk.RIGHT)
+
+    def _activate(self):
+        key = self.key_var.get().strip()
+        if not key:
+            self.status_label.configure(text="Please enter a license key.", foreground="red")
+            return
+
+        self.activate_btn.configure(state="disabled")
+        self.status_label.configure(text="Validating...", foreground="gray")
+        self.dialog.update()
+
+        thread = threading.Thread(target=self._validate, args=(key,), daemon=True)
+        thread.start()
+
+    def _validate(self, key):
+        result = validate_license(key)
+        self.dialog.after(0, self._handle_result, key, result)
+
+    def _handle_result(self, key, result):
+        self.activate_btn.configure(state="normal")
+        if result.get("valid"):
+            self.result = key
+            self.dialog.destroy()
+        else:
+            error = result.get("error") or result.get("message") or "Invalid license key."
+            self.status_label.configure(text=error, foreground="red")
+
+    def _on_close(self):
+        self.result = None
+        self.dialog.destroy()
 
 
 class ExtractorApp:
+    LICENSE_FILE = os.path.join(os.path.expanduser("~"), ".pdf_extractor_license")
+
     def __init__(self, root):
         self.root = root
         self.root.title(f"{APP_NAME} v{VERSION}")
@@ -20,12 +97,48 @@ class ExtractorApp:
         self.pdf_path = tk.StringVar()
         self.jurisdiction = tk.StringVar(value="NSW")
         self.report_type = tk.StringVar(value="auto")
-        self.endpoint_url = tk.StringVar()
+        self.endpoint_url = tk.StringVar(value=CLOUD_SYNC_URL)
         self.api_key = tk.StringVar()
         self.output_dir = tk.StringVar()
         self.processing = False
+        self.license_key = None
 
-        self._build_ui()
+        if not self._check_saved_license():
+            self.root.withdraw()
+            self.root.after(100, self._show_license_dialog)
+        else:
+            self._build_ui()
+
+    def _check_saved_license(self):
+        try:
+            if os.path.isfile(self.LICENSE_FILE):
+                with open(self.LICENSE_FILE, "r") as f:
+                    key = f.read().strip()
+                    if key:
+                        self.license_key = key
+                        return True
+        except Exception:
+            pass
+        return False
+
+    def _save_license(self, key):
+        try:
+            with open(self.LICENSE_FILE, "w") as f:
+                f.write(key)
+        except Exception:
+            pass
+
+    def _show_license_dialog(self):
+        dialog = LicenseDialog(self.root)
+        self.root.wait_window(dialog.dialog)
+
+        if dialog.result:
+            self.license_key = dialog.result
+            self._save_license(dialog.result)
+            self.root.deiconify()
+            self._build_ui()
+        else:
+            self.root.destroy()
 
     def _build_ui(self):
         style = ttk.Style()
@@ -53,7 +166,7 @@ class ExtractorApp:
 
         self.drop_label = ttk.Label(
             file_frame,
-            text="Drag and drop a PDF file here, or click Browse",
+            text="Click Browse to select a PDF file",
             foreground="gray",
             anchor=tk.CENTER,
         )
@@ -96,7 +209,7 @@ class ExtractorApp:
         ttk.Entry(row2, textvariable=self.output_dir).pack(side=tk.LEFT, fill=tk.X, expand=True, padx=(0, 8))
         ttk.Button(row2, text="Browse...", command=self._browse_output).pack(side=tk.LEFT)
 
-        cloud_frame = ttk.LabelFrame(main_frame, text="Cloud Sync (Optional)", padding=10)
+        cloud_frame = ttk.LabelFrame(main_frame, text="Cloud Sync", padding=10)
         cloud_frame.pack(fill=tk.X, pady=(0, 8))
 
         row3 = ttk.Frame(cloud_frame)
@@ -206,20 +319,23 @@ class ExtractorApp:
             room_count = len(result.get("rooms", []))
             item_count = sum(len(r.get("items", [])) for r in result.get("rooms", []))
             image_count = len(result.get("images", []))
+            metadata = result.get("metadata", {})
 
-            self.root.after(0, self._log, f"Extraction complete!")
-            self.root.after(0, self._log, f"  Rooms found: {room_count}")
-            self.root.after(0, self._log, f"  Items extracted: {item_count}")
-            self.root.after(0, self._log, f"  Images extracted: {image_count}")
-            self.root.after(0, self._log, f"  JSON saved to: {json_path}")
-
-            if result.get("metadata", {}).get("detected_report_type"):
-                self.root.after(0, self._log,
-                    f"  Detected report type: {result['metadata']['detected_report_type']}")
+            self.root.after(0, self._log, "Extraction complete!")
+            if metadata.get("address"):
+                self.root.after(0, self._log, f"  Address: {metadata['address']}")
+            if metadata.get("report_number"):
+                self.root.after(0, self._log, f"  Report #: {metadata['report_number']}")
+            if metadata.get("detected_report_type"):
+                self.root.after(0, self._log, f"  Detected type: {metadata['detected_report_type']}")
+            self.root.after(0, self._log, f"  Rooms: {room_count}")
+            self.root.after(0, self._log, f"  Items: {item_count}")
+            self.root.after(0, self._log, f"  Images: {image_count}")
+            self.root.after(0, self._log, f"  JSON saved: {json_path}")
 
             endpoint = self.endpoint_url.get().strip()
             if endpoint:
-                self.root.after(0, self._log, "Syncing to cloud endpoint...")
+                self.root.after(0, self._log, f"Syncing to cloud...")
                 sync = CloudSync(
                     endpoint_url=endpoint,
                     api_key=self.api_key.get().strip() or None,
@@ -230,8 +346,6 @@ class ExtractorApp:
                         f"  Cloud sync successful! (status {sync_result['status_code']})")
                 else:
                     self.root.after(0, self._log, f"  Cloud sync failed: {sync_result['error']}")
-            else:
-                self.root.after(0, self._log, "  Cloud sync skipped (no endpoint configured)")
 
             self.root.after(0, self._log, "Done!")
 

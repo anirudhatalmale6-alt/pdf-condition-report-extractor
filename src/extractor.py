@@ -76,7 +76,13 @@ class ConditionReportExtractor:
             "report_type": self.detected_type,
             "detected_report_type": self.detected_type if self.report_type == "auto" else None,
             "address": self._extract_address(),
+            "report_number": self._extract_report_number(),
+            "tenant_name": self._extract_field_value(["tenant", "tenant name", "tenant/s"]),
+            "landlord_name": self._extract_field_value(["landlord", "landlord name", "landlord/agent", "agent"]),
+            "property_manager": self._extract_field_value(["property manager", "managing agent"]),
             "date_received": self._extract_date_received(),
+            "start_date": self._extract_tenancy_date("start"),
+            "end_date": self._extract_tenancy_date("end"),
             "source_file": os.path.basename(self.pdf_path),
             "total_pages": len(self.fitz_doc),
             "extraction_timestamp": datetime.now(timezone.utc).isoformat(),
@@ -91,6 +97,59 @@ class ConditionReportExtractor:
                 addr = match.group(1).strip()
                 if addr and not re.match(r'^[YN\s/|]+$', addr) and len(addr) > 3:
                     return addr
+        return None
+
+    def _extract_report_number(self):
+        for page in self.fitz_doc[:3]:
+            text = page.get_text()
+            for pattern in [
+                r"(?:Report|Reference|Ref)\s*(?:No|Number|#|:)\s*[:\s]*([A-Z0-9][\w\-/]+)",
+                r"(?:Report)\s*(?:ID)\s*[:\s]*([A-Z0-9][\w\-/]+)",
+            ]:
+                match = re.search(pattern, text, re.IGNORECASE)
+                if match:
+                    val = match.group(1).strip()
+                    if len(val) > 2:
+                        return val
+        return None
+
+    def _extract_field_value(self, field_names):
+        for page in self.fitz_doc[:5]:
+            text = page.get_text()
+            text_upper = text.upper()
+            if "HOW TO COMPLETE" in text_upper or "EXAMPLE" in text_upper:
+                continue
+            for field in field_names:
+                pattern = rf"(?:{re.escape(field)})\s*[:\s]+([^\n]+)"
+                match = re.search(pattern, text, re.IGNORECASE)
+                if match:
+                    val = match.group(1).strip()
+                    if val and len(val) > 1 and not re.match(r'^[YN\s/|]+$', val):
+                        if len(val) > 100:
+                            continue
+                        skip_words = ["must", "should", "indicate", "landlord or", "the tenant",
+                                      "record contact", "before", "after", "sign", "agrees",
+                                      "comments", "condition", "premises", "report",
+                                      "/agent", "trading"]
+                        if any(sw in val.lower() for sw in skip_words):
+                            continue
+                        return val
+        return None
+
+    def _extract_tenancy_date(self, which="start"):
+        keywords = {
+            "start": ["start of tenancy", "commencement", "lease start", "move in date", "ingoing date"],
+            "end": ["end of tenancy", "termination", "lease end", "move out date", "vacating date"],
+        }
+        for page in self.fitz_doc[:3]:
+            text = page.get_text()
+            for kw in keywords.get(which, []):
+                match = re.search(
+                    rf"{re.escape(kw)}.*?(\d{{1,2}}\s*/\s*\d{{1,2}}\s*/\s*\d{{2,4}})",
+                    text, re.IGNORECASE | re.DOTALL
+                )
+                if match:
+                    return match.group(1).strip()
         return None
 
     def _extract_date_received(self):
