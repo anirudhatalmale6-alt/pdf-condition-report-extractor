@@ -316,20 +316,20 @@ class ExtractorApp:
             with open(json_path, "w", encoding="utf-8") as f:
                 json.dump(result, f, indent=2, ensure_ascii=False)
 
-            room_count = len(result.get("rooms", []))
-            item_count = sum(len(r.get("items", [])) for r in result.get("rooms", []))
+            area_count = len(result.get("areas", []))
+            component_count = sum(len(a.get("components", [])) for a in result.get("areas", []))
             image_count = len(result.get("images", []))
-            metadata = result.get("metadata", {})
+            metadata = result.get("report_metadata", {})
 
             self.root.after(0, self._log, "Extraction complete!")
+            self.root.after(0, self._log, f"  Jurisdiction: {result.get('jurisdiction', '')}")
+            self.root.after(0, self._log, f"  Document type: {result.get('document_type', '')}")
             if metadata.get("address"):
                 self.root.after(0, self._log, f"  Address: {metadata['address']}")
             if metadata.get("report_number"):
                 self.root.after(0, self._log, f"  Report #: {metadata['report_number']}")
-            if metadata.get("detected_report_type"):
-                self.root.after(0, self._log, f"  Detected type: {metadata['detected_report_type']}")
-            self.root.after(0, self._log, f"  Rooms: {room_count}")
-            self.root.after(0, self._log, f"  Items: {item_count}")
+            self.root.after(0, self._log, f"  Areas: {area_count}")
+            self.root.after(0, self._log, f"  Components: {component_count}")
             self.root.after(0, self._log, f"  Images: {image_count}")
             self.root.after(0, self._log, f"  JSON saved: {json_path}")
 

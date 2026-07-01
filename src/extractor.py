@@ -32,17 +32,38 @@ class ConditionReportExtractor:
             else:
                 self.detected_type = self.report_type
 
+            areas_raw = self._extract_rooms()
+            areas = []
+            for room in areas_raw:
+                area = {
+                    "area_name": room["room_name"],
+                    "page_number": room.get("page_number"),
+                    "components": [],
+                }
+                for item in room.get("items", []):
+                    component = {
+                        "component_name": item["item_name"],
+                        "start_of_tenancy": item.get("start_of_tenancy", {}),
+                        "end_of_tenancy": item.get("end_of_tenancy", {}),
+                    }
+                    area["components"].append(component)
+                areas.append(area)
+
             result = {
-                "metadata": self._build_metadata(),
-                "rooms": self._extract_rooms(),
-                "compliance": self._extract_compliance(full_text),
-                "utilities": self._extract_utilities(full_text),
-                "water_efficiency": self._extract_water_efficiency(full_text),
-                "additional_comments": self._extract_additional_comments(full_text),
-                "maintenance_dates": self._extract_maintenance_dates(full_text),
-                "landlord_promise": self._extract_landlord_promise(full_text),
-                "landlord_promise_date": None,
-                "signatures": self._extract_signatures(full_text),
+                "jurisdiction": self.jurisdiction,
+                "document_type": self.detected_type,
+                "detected_document_type": self.detected_type if self.report_type == "auto" else None,
+                "report_metadata": self._build_metadata(),
+                "areas": areas,
+                "other_sections": {
+                    "compliance": self._extract_compliance(full_text),
+                    "utilities": self._extract_utilities(full_text),
+                    "water_efficiency": self._extract_water_efficiency(full_text),
+                    "additional_comments": self._extract_additional_comments(full_text),
+                    "maintenance_dates": self._extract_maintenance_dates(full_text),
+                    "landlord_promise": self._extract_landlord_promise(full_text),
+                    "signatures": self._extract_signatures(full_text),
+                },
                 "images": self._extract_images(output_dir, save_images),
             }
 
@@ -72,14 +93,13 @@ class ConditionReportExtractor:
 
     def _build_metadata(self):
         return {
-            "jurisdiction": self.jurisdiction,
-            "report_type": self.detected_type,
-            "detected_report_type": self.detected_type if self.report_type == "auto" else None,
             "address": self._extract_address(),
+            "postcode": self._extract_postcode(),
             "report_number": self._extract_report_number(),
-            "tenant_name": self._extract_field_value(["tenant", "tenant name", "tenant/s"]),
-            "landlord_name": self._extract_field_value(["landlord", "landlord name", "landlord/agent", "agent"]),
-            "property_manager": self._extract_field_value(["property manager", "managing agent"]),
+            "tenant_name": self._extract_field_value(["tenant", "tenant name", "tenant/s", "tenants", "full name of renter"]),
+            "landlord_name": self._extract_field_value(["landlord", "landlord name", "landlord/agent", "agent", "lessor", "rental provider"]),
+            "property_manager": self._extract_field_value(["property manager", "managing agent", "agent's company"]),
+            "bond_number": self._extract_field_value(["bond number", "bond no"]),
             "date_received": self._extract_date_received(),
             "start_date": self._extract_tenancy_date("start"),
             "end_date": self._extract_tenancy_date("end"),
@@ -97,6 +117,14 @@ class ConditionReportExtractor:
                 addr = match.group(1).strip()
                 if addr and not re.match(r'^[YN\s/|]+$', addr) and len(addr) > 3:
                     return addr
+        return None
+
+    def _extract_postcode(self):
+        for page in self.fitz_doc[:3]:
+            text = page.get_text()
+            match = re.search(r"[Pp]ostcode[:\s]*(\d{4})", text)
+            if match:
+                return match.group(1)
         return None
 
     def _extract_report_number(self):

@@ -70,17 +70,16 @@ def main():
             with open(json_path, "w", encoding="utf-8") as f:
                 json.dump(result, f, indent=2, ensure_ascii=False)
 
-            room_count = len(result.get("rooms", []))
-            item_count = sum(len(r.get("items", [])) for r in result.get("rooms", []))
+            area_count = len(result.get("areas", []))
+            component_count = sum(len(a.get("components", [])) for a in result.get("areas", []))
             image_count = len(result.get("images", []))
 
-            print(f"  Rooms: {room_count}")
-            print(f"  Items: {item_count}")
+            print(f"  Jurisdiction: {result.get('jurisdiction', '')}")
+            print(f"  Document type: {result.get('document_type', '')}")
+            print(f"  Areas: {area_count}")
+            print(f"  Components: {component_count}")
             print(f"  Images: {image_count}")
             print(f"  JSON saved: {json_path}")
-
-            if result.get("metadata", {}).get("detected_report_type"):
-                print(f"  Detected type: {result['metadata']['detected_report_type']}")
 
             if args.endpoint:
                 print(f"  Syncing to: {args.endpoint}")

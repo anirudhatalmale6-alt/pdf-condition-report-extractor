@@ -1,28 +1,30 @@
 {
-  "metadata": {
-    "jurisdiction": "QLD",
-    "report_type": "move_in",
-    "detected_report_type": "move_in",
+  "jurisdiction": "QLD",
+  "document_type": "move_in",
+  "detected_document_type": "move_in",
+  "report_metadata": {
     "address": null,
+    "postcode": null,
     "report_number": null,
     "tenant_name": "moves",
     "landlord_name": "initials",
     "property_manager": null,
+    "bond_number": null,
     "date_received": null,
     "start_date": null,
     "end_date": null,
     "source_file": "QLD_condition_report_1a.pdf",
     "total_pages": 8,
-    "extraction_timestamp": "2026-07-01T13:20:34.967392+00:00",
+    "extraction_timestamp": "2026-07-01T13:29:18.681726+00:00",
     "extractor_version": "1.0.0"
   },
-  "rooms": [
+  "areas": [
     {
-      "room_name": "ENTRY",
+      "area_name": "ENTRY",
       "page_number": 1,
-      "items": [
+      "components": [
         {
-          "item_name": "doors/walls/ceiling",
+          "component_name": "doors/walls/ceiling",
           "start_of_tenancy": {
             "clean": null,
             "undamaged": null,
@@ -40,7 +42,7 @@
           }
         },
         {
-          "item_name": "windows/screens",
+          "component_name": "windows/screens",
           "start_of_tenancy": {
             "clean": null,
             "undamaged": null,
@@ -58,7 +60,7 @@
           }
         },
         {
-          "item_name": "blinds/curtains",
+          "component_name": "blinds/curtains",
           "start_of_tenancy": {
             "clean": null,
             "undamaged": null,
@@ -76,7 +78,7 @@
           }
         },
         {
-          "item_name": "fans/light fittings",
+          "component_name": "fans/light fittings",
           "start_of_tenancy": {
             "clean": null,
             "undamaged": null,
@@ -94,7 +96,7 @@
           }
         },
         {
-          "item_name": "floor/floor coverings",
+          "component_name": "floor/floor coverings",
           "start_of_tenancy": {
             "clean": null,
             "undamaged": null,
@@ -112,7 +114,7 @@
           }
         },
         {
-          "item_name": "power points",
+          "component_name": "power points",
           "start_of_tenancy": {
             "clean": null,
             "undamaged": null,
@@ -132,11 +134,11 @@
       ]
     },
     {
-      "room_name": "LOUNGE ROOM",
+      "area_name": "LOUNGE ROOM",
       "page_number": 2,
-      "items": [
+      "components": [
         {
-          "item_name": "doors/walls/ceiling",
+          "component_name": "doors/walls/ceiling",
           "start_of_tenancy": {
             "clean": null,
             "undamaged": null,
@@ -154,7 +156,7 @@
           }
         },
         {
-          "item_name": "windows/screens",
+          "component_name": "windows/screens",
           "start_of_tenancy": {
             "clean": null,
             "undamaged": null,
@@ -172,7 +174,7 @@
           }
         },
         {
-          "item_name": "blinds/curtains",
+          "component_name": "blinds/curtains",
           "start_of_tenancy": {
             "clean": null,
             "undamaged": null,
@@ -190,7 +192,7 @@
           }
         },
         {
-          "item_name": "fans/light fittings",
+          "component_name": "fans/light fittings",
           "start_of_tenancy": {
             "clean": null,
             "undamaged": null,
@@ -208,7 +210,7 @@
           }
         },
         {
-          "item_name": "floor/floor coverings",
+          "component_name": "floor/floor coverings",
           "start_of_tenancy": {
             "clean": null,
             "undamaged": null,
@@ -226,7 +228,7 @@
           }
         },
         {
-          "item_name": "tv/power points",
+          "component_name": "tv/power points",
           "start_of_tenancy": {
             "clean": null,
             "undamaged": null,
@@ -244,7 +246,7 @@
           }
         },
         {
-          "item_name": "air conditioner",
+          "component_name": "air conditioner",
           "start_of_tenancy": {
             "clean": null,
             "undamaged": null,
@@ -264,11 +266,11 @@
       ]
     },
     {
-      "room_name": "FAMILY ROOM",
+      "area_name": "FAMILY ROOM",
       "page_number": 2,
-      "items": [
+      "components": [
         {
-          "item_name": "doors/walls/ceiling",
+          "component_name": "doors/walls/ceiling",
           "start_of_tenancy": {
             "clean": null,
             "undamaged": null,
@@ -286,7 +288,7 @@
           }
         },
         {
-          "item_name": "windows/screens",
+          "component_name": "windows/screens",
           "start_of_tenancy": {
             "clean": null,
             "undamaged": null,
@@ -304,7 +306,7 @@
           }
         },
         {
-          "item_name": "blinds/curtains",
+          "component_name": "blinds/curtains",
           "start_of_tenancy": {
             "clean": null,
             "undamaged": null,
@@ -322,7 +324,7 @@
           }
         },
         {
-          "item_name": "fans/light fittings",
+          "component_name": "fans/light fittings",
           "start_of_tenancy": {
             "clean": null,
             "undamaged": null,
@@ -340,7 +342,7 @@
           }
         },
         {
-          "item_name": "floor/floor coverings",
+          "component_name": "floor/floor coverings",
           "start_of_tenancy": {
             "clean": null,
             "undamaged": null,
@@ -358,7 +360,7 @@
           }
         },
         {
-          "item_name": "tv/power points",
+          "component_name": "tv/power points",
           "start_of_tenancy": {
             "clean": null,
             "undamaged": null,
@@ -376,7 +378,7 @@
           }
         },
         {
-          "item_name": "air conditioner",
+          "component_name": "air conditioner",
           "start_of_tenancy": {
             "clean": null,
             "undamaged": null,
@@ -396,11 +398,11 @@
       ]
     },
     {
-      "room_name": "KITCHEN/MEALS",
+      "area_name": "KITCHEN/MEALS",
       "page_number": 3,
-      "items": [
+      "components": [
         {
-          "item_name": "doors/walls/ceiling",
+          "component_name": "doors/walls/ceiling",
           "start_of_tenancy": {
             "clean": null,
             "undamaged": null,
@@ -418,7 +420,7 @@
           }
         },
         {
-          "item_name": "windows/screens",
+          "component_name": "windows/screens",
           "start_of_tenancy": {
             "clean": null,
             "undamaged": null,
@@ -436,7 +438,7 @@
           }
         },
         {
-          "item_name": "blinds/curtains",
+          "component_name": "blinds/curtains",
           "start_of_tenancy": {
             "clean": null,
             "undamaged": null,
@@ -454,7 +456,7 @@
           }
         },
         {
-          "item_name": "fans/light fittings",
+          "component_name": "fans/light fittings",
           "start_of_tenancy": {
             "clean": null,
             "undamaged": null,
@@ -472,7 +474,7 @@
           }
         },
         {
-          "item_name": "floor/floor coverings",
+          "component_name": "floor/floor coverings",
           "start_of_tenancy": {
             "clean": null,
             "undamaged": null,
@@ -490,7 +492,7 @@
           }
         },
         {
-          "item_name": "cupboards/drawers",
+          "component_name": "cupboards/drawers",
           "start_of_tenancy": {
             "clean": null,
             "undamaged": null,
@@ -508,7 +510,7 @@
           }
         },
         {
-          "item_name": "bench tops/tiling",
+          "component_name": "bench tops/tiling",
           "start_of_tenancy": {
             "clean": null,
             "undamaged": null,
@@ -526,7 +528,7 @@
           }
         },
         {
-          "item_name": "sink/disposal unit/taps",
+          "component_name": "sink/disposal unit/taps",
           "start_of_tenancy": {
             "clean": null,
             "undamaged": null,
@@ -544,7 +546,7 @@
           }
         },
         {
-          "item_name": "stove top",
+          "component_name": "stove top",
           "start_of_tenancy": {
             "clean": null,
             "undamaged": null,
@@ -562,7 +564,7 @@
           }
         },
         {
-          "item_name": "oven/griller",
+          "component_name": "oven/griller",
           "start_of_tenancy": {
             "clean": null,
             "undamaged": null,
@@ -580,7 +582,7 @@
           }
         },
         {
-          "item_name": "exhaust fan/rangehood",
+          "component_name": "exhaust fan/rangehood",
           "start_of_tenancy": {
             "clean": null,
             "undamaged": null,
@@ -598,7 +600,7 @@
           }
         },
         {
-          "item_name": "dishwasher",
+          "component_name": "dishwasher",
           "start_of_tenancy": {
             "clean": null,
             "undamaged": null,
@@ -616,7 +618,7 @@
           }
         },
         {
-          "item_name": "power points",
+          "component_name": "power points",
           "start_of_tenancy": {
             "clean": null,
             "undamaged": null,
@@ -636,11 +638,11 @@
       ]
     },
     {
-      "room_name": "DINING ROOM",
+      "area_name": "DINING ROOM",
       "page_number": 3,
-      "items": [
+      "components": [
         {
-          "item_name": "doors/walls/ceiling",
+          "component_name": "doors/walls/ceiling",
           "start_of_tenancy": {
             "clean": null,
             "undamaged": null,
@@ -658,7 +660,7 @@
           }
         },
         {
-          "item_name": "windows/screens",
+          "component_name": "windows/screens",
           "start_of_tenancy": {
             "clean": null,
             "undamaged": null,
@@ -676,7 +678,7 @@
           }
         },
         {
-          "item_name": "blinds/curtains",
+          "component_name": "blinds/curtains",
           "start_of_tenancy": {
             "clean": null,
             "undamaged": null,
@@ -694,7 +696,7 @@
           }
         },
         {
-          "item_name": "fans/light fittings",
+          "component_name": "fans/light fittings",
           "start_of_tenancy": {
             "clean": null,
             "undamaged": null,
@@ -712,7 +714,7 @@
           }
         },
         {
-          "item_name": "floor/floor coverings",
+          "component_name": "floor/floor coverings",
           "start_of_tenancy": {
             "clean": null,
             "undamaged": null,
@@ -730,7 +732,7 @@
           }
         },
         {
-          "item_name": "tv/power points",
+          "component_name": "tv/power points",
           "start_of_tenancy": {
             "clean": null,
             "undamaged": null,
@@ -748,7 +750,7 @@
           }
         },
         {
-          "item_name": "air conditioner",
+          "component_name": "air conditioner",
           "start_of_tenancy": {
             "clean": null,
             "undamaged": null,
@@ -768,11 +770,11 @@
       ]
     },
     {
-      "room_name": "BEDROOM 1",
+      "area_name": "BEDROOM 1",
       "page_number": 4,
-      "items": [
+      "components": [
         {
-          "item_name": "doors/walls/ceiling",
+          "component_name": "doors/walls/ceiling",
           "start_of_tenancy": {
             "clean": null,
             "undamaged": null,
@@ -790,7 +792,7 @@
           }
         },
         {
-          "item_name": "windows/screens",
+          "component_name": "windows/screens",
           "start_of_tenancy": {
             "clean": null,
             "undamaged": null,
@@ -808,7 +810,7 @@
           }
         },
         {
-          "item_name": "blinds/curtains",
+          "component_name": "blinds/curtains",
           "start_of_tenancy": {
             "clean": null,
             "undamaged": null,
@@ -826,7 +828,7 @@
           }
         },
         {
-          "item_name": "fans/light fittings",
+          "component_name": "fans/light fittings",
           "start_of_tenancy": {
             "clean": null,
             "undamaged": null,
@@ -844,7 +846,7 @@
           }
         },
         {
-          "item_name": "floor/floor coverings",
+          "component_name": "floor/floor coverings",
           "start_of_tenancy": {
             "clean": null,
             "undamaged": null,
@@ -862,7 +864,7 @@
           }
         },
         {
-          "item_name": "wardrobe/drawers/shelves",
+          "component_name": "wardrobe/drawers/shelves",
           "start_of_tenancy": {
             "clean": null,
             "undamaged": null,
@@ -880,7 +882,7 @@
           }
         },
         {
-          "item_name": "power points",
+          "component_name": "power points",
           "start_of_tenancy": {
             "clean": null,
             "undamaged": null,
@@ -898,7 +900,7 @@
           }
         },
         {
-          "item_name": "air conditioner",
+          "component_name": "air conditioner",
           "start_of_tenancy": {
             "clean": null,
             "undamaged": null,
@@ -916,7 +918,7 @@
           }
         },
         {
-          "item_name": "smoke alarms",
+          "component_name": "smoke alarms",
           "start_of_tenancy": {
             "clean": null,
             "undamaged": null,
@@ -936,11 +938,11 @@
       ]
     },
     {
-      "room_name": "ENSUITE",
+      "area_name": "ENSUITE",
       "page_number": 4,
-      "items": [
+      "components": [
         {
-          "item_name": "doors/walls/ceiling",
+          "component_name": "doors/walls/ceiling",
           "start_of_tenancy": {
             "clean": null,
             "undamaged": null,
@@ -958,7 +960,7 @@
           }
         },
         {
-          "item_name": "windows/screens",
+          "component_name": "windows/screens",
           "start_of_tenancy": {
             "clean": null,
             "undamaged": null,
@@ -976,7 +978,7 @@
           }
         },
         {
-          "item_name": "blinds/curtains",
+          "component_name": "blinds/curtains",
           "start_of_tenancy": {
             "clean": null,
             "undamaged": null,
@@ -994,7 +996,7 @@
           }
         },
         {
-          "item_name": "fans/light fittings",
+          "component_name": "fans/light fittings",
           "start_of_tenancy": {
             "clean": null,
             "undamaged": null,
@@ -1012,7 +1014,7 @@
           }
         },
         {
-          "item_name": "floor/floor coverings",
+          "component_name": "floor/floor coverings",
           "start_of_tenancy": {
             "clean": null,
             "undamaged": null,
@@ -1030,7 +1032,7 @@
           }
         },
         {
-          "item_name": "bath/shower/shower screen",
+          "component_name": "bath/shower/shower screen",
           "start_of_tenancy": {
             "clean": null,
             "undamaged": null,
@@ -1048,7 +1050,7 @@
           }
         },
         {
-          "item_name": "wash basin/vanity",
+          "component_name": "wash basin/vanity",
           "start_of_tenancy": {
             "clean": null,
             "undamaged": null,
@@ -1066,7 +1068,7 @@
           }
         },
         {
-          "item_name": "mirror/cabinet",
+          "component_name": "mirror/cabinet",
           "start_of_tenancy": {
             "clean": null,
             "undamaged": null,
@@ -1084,7 +1086,7 @@
           }
         },
         {
-          "item_name": "towel rails",
+          "component_name": "towel rails",
           "start_of_tenancy": {
             "clean": null,
             "undamaged": null,
@@ -1102,7 +1104,7 @@
           }
         },
         {
-          "item_name": "toilet",
+          "component_name": "toilet",
           "start_of_tenancy": {
             "clean": null,
             "undamaged": null,
@@ -1120,7 +1122,7 @@
           }
         },
         {
-          "item_name": "power points",
+          "component_name": "power points",
           "start_of_tenancy": {
             "clean": null,
             "undamaged": null,
@@ -1138,7 +1140,7 @@
           }
         },
         {
-          "item_name": "exhaust fan",
+          "component_name": "exhaust fan",
           "start_of_tenancy": {
             "clean": null,
             "undamaged": null,
@@ -1158,11 +1160,11 @@
       ]
     },
     {
-      "room_name": "BEDROOM 2",
+      "area_name": "BEDROOM 2",
       "page_number": 5,
-      "items": [
+      "components": [
         {
-          "item_name": "doors/walls/ceiling",
+          "component_name": "doors/walls/ceiling",
           "start_of_tenancy": {
             "clean": null,
             "undamaged": null,
@@ -1180,7 +1182,7 @@
           }
         },
         {
-          "item_name": "windows/screens",
+          "component_name": "windows/screens",
           "start_of_tenancy": {
             "clean": null,
             "undamaged": null,
@@ -1198,7 +1200,7 @@
           }
         },
         {
-          "item_name": "blinds/curtains",
+          "component_name": "blinds/curtains",
           "start_of_tenancy": {
             "clean": null,
             "undamaged": null,
@@ -1216,7 +1218,7 @@
           }
         },
         {
-          "item_name": "fans/light fittings",
+          "component_name": "fans/light fittings",
           "start_of_tenancy": {
             "clean": null,
             "undamaged": null,
@@ -1234,7 +1236,7 @@
           }
         },
         {
-          "item_name": "floor/floor coverings",
+          "component_name": "floor/floor coverings",
           "start_of_tenancy": {
             "clean": null,
             "undamaged": null,
@@ -1252,7 +1254,7 @@
           }
         },
         {
-          "item_name": "wardrobe/drawers/shelves",
+          "component_name": "wardrobe/drawers/shelves",
           "start_of_tenancy": {
             "clean": null,
             "undamaged": null,
@@ -1270,7 +1272,7 @@
           }
         },
         {
-          "item_name": "power points",
+          "component_name": "power points",
           "start_of_tenancy": {
             "clean": null,
             "undamaged": null,
@@ -1288,7 +1290,7 @@
           }
         },
         {
-          "item_name": "air conditioner",
+          "component_name": "air conditioner",
           "start_of_tenancy": {
             "clean": null,
             "undamaged": null,
@@ -1306,7 +1308,7 @@
           }
         },
         {
-          "item_name": "smoke alarms",
+          "component_name": "smoke alarms",
           "start_of_tenancy": {
             "clean": null,
             "undamaged": null,
@@ -1326,11 +1328,11 @@
       ]
     },
     {
-      "room_name": "BEDROOM 3",
+      "area_name": "BEDROOM 3",
       "page_number": 5,
-      "items": [
+      "components": [
         {
-          "item_name": "doors/walls/ceiling",
+          "component_name": "doors/walls/ceiling",
           "start_of_tenancy": {
             "clean": null,
             "undamaged": null,
@@ -1348,7 +1350,7 @@
           }
         },
         {
-          "item_name": "windows/screens",
+          "component_name": "windows/screens",
           "start_of_tenancy": {
             "clean": null,
             "undamaged": null,
@@ -1366,7 +1368,7 @@
           }
         },
         {
-          "item_name": "blinds/curtains",
+          "component_name": "blinds/curtains",
           "start_of_tenancy": {
             "clean": null,
             "undamaged": null,
@@ -1384,7 +1386,7 @@
           }
         },
         {
-          "item_name": "fans/light fittings",
+          "component_name": "fans/light fittings",
           "start_of_tenancy": {
             "clean": null,
             "undamaged": null,
@@ -1402,7 +1404,7 @@
           }
         },
         {
-          "item_name": "floor/floor coverings",
+          "component_name": "floor/floor coverings",
           "start_of_tenancy": {
             "clean": null,
             "undamaged": null,
@@ -1420,7 +1422,7 @@
           }
         },
         {
-          "item_name": "wardrobe/drawers/shelves",
+          "component_name": "wardrobe/drawers/shelves",
           "start_of_tenancy": {
             "clean": null,
             "undamaged": null,
@@ -1438,7 +1440,7 @@
           }
         },
         {
-          "item_name": "power points",
+          "component_name": "power points",
           "start_of_tenancy": {
             "clean": null,
             "undamaged": null,
@@ -1456,7 +1458,7 @@
           }
         },
         {
-          "item_name": "air conditioner",
+          "component_name": "air conditioner",
           "start_of_tenancy": {
             "clean": null,
             "undamaged": null,
@@ -1474,7 +1476,7 @@
           }
         },
         {
-          "item_name": "smoke alarms",
+          "component_name": "smoke alarms",
           "start_of_tenancy": {
             "clean": null,
             "undamaged": null,
@@ -1494,11 +1496,11 @@
       ]
     },
     {
-      "room_name": "BEDROOM 4",
+      "area_name": "BEDROOM 4",
       "page_number": 6,
-      "items": [
+      "components": [
         {
-          "item_name": "doors/walls/ceiling",
+          "component_name": "doors/walls/ceiling",
           "start_of_tenancy": {
             "clean": null,
             "undamaged": null,
@@ -1516,7 +1518,7 @@
           }
         },
         {
-          "item_name": "windows/screens",
+          "component_name": "windows/screens",
           "start_of_tenancy": {
             "clean": null,
             "undamaged": null,
@@ -1534,7 +1536,7 @@
           }
         },
         {
-          "item_name": "blinds/curtains",
+          "component_name": "blinds/curtains",
           "start_of_tenancy": {
             "clean": null,
             "undamaged": null,
@@ -1552,7 +1554,7 @@
           }
         },
         {
-          "item_name": "fans/light fittings",
+          "component_name": "fans/light fittings",
           "start_of_tenancy": {
             "clean": null,
             "undamaged": null,
@@ -1570,7 +1572,7 @@
           }
         },
         {
-          "item_name": "floor/floor coverings",
+          "component_name": "floor/floor coverings",
           "start_of_tenancy": {
             "clean": null,
             "undamaged": null,
@@ -1588,7 +1590,7 @@
           }
         },
         {
-          "item_name": "wardrobe/drawers/shelves",
+          "component_name": "wardrobe/drawers/shelves",
           "start_of_tenancy": {
             "clean": null,
             "undamaged": null,
@@ -1606,7 +1608,7 @@
           }
         },
         {
-          "item_name": "power points",
+          "component_name": "power points",
           "start_of_tenancy": {
             "clean": null,
             "undamaged": null,
@@ -1624,7 +1626,7 @@
           }
         },
         {
-          "item_name": "air conditioner",
+          "component_name": "air conditioner",
           "start_of_tenancy": {
             "clean": null,
             "undamaged": null,
@@ -1642,7 +1644,7 @@
           }
         },
         {
-          "item_name": "smoke alarms",
+          "component_name": "smoke alarms",
           "start_of_tenancy": {
             "clean": null,
             "undamaged": null,
@@ -1662,11 +1664,11 @@
       ]
     },
     {
-      "room_name": "BATHROOM",
+      "area_name": "BATHROOM",
       "page_number": 6,
-      "items": [
+      "components": [
         {
-          "item_name": "doors/walls/ceiling",
+          "component_name": "doors/walls/ceiling",
           "start_of_tenancy": {
             "clean": null,
             "undamaged": null,
@@ -1684,7 +1686,7 @@
           }
         },
         {
-          "item_name": "windows/screens",
+          "component_name": "windows/screens",
           "start_of_tenancy": {
             "clean": null,
             "undamaged": null,
@@ -1702,7 +1704,7 @@
           }
         },
         {
-          "item_name": "blinds/curtains",
+          "component_name": "blinds/curtains",
           "start_of_tenancy": {
             "clean": null,
             "undamaged": null,
@@ -1720,7 +1722,7 @@
           }
         },
         {
-          "item_name": "fans/light fittings",
+          "component_name": "fans/light fittings",
           "start_of_tenancy": {
             "clean": null,
             "undamaged": null,
@@ -1738,7 +1740,7 @@
           }
         },
         {
-          "item_name": "floor/floor coverings",
+          "component_name": "floor/floor coverings",
           "start_of_tenancy": {
             "clean": null,
             "undamaged": null,
@@ -1756,7 +1758,7 @@
           }
         },
         {
-          "item_name": "bath",
+          "component_name": "bath",
           "start_of_tenancy": {
             "clean": null,
             "undamaged": null,
@@ -1774,7 +1776,7 @@
           }
         },
         {
-          "item_name": "shower/shower screen",
+          "component_name": "shower/shower screen",
           "start_of_tenancy": {
             "clean": null,
             "undamaged": null,
@@ -1792,7 +1794,7 @@
           }
         },
         {
-          "item_name": "wash basin/vanity",
+          "component_name": "wash basin/vanity",
           "start_of_tenancy": {
             "clean": null,
             "undamaged": null,
@@ -1810,7 +1812,7 @@
           }
         },
         {
-          "item_name": "mirror/cabinet",
+          "component_name": "mirror/cabinet",
           "start_of_tenancy": {
             "clean": null,
             "undamaged": null,
@@ -1828,7 +1830,7 @@
           }
         },
         {
-          "item_name": "towel rails",
+          "component_name": "towel rails",
           "start_of_tenancy": {
             "clean": null,
             "undamaged": null,
@@ -1846,7 +1848,7 @@
           }
         },
         {
-          "item_name": "power points",
+          "component_name": "power points",
           "start_of_tenancy": {
             "clean": null,
             "undamaged": null,
@@ -1864,7 +1866,7 @@
           }
         },
         {
-          "item_name": "exhaust fan",
+          "component_name": "exhaust fan",
           "start_of_tenancy": {
             "clean": null,
             "undamaged": null,
@@ -1882,7 +1884,7 @@
           }
         },
         {
-          "item_name": "toilet",
+          "component_name": "toilet",
           "start_of_tenancy": {
             "clean": null,
             "undamaged": null,
@@ -1902,11 +1904,11 @@
       ]
     },
     {
-      "room_name": "TOILET",
+      "area_name": "TOILET",
       "page_number": 4,
-      "items": [
+      "components": [
         {
-          "item_name": "doors/walls/ceiling",
+          "component_name": "doors/walls/ceiling",
           "start_of_tenancy": {
             "clean": null,
             "undamaged": null,
@@ -1924,7 +1926,7 @@
           }
         },
         {
-          "item_name": "cistern",
+          "component_name": "cistern",
           "start_of_tenancy": {
             "clean": null,
             "undamaged": null,
@@ -1942,7 +1944,7 @@
           }
         },
         {
-          "item_name": "light fittings",
+          "component_name": "light fittings",
           "start_of_tenancy": {
             "clean": null,
             "undamaged": null,
@@ -1960,7 +1962,7 @@
           }
         },
         {
-          "item_name": "exhaust fan",
+          "component_name": "exhaust fan",
           "start_of_tenancy": {
             "clean": null,
             "undamaged": null,
@@ -1980,11 +1982,11 @@
       ]
     },
     {
-      "room_name": "LAUNDRY",
+      "area_name": "LAUNDRY",
       "page_number": 7,
-      "items": [
+      "components": [
         {
-          "item_name": "doors/walls/ceiling",
+          "component_name": "doors/walls/ceiling",
           "start_of_tenancy": {
             "clean": null,
             "undamaged": null,
@@ -2002,7 +2004,7 @@
           }
         },
         {
-          "item_name": "windows/screens",
+          "component_name": "windows/screens",
           "start_of_tenancy": {
             "clean": null,
             "undamaged": null,
@@ -2020,7 +2022,7 @@
           }
         },
         {
-          "item_name": "blinds/curtains",
+          "component_name": "blinds/curtains",
           "start_of_tenancy": {
             "clean": null,
             "undamaged": null,
@@ -2038,7 +2040,7 @@
           }
         },
         {
-          "item_name": "fans/light fittings",
+          "component_name": "fans/light fittings",
           "start_of_tenancy": {
             "clean": null,
             "undamaged": null,
@@ -2056,7 +2058,7 @@
           }
         },
         {
-          "item_name": "floor/floor coverings",
+          "component_name": "floor/floor coverings",
           "start_of_tenancy": {
             "clean": null,
             "undamaged": null,
@@ -2074,7 +2076,7 @@
           }
         },
         {
-          "item_name": "wash tubs",
+          "component_name": "wash tubs",
           "start_of_tenancy": {
             "clean": null,
             "undamaged": null,
@@ -2092,7 +2094,7 @@
           }
         },
         {
-          "item_name": "washing machine/dryer",
+          "component_name": "washing machine/dryer",
           "start_of_tenancy": {
             "clean": null,
             "undamaged": null,
@@ -2110,7 +2112,7 @@
           }
         },
         {
-          "item_name": "power points",
+          "component_name": "power points",
           "start_of_tenancy": {
             "clean": null,
             "undamaged": null,
@@ -2130,11 +2132,11 @@
       ]
     },
     {
-      "room_name": "GENERAL",
+      "area_name": "GENERAL",
       "page_number": 1,
-      "items": [
+      "components": [
         {
-          "item_name": "smoke alarms",
+          "component_name": "smoke alarms",
           "start_of_tenancy": {
             "clean": null,
             "undamaged": null,
@@ -2152,7 +2154,7 @@
           }
         },
         {
-          "item_name": "security devices",
+          "component_name": "security devices",
           "start_of_tenancy": {
             "clean": null,
             "undamaged": null,
@@ -2170,7 +2172,7 @@
           }
         },
         {
-          "item_name": "electrical safety switches",
+          "component_name": "electrical safety switches",
           "start_of_tenancy": {
             "clean": null,
             "undamaged": null,
@@ -2188,7 +2190,7 @@
           }
         },
         {
-          "item_name": "hot water system",
+          "component_name": "hot water system",
           "start_of_tenancy": {
             "clean": null,
             "undamaged": null,
@@ -2206,7 +2208,7 @@
           }
         },
         {
-          "item_name": "keys/locks/remotes",
+          "component_name": "keys/locks/remotes",
           "start_of_tenancy": {
             "clean": null,
             "undamaged": null,
@@ -2224,7 +2226,7 @@
           }
         },
         {
-          "item_name": "staircases/railings",
+          "component_name": "staircases/railings",
           "start_of_tenancy": {
             "clean": null,
             "undamaged": null,
@@ -2242,7 +2244,7 @@
           }
         },
         {
-          "item_name": "wheelie & recycle bins",
+          "component_name": "wheelie & recycle bins",
           "start_of_tenancy": {
             "clean": null,
             "undamaged": null,
@@ -2260,7 +2262,7 @@
           }
         },
         {
-          "item_name": "pool/equipment",
+          "component_name": "pool/equipment",
           "start_of_tenancy": {
             "clean": null,
             "undamaged": null,
@@ -2278,7 +2280,7 @@
           }
         },
         {
-          "item_name": "street number/letter box",
+          "component_name": "street number/letter box",
           "start_of_tenancy": {
             "clean": null,
             "undamaged": null,
@@ -2296,7 +2298,7 @@
           }
         },
         {
-          "item_name": "external walls",
+          "component_name": "external walls",
           "start_of_tenancy": {
             "clean": null,
             "undamaged": null,
@@ -2314,7 +2316,7 @@
           }
         },
         {
-          "item_name": "balcony/porch/deck",
+          "component_name": "balcony/porch/deck",
           "start_of_tenancy": {
             "clean": null,
             "undamaged": null,
@@ -2332,7 +2334,7 @@
           }
         },
         {
-          "item_name": "awning/gutters",
+          "component_name": "awning/gutters",
           "start_of_tenancy": {
             "clean": null,
             "undamaged": null,
@@ -2350,7 +2352,7 @@
           }
         },
         {
-          "item_name": "paving/pergola",
+          "component_name": "paving/pergola",
           "start_of_tenancy": {
             "clean": null,
             "undamaged": null,
@@ -2368,7 +2370,7 @@
           }
         },
         {
-          "item_name": "garage/car port/storeroom",
+          "component_name": "garage/car port/storeroom",
           "start_of_tenancy": {
             "clean": null,
             "undamaged": null,
@@ -2386,7 +2388,7 @@
           }
         },
         {
-          "item_name": "garden shed",
+          "component_name": "garden shed",
           "start_of_tenancy": {
             "clean": null,
             "undamaged": null,
@@ -2404,7 +2406,7 @@
           }
         },
         {
-          "item_name": "gates/fences",
+          "component_name": "gates/fences",
           "start_of_tenancy": {
             "clean": null,
             "undamaged": null,
@@ -2422,7 +2424,7 @@
           }
         },
         {
-          "item_name": "grounds/garden",
+          "component_name": "grounds/garden",
           "start_of_tenancy": {
             "clean": null,
             "undamaged": null,
@@ -2440,7 +2442,7 @@
           }
         },
         {
-          "item_name": "external taps/hose",
+          "component_name": "external taps/hose",
           "start_of_tenancy": {
             "clean": null,
             "undamaged": null,
@@ -2458,7 +2460,7 @@
           }
         },
         {
-          "item_name": "clothes line",
+          "component_name": "clothes line",
           "start_of_tenancy": {
             "clean": null,
             "undamaged": null,
@@ -2476,7 +2478,7 @@
           }
         },
         {
-          "item_name": "solar panels",
+          "component_name": "solar panels",
           "start_of_tenancy": {
             "clean": null,
             "undamaged": null,
@@ -2494,7 +2496,7 @@
           }
         },
         {
-          "item_name": "paths/driveway",
+          "component_name": "paths/driveway",
           "start_of_tenancy": {
             "clean": null,
             "undamaged": null,
@@ -2514,76 +2516,77 @@
       ]
     }
   ],
-  "compliance": {
-    "minimum_standards": {
-      "structurally_sound": null,
-      "adequate_lighting": null,
-      "adequate_ventilation": null,
-      "adequate_power": null,
-      "adequate_plumbing": null,
-      "adequate_bathroom": null,
-      "tenant_agrees": null,
-      "tenant_disagreement_details": null
+  "other_sections": {
+    "compliance": {
+      "minimum_standards": {
+        "structurally_sound": null,
+        "adequate_lighting": null,
+        "adequate_ventilation": null,
+        "adequate_power": null,
+        "adequate_plumbing": null,
+        "adequate_bathroom": null,
+        "tenant_agrees": null,
+        "tenant_disagreement_details": null
+      },
+      "health_issues": {
+        "mould_dampness": null,
+        "pests_vermin": null,
+        "rubbish": null,
+        "asbestos_register": null
+      },
+      "smoke_alarms": {
+        "installed": null,
+        "checked_working": null,
+        "date_last_checked": null,
+        "batteries_replaced": null,
+        "date_batteries_changed": null,
+        "lithium_batteries_replaced": null,
+        "date_lithium_changed": null
+      },
+      "safety_issues": {
+        "damaged_appliances": null,
+        "electrical_hazards": null,
+        "gas_hazards": null,
+        "tenant_agrees": null,
+        "tenant_disagreement_details": null
+      }
     },
-    "health_issues": {
-      "mould_dampness": null,
-      "pests_vermin": null,
-      "rubbish": null,
-      "asbestos_register": null
+    "utilities": {
+      "telephone": null,
+      "internet": null,
+      "electricity": null,
+      "gas": null,
+      "water_supply": null
     },
-    "smoke_alarms": {
-      "installed": null,
-      "checked_working": null,
+    "water_efficiency": {
+      "separately_metered": null,
+      "showerhead_compliant": null,
+      "toilet_compliant": null,
+      "taps_compliant": null,
+      "leaks_fixed": null,
       "date_last_checked": null,
-      "batteries_replaced": null,
-      "date_batteries_changed": null,
-      "lithium_batteries_replaced": null,
-      "date_lithium_changed": null
+      "meter_reading_start": "3",
+      "meter_reading_start_date": null,
+      "meter_reading_end": null,
+      "meter_reading_end_date": null
     },
-    "safety_issues": {
-      "damaged_appliances": null,
-      "electrical_hazards": null,
-      "gas_hazards": null,
-      "tenant_agrees": null,
-      "tenant_disagreement_details": null
-    }
-  },
-  "utilities": {
-    "telephone": null,
-    "internet": null,
-    "electricity": null,
-    "gas": null,
-    "water_supply": null
-  },
-  "water_efficiency": {
-    "separately_metered": null,
-    "showerhead_compliant": null,
-    "toilet_compliant": null,
-    "taps_compliant": null,
-    "leaks_fixed": null,
-    "date_last_checked": null,
-    "meter_reading_start": "3",
-    "meter_reading_start_date": null,
-    "meter_reading_end": null,
-    "meter_reading_end_date": null
-  },
-  "additional_comments": null,
-  "maintenance_dates": {
-    "smoke_alarm_maintenance": null,
-    "external_painting": null,
-    "internal_painting": null,
-    "flooring": null
-  },
-  "landlord_promise": null,
-  "landlord_promise_date": null,
-  "signatures": {
-    "start_of_tenancy": {
-      "landlord_date": null,
-      "tenant_date": null
+    "additional_comments": null,
+    "maintenance_dates": {
+      "smoke_alarm_maintenance": null,
+      "external_painting": null,
+      "internal_painting": null,
+      "flooring": null
     },
-    "end_of_tenancy": {
-      "landlord_date": null,
-      "tenant_date": null
+    "landlord_promise": null,
+    "signatures": {
+      "start_of_tenancy": {
+        "landlord_date": null,
+        "tenant_date": null
+      },
+      "end_of_tenancy": {
+        "landlord_date": null,
+        "tenant_date": null
+      }
     }
   },
   "images": []
