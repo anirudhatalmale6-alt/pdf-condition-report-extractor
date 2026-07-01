@@ -195,8 +195,150 @@ NSW_ROOMS = {
     ],
 }
 
+ACT_ROOMS = {
+    "KITCHEN": [
+        "stove top", "griller", "oven", "sink/disposal unit",
+        "cupboards/drawers", "bench tops", "exhaust fan/vent",
+        "floor/covering", "blinds/curtains", "walls/doors",
+        "windows/screens", "ceiling/light fittings",
+        "powerpoints/switches", "dish washer", "other",
+    ],
+    "BATHROOM": [
+        "bath/spa", "basin/vanity", "shower recess",
+        "shower screen/curtain", "mirror", "towel rail/soap holder",
+        "exhaust fan/vent", "floor covering", "blinds/curtains",
+        "walls/doors", "windows/screens", "ceiling/light fittings",
+        "powerpoint/switches", "shower head/rose", "other",
+    ],
+    "TOILET": [
+        "bowl", "seat", "cistern", "exhaust fan/vent",
+        "floor/covering", "blinds/curtains", "walls/doors",
+        "windows/screens", "ceiling/light fittings",
+        "powerpoints/switches", "other",
+    ],
+    "LAUNDRY": [
+        "trough", "cupboards", "exhaust fan/vent",
+        "floor/covering", "blinds/curtains", "walls/doors",
+        "windows/screens", "ceiling/light fittings",
+        "powerpoints/switches", "other",
+    ],
+    "BEDROOM 1": [
+        "built-ins", "floor/covering", "blinds/curtains",
+        "walls/doors", "windows/screens", "ceiling/light fittings",
+        "powerpoints/switches", "other",
+    ],
+    "ENSUITE": [
+        "basin/vanity/mirror", "shower recess", "shower screen/curtain",
+        "towel rail/soap holder", "toilet bowl", "toilet seat",
+        "cistern", "exhaust fan/vent", "floor/covering",
+        "blinds/curtains", "walls/doors", "windows/screens",
+        "shower head/rose", "ceiling/light fittings",
+        "powerpoints/switches", "other",
+    ],
+    "BEDROOM 2": [
+        "built-ins", "floor/covering", "blinds/curtains",
+        "walls/doors", "windows/screens", "ceiling/light fittings",
+        "powerpoints/switches", "other",
+    ],
+    "BEDROOM 3": [
+        "built-ins", "floor/covering", "blinds/curtains",
+        "walls/doors", "windows/screens", "ceiling/light fittings",
+        "powerpoints/switches", "other",
+    ],
+    "LOUNGE ROOM": [
+        "heating system", "floor/covering", "blinds/curtains",
+        "walls/doors", "windows/screens", "ceiling/light fittings",
+        "powerpoints/switches", "other",
+    ],
+    "OTHER ROOM 1": [
+        "built-ins", "floor/covering", "blinds/curtains",
+        "walls/doors", "windows/screens", "ceiling/light fittings",
+        "powerpoints/switches", "other",
+    ],
+    "OTHER ROOM 2": [
+        "built-ins", "floor/covering", "blinds/curtains",
+        "walls/doors", "windows/screens", "ceiling/light fittings",
+        "powerpoints/switches", "other",
+    ],
+    "EXTERIOR": [
+        "letterbox", "external awnings", "security/screen doors",
+        "concrete footpaths", "garden (front)", "lawn (front)",
+        "garden (back)", "lawn (back)", "garden hose/fittings",
+        "watering system", "driveway", "television antenna",
+        "water softener", "clothesline", "garbage bin", "gutters", "other",
+    ],
+    "GARAGE/CARPORT": [
+        "floor", "walls/doors", "windows/screens", "shelves",
+        "ceiling/light fittings", "powerpoints/switches", "other",
+    ],
+    "SHED": [
+        "floor", "walls/doors", "windows/screens", "shelves",
+        "ceiling/light fittings", "powerpoints/switches", "other",
+    ],
+    "GENERAL": [
+        "smoke detectors", "security system", "remote controls",
+        "roller shutters", "other",
+    ],
+}
+
+QLD_ROOMS = {
+    "ENTRY": [
+        "doors/walls/ceiling", "windows/screens", "blinds/curtains",
+        "fans/light fittings", "floor/floor coverings", "power points",
+    ],
+    "LOUNGE ROOM": [
+        "doors/walls/ceiling", "windows/screens", "blinds/curtains",
+        "fans/light fittings", "floor/floor coverings",
+        "tv/power points", "air conditioner",
+    ],
+    "FAMILY ROOM": [
+        "doors/walls/ceiling", "windows/screens", "blinds/curtains",
+        "fans/light fittings", "floor/floor coverings",
+        "tv/power points", "air conditioner",
+    ],
+    "KITCHEN/MEALS": [
+        "doors/walls/ceiling", "windows/screens", "blinds/curtains",
+        "fans/light fittings", "floor/floor coverings",
+        "cupboards/drawers", "bench tops/tiling",
+        "sink/disposal unit/taps", "stove top", "oven/griller",
+        "exhaust fan/rangehood", "dishwasher", "power points",
+    ],
+    "DINING ROOM": [
+        "doors/walls/ceiling", "windows/screens", "blinds/curtains",
+        "fans/light fittings", "floor/floor coverings",
+        "tv/power points", "air conditioner",
+    ],
+    "BEDROOM 1": [
+        "doors/walls/ceiling", "windows/screens", "blinds/curtains",
+        "fans/light fittings", "floor/floor coverings",
+        "wardrobe/drawers/shelves", "power points",
+        "air conditioner", "smoke alarms",
+    ],
+    "ENSUITE": [
+        "doors/walls/ceiling", "windows/screens", "blinds/curtains",
+        "fans/light fittings", "floor/floor coverings",
+        "bath/shower/shower screen", "wash basin/vanity",
+        "mirror/cabinet", "towel rails", "toilet",
+        "power points", "exhaust fan",
+    ],
+    "BEDROOM 2": [
+        "doors/walls/ceiling", "windows/screens", "blinds/curtains",
+        "fans/light fittings", "floor/floor coverings",
+        "wardrobe/drawers/shelves", "power points",
+        "air conditioner", "smoke alarms",
+    ],
+    "BEDROOM 3": [
+        "doors/walls/ceiling", "windows/screens", "blinds/curtains",
+        "fans/light fittings", "floor/floor coverings",
+        "wardrobe/drawers/shelves", "power points",
+        "air conditioner", "smoke alarms",
+    ],
+}
+
 ROOM_CONFIGS = {
     "NSW": NSW_ROOMS,
+    "ACT": ACT_ROOMS,
+    "QLD": QLD_ROOMS,
 }
 
 REPORT_TYPE_KEYWORDS = {
