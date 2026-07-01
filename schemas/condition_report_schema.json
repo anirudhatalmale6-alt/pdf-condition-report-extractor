@@ -1,0 +1,184 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Australian Residential Tenancy Condition Report",
+  "type": "object",
+  "required": ["metadata", "rooms"],
+  "properties": {
+    "metadata": {
+      "type": "object",
+      "properties": {
+        "jurisdiction": { "type": "string", "enum": ["NSW", "VIC", "QLD", "SA", "WA", "TAS", "ACT", "NT"] },
+        "report_type": { "type": "string", "enum": ["move_in", "move_out", "combined"] },
+        "detected_report_type": { "type": ["string", "null"] },
+        "address": { "type": ["string", "null"] },
+        "date_received": { "type": ["string", "null"] },
+        "source_file": { "type": "string" },
+        "total_pages": { "type": "integer" },
+        "extraction_timestamp": { "type": "string", "format": "date-time" },
+        "extractor_version": { "type": "string" }
+      }
+    },
+    "rooms": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["room_name", "items"],
+        "properties": {
+          "room_name": { "type": "string" },
+          "page_number": { "type": "integer" },
+          "items": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": ["item_name"],
+              "properties": {
+                "item_name": { "type": "string" },
+                "start_of_tenancy": {
+                  "type": "object",
+                  "properties": {
+                    "clean": { "type": ["string", "null"], "enum": ["Y", "N", null] },
+                    "undamaged": { "type": ["string", "null"], "enum": ["Y", "N", null] },
+                    "working": { "type": ["string", "null"], "enum": ["Y", "N", null] },
+                    "landlord_comments": { "type": ["string", "null"] },
+                    "tenant_agrees": { "type": ["string", "null"], "enum": ["Y", "N", null] },
+                    "tenant_comments": { "type": ["string", "null"] }
+                  }
+                },
+                "end_of_tenancy": {
+                  "type": "object",
+                  "properties": {
+                    "clean": { "type": ["string", "null"], "enum": ["Y", "N", null] },
+                    "undamaged": { "type": ["string", "null"], "enum": ["Y", "N", null] },
+                    "working": { "type": ["string", "null"], "enum": ["Y", "N", null] },
+                    "comments": { "type": ["string", "null"] },
+                    "tenant_agrees": { "type": ["string", "null"], "enum": ["Y", "N", null] }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "compliance": {
+      "type": "object",
+      "properties": {
+        "minimum_standards": {
+          "type": "object",
+          "properties": {
+            "structurally_sound": { "type": ["string", "null"] },
+            "adequate_lighting": { "type": ["string", "null"] },
+            "adequate_ventilation": { "type": ["string", "null"] },
+            "adequate_power": { "type": ["string", "null"] },
+            "adequate_plumbing": { "type": ["string", "null"] },
+            "adequate_bathroom": { "type": ["string", "null"] },
+            "tenant_agrees": { "type": ["string", "null"] },
+            "tenant_disagreement_details": { "type": ["string", "null"] }
+          }
+        },
+        "health_issues": {
+          "type": "object",
+          "properties": {
+            "mould_dampness": { "type": ["string", "null"] },
+            "pests_vermin": { "type": ["string", "null"] },
+            "rubbish": { "type": ["string", "null"] },
+            "asbestos_register": { "type": ["string", "null"] }
+          }
+        },
+        "smoke_alarms": {
+          "type": "object",
+          "properties": {
+            "installed": { "type": ["string", "null"] },
+            "checked_working": { "type": ["string", "null"] },
+            "date_last_checked": { "type": ["string", "null"] },
+            "batteries_replaced": { "type": ["string", "null"] },
+            "date_batteries_changed": { "type": ["string", "null"] },
+            "lithium_batteries_replaced": { "type": ["string", "null"] },
+            "date_lithium_changed": { "type": ["string", "null"] }
+          }
+        },
+        "safety_issues": {
+          "type": "object",
+          "properties": {
+            "damaged_appliances": { "type": ["string", "null"] },
+            "electrical_hazards": { "type": ["string", "null"] },
+            "gas_hazards": { "type": ["string", "null"] },
+            "tenant_agrees": { "type": ["string", "null"] },
+            "tenant_disagreement_details": { "type": ["string", "null"] }
+          }
+        }
+      }
+    },
+    "utilities": {
+      "type": "object",
+      "properties": {
+        "telephone": { "type": ["string", "null"] },
+        "internet": { "type": ["string", "null"] },
+        "electricity": { "type": ["string", "null"] },
+        "gas": { "type": ["string", "null"] },
+        "water_supply": { "type": ["string", "null"] }
+      }
+    },
+    "water_efficiency": {
+      "type": "object",
+      "properties": {
+        "separately_metered": { "type": ["string", "null"] },
+        "showerhead_compliant": { "type": ["string", "null"] },
+        "toilet_compliant": { "type": ["string", "null"] },
+        "taps_compliant": { "type": ["string", "null"] },
+        "leaks_fixed": { "type": ["string", "null"] },
+        "date_last_checked": { "type": ["string", "null"] },
+        "meter_reading_start": { "type": ["string", "null"] },
+        "meter_reading_start_date": { "type": ["string", "null"] },
+        "meter_reading_end": { "type": ["string", "null"] },
+        "meter_reading_end_date": { "type": ["string", "null"] }
+      }
+    },
+    "additional_comments": { "type": ["string", "null"] },
+    "maintenance_dates": {
+      "type": "object",
+      "properties": {
+        "smoke_alarm_maintenance": { "type": ["string", "null"] },
+        "external_painting": { "type": ["string", "null"] },
+        "internal_painting": { "type": ["string", "null"] },
+        "flooring": { "type": ["string", "null"] }
+      }
+    },
+    "landlord_promise": { "type": ["string", "null"] },
+    "landlord_promise_date": { "type": ["string", "null"] },
+    "signatures": {
+      "type": "object",
+      "properties": {
+        "start_of_tenancy": {
+          "type": "object",
+          "properties": {
+            "landlord_date": { "type": ["string", "null"] },
+            "tenant_date": { "type": ["string", "null"] }
+          }
+        },
+        "end_of_tenancy": {
+          "type": "object",
+          "properties": {
+            "landlord_date": { "type": ["string", "null"] },
+            "tenant_date": { "type": ["string", "null"] }
+          }
+        }
+      }
+    },
+    "images": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "page": { "type": "integer" },
+          "index": { "type": "integer" },
+          "width": { "type": "integer" },
+          "height": { "type": "integer" },
+          "format": { "type": "string" },
+          "data_base64": { "type": ["string", "null"] },
+          "file_path": { "type": ["string", "null"] }
+        }
+      }
+    }
+  }
+}
