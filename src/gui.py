@@ -4,7 +4,7 @@ import threading
 import tkinter as tk
 from tkinter import ttk, filedialog, messagebox, scrolledtext
 
-from .config import APP_NAME, VERSION, JURISDICTIONS, REPORT_TYPES, CLOUD_SYNC_URL
+from .config import APP_NAME, VERSION, JURISDICTIONS, REPORT_TYPES, CLOUD_SYNC_URL, LICENSE_VALIDATE_URL
 from .extractor import extract_pdf
 from .cloud_sync import CloudSync
 from .license import validate_license

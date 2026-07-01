@@ -1,5 +1,5 @@
 VERSION = "1.0.0"
-APP_NAME = "PDF Condition Report Extractor"
+APP_NAME = "ORBAS"
 
 CLOUD_SYNC_URL = "https://app.orbas.com.au/api/sync"
 LICENSE_VALIDATE_URL = "https://app.orbas.com.au/api/license/validate"
