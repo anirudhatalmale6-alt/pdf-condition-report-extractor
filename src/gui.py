@@ -102,12 +102,7 @@ class ExtractorApp:
         self.output_dir = tk.StringVar()
         self.processing = False
         self.license_key = None
-
-        if not self._check_saved_license():
-            self.root.withdraw()
-            self.root.after(100, self._show_license_dialog)
-        else:
-            self._build_ui()
+        self._build_ui()
 
     def _check_saved_license(self):
         try:
