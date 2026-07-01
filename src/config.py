@@ -333,6 +333,39 @@ QLD_ROOMS = {
         "wardrobe/drawers/shelves", "power points",
         "air conditioner", "smoke alarms",
     ],
+    "BEDROOM 4": [
+        "doors/walls/ceiling", "windows/screens", "blinds/curtains",
+        "fans/light fittings", "floor/floor coverings",
+        "wardrobe/drawers/shelves", "power points",
+        "air conditioner", "smoke alarms",
+    ],
+    "BATHROOM": [
+        "doors/walls/ceiling", "windows/screens", "blinds/curtains",
+        "fans/light fittings", "floor/floor coverings",
+        "bath", "shower/shower screen", "wash basin/vanity",
+        "mirror/cabinet", "towel rails", "power points",
+        "exhaust fan", "toilet",
+    ],
+    "TOILET": [
+        "doors/walls/ceiling", "cistern", "light fittings", "exhaust fan",
+    ],
+    "LAUNDRY": [
+        "doors/walls/ceiling", "windows/screens", "blinds/curtains",
+        "fans/light fittings", "floor/floor coverings",
+        "wash tubs", "washing machine/dryer", "power points",
+    ],
+    "GENERAL": [
+        "smoke alarms", "security devices",
+        "electrical safety switches", "hot water system",
+        "keys/locks/remotes", "staircases/railings",
+        "wheelie & recycle bins", "pool/equipment",
+        "street number/letter box", "external walls",
+        "balcony/porch/deck", "awning/gutters",
+        "paving/pergola", "garage/car port/storeroom",
+        "garden shed", "gates/fences", "grounds/garden",
+        "external taps/hose", "clothes line",
+        "solar panels", "paths/driveway",
+    ],
 }
 
 ROOM_CONFIGS = {
