@@ -1,28 +1,28 @@
 {
   "metadata": {
-    "jurisdiction": "ACT",
+    "jurisdiction": "TAS",
     "report_type": "combined",
     "detected_report_type": "combined",
     "address": null,
     "report_number": null,
-    "tenant_name": "or Occupant",
-    "landlord_name": "or Grantor",
+    "tenant_name": null,
+    "landlord_name": null,
     "property_manager": null,
     "date_received": null,
     "start_date": null,
     "end_date": null,
-    "source_file": "ACT_condition_report.pdf",
-    "total_pages": 4,
-    "extraction_timestamp": "2026-07-01T13:20:33.618834+00:00",
+    "source_file": "TAS_condition_report.pdf",
+    "total_pages": 15,
+    "extraction_timestamp": "2026-07-01T13:20:43.568230+00:00",
     "extractor_version": "1.0.0"
   },
   "rooms": [
     {
-      "room_name": "KITCHEN",
-      "page_number": 1,
+      "room_name": "ENTRANCE/HALL",
+      "page_number": null,
       "items": [
         {
-          "item_name": "stove top",
+          "item_name": "front door/screen door/security door",
           "start_of_tenancy": {
             "clean": null,
             "undamaged": null,
@@ -40,7 +40,7 @@
           }
         },
         {
-          "item_name": "griller",
+          "item_name": "walls/picture hooks",
           "start_of_tenancy": {
             "clean": null,
             "undamaged": null,
@@ -58,133 +58,7 @@
           }
         },
         {
-          "item_name": "oven",
-          "start_of_tenancy": {
-            "clean": null,
-            "undamaged": null,
-            "working": null,
-            "landlord_comments": null,
-            "tenant_agrees": null,
-            "tenant_comments": null
-          },
-          "end_of_tenancy": {
-            "clean": null,
-            "undamaged": null,
-            "working": null,
-            "comments": null,
-            "tenant_agrees": null
-          }
-        },
-        {
-          "item_name": "sink/disposal unit",
-          "start_of_tenancy": {
-            "clean": null,
-            "undamaged": null,
-            "working": null,
-            "landlord_comments": null,
-            "tenant_agrees": null,
-            "tenant_comments": null
-          },
-          "end_of_tenancy": {
-            "clean": null,
-            "undamaged": null,
-            "working": null,
-            "comments": null,
-            "tenant_agrees": null
-          }
-        },
-        {
-          "item_name": "cupboards/drawers",
-          "start_of_tenancy": {
-            "clean": null,
-            "undamaged": null,
-            "working": null,
-            "landlord_comments": null,
-            "tenant_agrees": null,
-            "tenant_comments": null
-          },
-          "end_of_tenancy": {
-            "clean": null,
-            "undamaged": null,
-            "working": null,
-            "comments": null,
-            "tenant_agrees": null
-          }
-        },
-        {
-          "item_name": "bench tops",
-          "start_of_tenancy": {
-            "clean": null,
-            "undamaged": null,
-            "working": null,
-            "landlord_comments": null,
-            "tenant_agrees": null,
-            "tenant_comments": null
-          },
-          "end_of_tenancy": {
-            "clean": null,
-            "undamaged": null,
-            "working": null,
-            "comments": null,
-            "tenant_agrees": null
-          }
-        },
-        {
-          "item_name": "exhaust fan/vent",
-          "start_of_tenancy": {
-            "clean": null,
-            "undamaged": null,
-            "working": null,
-            "landlord_comments": null,
-            "tenant_agrees": null,
-            "tenant_comments": null
-          },
-          "end_of_tenancy": {
-            "clean": null,
-            "undamaged": null,
-            "working": null,
-            "comments": null,
-            "tenant_agrees": null
-          }
-        },
-        {
-          "item_name": "floor/covering",
-          "start_of_tenancy": {
-            "clean": null,
-            "undamaged": null,
-            "working": null,
-            "landlord_comments": null,
-            "tenant_agrees": null,
-            "tenant_comments": null
-          },
-          "end_of_tenancy": {
-            "clean": null,
-            "undamaged": null,
-            "working": null,
-            "comments": null,
-            "tenant_agrees": null
-          }
-        },
-        {
-          "item_name": "blinds/curtains",
-          "start_of_tenancy": {
-            "clean": null,
-            "undamaged": null,
-            "working": null,
-            "landlord_comments": null,
-            "tenant_agrees": null,
-            "tenant_comments": null
-          },
-          "end_of_tenancy": {
-            "clean": null,
-            "undamaged": null,
-            "working": null,
-            "comments": null,
-            "tenant_agrees": null
-          }
-        },
-        {
-          "item_name": "walls/doors",
+          "item_name": "doorway frames",
           "start_of_tenancy": {
             "clean": null,
             "undamaged": null,
@@ -220,211 +94,7 @@
           }
         },
         {
-          "item_name": "ceiling/light fittings",
-          "start_of_tenancy": {
-            "clean": null,
-            "undamaged": null,
-            "working": null,
-            "landlord_comments": null,
-            "tenant_agrees": null,
-            "tenant_comments": null
-          },
-          "end_of_tenancy": {
-            "clean": null,
-            "undamaged": null,
-            "working": null,
-            "comments": null,
-            "tenant_agrees": null
-          }
-        },
-        {
-          "item_name": "powerpoints/switches",
-          "start_of_tenancy": {
-            "clean": null,
-            "undamaged": null,
-            "working": null,
-            "landlord_comments": null,
-            "tenant_agrees": null,
-            "tenant_comments": null
-          },
-          "end_of_tenancy": {
-            "clean": null,
-            "undamaged": null,
-            "working": null,
-            "comments": null,
-            "tenant_agrees": null
-          }
-        },
-        {
-          "item_name": "dish washer",
-          "start_of_tenancy": {
-            "clean": null,
-            "undamaged": null,
-            "working": null,
-            "landlord_comments": null,
-            "tenant_agrees": null,
-            "tenant_comments": null
-          },
-          "end_of_tenancy": {
-            "clean": null,
-            "undamaged": null,
-            "working": null,
-            "comments": null,
-            "tenant_agrees": null
-          }
-        },
-        {
-          "item_name": "other",
-          "start_of_tenancy": {
-            "clean": null,
-            "undamaged": null,
-            "working": null,
-            "landlord_comments": null,
-            "tenant_agrees": null,
-            "tenant_comments": null
-          },
-          "end_of_tenancy": {
-            "clean": null,
-            "undamaged": null,
-            "working": null,
-            "comments": null,
-            "tenant_agrees": null
-          }
-        }
-      ]
-    },
-    {
-      "room_name": "BATHROOM",
-      "page_number": 1,
-      "items": [
-        {
-          "item_name": "bath/spa",
-          "start_of_tenancy": {
-            "clean": null,
-            "undamaged": null,
-            "working": null,
-            "landlord_comments": null,
-            "tenant_agrees": null,
-            "tenant_comments": null
-          },
-          "end_of_tenancy": {
-            "clean": null,
-            "undamaged": null,
-            "working": null,
-            "comments": null,
-            "tenant_agrees": null
-          }
-        },
-        {
-          "item_name": "basin/vanity",
-          "start_of_tenancy": {
-            "clean": null,
-            "undamaged": null,
-            "working": null,
-            "landlord_comments": null,
-            "tenant_agrees": null,
-            "tenant_comments": null
-          },
-          "end_of_tenancy": {
-            "clean": null,
-            "undamaged": null,
-            "working": null,
-            "comments": null,
-            "tenant_agrees": null
-          }
-        },
-        {
-          "item_name": "shower recess",
-          "start_of_tenancy": {
-            "clean": null,
-            "undamaged": null,
-            "working": null,
-            "landlord_comments": null,
-            "tenant_agrees": null,
-            "tenant_comments": null
-          },
-          "end_of_tenancy": {
-            "clean": null,
-            "undamaged": null,
-            "working": null,
-            "comments": null,
-            "tenant_agrees": null
-          }
-        },
-        {
-          "item_name": "shower screen/curtain",
-          "start_of_tenancy": {
-            "clean": null,
-            "undamaged": null,
-            "working": null,
-            "landlord_comments": null,
-            "tenant_agrees": null,
-            "tenant_comments": null
-          },
-          "end_of_tenancy": {
-            "clean": null,
-            "undamaged": null,
-            "working": null,
-            "comments": null,
-            "tenant_agrees": null
-          }
-        },
-        {
-          "item_name": "mirror",
-          "start_of_tenancy": {
-            "clean": null,
-            "undamaged": null,
-            "working": null,
-            "landlord_comments": null,
-            "tenant_agrees": null,
-            "tenant_comments": null
-          },
-          "end_of_tenancy": {
-            "clean": null,
-            "undamaged": null,
-            "working": null,
-            "comments": null,
-            "tenant_agrees": null
-          }
-        },
-        {
-          "item_name": "towel rail/soap holder",
-          "start_of_tenancy": {
-            "clean": null,
-            "undamaged": null,
-            "working": null,
-            "landlord_comments": null,
-            "tenant_agrees": null,
-            "tenant_comments": null
-          },
-          "end_of_tenancy": {
-            "clean": null,
-            "undamaged": null,
-            "working": null,
-            "comments": null,
-            "tenant_agrees": null
-          }
-        },
-        {
-          "item_name": "exhaust fan/vent",
-          "start_of_tenancy": {
-            "clean": null,
-            "undamaged": null,
-            "working": null,
-            "landlord_comments": null,
-            "tenant_agrees": null,
-            "tenant_comments": null
-          },
-          "end_of_tenancy": {
-            "clean": null,
-            "undamaged": null,
-            "working": null,
-            "comments": null,
-            "tenant_agrees": null
-          }
-        },
-        {
-          "item_name": "floor covering",
+          "item_name": "ceilings/light fittings",
           "start_of_tenancy": {
             "clean": null,
             "undamaged": null,
@@ -460,7 +130,7 @@
           }
         },
         {
-          "item_name": "walls/doors",
+          "item_name": "lights/power points",
           "start_of_tenancy": {
             "clean": null,
             "undamaged": null,
@@ -478,7 +148,7 @@
           }
         },
         {
-          "item_name": "windows/screens",
+          "item_name": "skirting boards",
           "start_of_tenancy": {
             "clean": null,
             "undamaged": null,
@@ -496,1177 +166,7 @@
           }
         },
         {
-          "item_name": "ceiling/light fittings",
-          "start_of_tenancy": {
-            "clean": null,
-            "undamaged": null,
-            "working": null,
-            "landlord_comments": null,
-            "tenant_agrees": null,
-            "tenant_comments": null
-          },
-          "end_of_tenancy": {
-            "clean": null,
-            "undamaged": null,
-            "working": null,
-            "comments": null,
-            "tenant_agrees": null
-          }
-        },
-        {
-          "item_name": "powerpoint/switches",
-          "start_of_tenancy": {
-            "clean": null,
-            "undamaged": null,
-            "working": null,
-            "landlord_comments": null,
-            "tenant_agrees": null,
-            "tenant_comments": null
-          },
-          "end_of_tenancy": {
-            "clean": null,
-            "undamaged": null,
-            "working": null,
-            "comments": null,
-            "tenant_agrees": null
-          }
-        },
-        {
-          "item_name": "shower head/rose",
-          "start_of_tenancy": {
-            "clean": null,
-            "undamaged": null,
-            "working": null,
-            "landlord_comments": null,
-            "tenant_agrees": null,
-            "tenant_comments": null
-          },
-          "end_of_tenancy": {
-            "clean": null,
-            "undamaged": null,
-            "working": null,
-            "comments": null,
-            "tenant_agrees": null
-          }
-        },
-        {
-          "item_name": "other",
-          "start_of_tenancy": {
-            "clean": null,
-            "undamaged": null,
-            "working": null,
-            "landlord_comments": null,
-            "tenant_agrees": null,
-            "tenant_comments": null
-          },
-          "end_of_tenancy": {
-            "clean": null,
-            "undamaged": null,
-            "working": null,
-            "comments": null,
-            "tenant_agrees": null
-          }
-        }
-      ]
-    },
-    {
-      "room_name": "TOILET",
-      "page_number": 2,
-      "items": [
-        {
-          "item_name": "bowl",
-          "start_of_tenancy": {
-            "clean": null,
-            "undamaged": null,
-            "working": null,
-            "landlord_comments": null,
-            "tenant_agrees": null,
-            "tenant_comments": null
-          },
-          "end_of_tenancy": {
-            "clean": null,
-            "undamaged": null,
-            "working": null,
-            "comments": null,
-            "tenant_agrees": null
-          }
-        },
-        {
-          "item_name": "seat",
-          "start_of_tenancy": {
-            "clean": null,
-            "undamaged": null,
-            "working": null,
-            "landlord_comments": null,
-            "tenant_agrees": null,
-            "tenant_comments": null
-          },
-          "end_of_tenancy": {
-            "clean": null,
-            "undamaged": null,
-            "working": null,
-            "comments": null,
-            "tenant_agrees": null
-          }
-        },
-        {
-          "item_name": "cistern",
-          "start_of_tenancy": {
-            "clean": null,
-            "undamaged": null,
-            "working": null,
-            "landlord_comments": null,
-            "tenant_agrees": null,
-            "tenant_comments": null
-          },
-          "end_of_tenancy": {
-            "clean": null,
-            "undamaged": null,
-            "working": null,
-            "comments": null,
-            "tenant_agrees": null
-          }
-        },
-        {
-          "item_name": "exhaust fan/vent",
-          "start_of_tenancy": {
-            "clean": null,
-            "undamaged": null,
-            "working": null,
-            "landlord_comments": null,
-            "tenant_agrees": null,
-            "tenant_comments": null
-          },
-          "end_of_tenancy": {
-            "clean": null,
-            "undamaged": null,
-            "working": null,
-            "comments": null,
-            "tenant_agrees": null
-          }
-        },
-        {
-          "item_name": "floor/covering",
-          "start_of_tenancy": {
-            "clean": null,
-            "undamaged": null,
-            "working": null,
-            "landlord_comments": null,
-            "tenant_agrees": null,
-            "tenant_comments": null
-          },
-          "end_of_tenancy": {
-            "clean": null,
-            "undamaged": null,
-            "working": null,
-            "comments": null,
-            "tenant_agrees": null
-          }
-        },
-        {
-          "item_name": "blinds/curtains",
-          "start_of_tenancy": {
-            "clean": null,
-            "undamaged": null,
-            "working": null,
-            "landlord_comments": null,
-            "tenant_agrees": null,
-            "tenant_comments": null
-          },
-          "end_of_tenancy": {
-            "clean": null,
-            "undamaged": null,
-            "working": null,
-            "comments": null,
-            "tenant_agrees": null
-          }
-        },
-        {
-          "item_name": "walls/doors",
-          "start_of_tenancy": {
-            "clean": null,
-            "undamaged": null,
-            "working": null,
-            "landlord_comments": null,
-            "tenant_agrees": null,
-            "tenant_comments": null
-          },
-          "end_of_tenancy": {
-            "clean": null,
-            "undamaged": null,
-            "working": null,
-            "comments": null,
-            "tenant_agrees": null
-          }
-        },
-        {
-          "item_name": "windows/screens",
-          "start_of_tenancy": {
-            "clean": null,
-            "undamaged": null,
-            "working": null,
-            "landlord_comments": null,
-            "tenant_agrees": null,
-            "tenant_comments": null
-          },
-          "end_of_tenancy": {
-            "clean": null,
-            "undamaged": null,
-            "working": null,
-            "comments": null,
-            "tenant_agrees": null
-          }
-        },
-        {
-          "item_name": "ceiling/light fittings",
-          "start_of_tenancy": {
-            "clean": null,
-            "undamaged": null,
-            "working": null,
-            "landlord_comments": null,
-            "tenant_agrees": null,
-            "tenant_comments": null
-          },
-          "end_of_tenancy": {
-            "clean": null,
-            "undamaged": null,
-            "working": null,
-            "comments": null,
-            "tenant_agrees": null
-          }
-        },
-        {
-          "item_name": "powerpoints/switches",
-          "start_of_tenancy": {
-            "clean": null,
-            "undamaged": null,
-            "working": null,
-            "landlord_comments": null,
-            "tenant_agrees": null,
-            "tenant_comments": null
-          },
-          "end_of_tenancy": {
-            "clean": null,
-            "undamaged": null,
-            "working": null,
-            "comments": null,
-            "tenant_agrees": null
-          }
-        },
-        {
-          "item_name": "other",
-          "start_of_tenancy": {
-            "clean": null,
-            "undamaged": null,
-            "working": null,
-            "landlord_comments": null,
-            "tenant_agrees": null,
-            "tenant_comments": null
-          },
-          "end_of_tenancy": {
-            "clean": null,
-            "undamaged": null,
-            "working": null,
-            "comments": null,
-            "tenant_agrees": null
-          }
-        }
-      ]
-    },
-    {
-      "room_name": "LAUNDRY",
-      "page_number": 2,
-      "items": [
-        {
-          "item_name": "trough",
-          "start_of_tenancy": {
-            "clean": null,
-            "undamaged": null,
-            "working": null,
-            "landlord_comments": null,
-            "tenant_agrees": null,
-            "tenant_comments": null
-          },
-          "end_of_tenancy": {
-            "clean": null,
-            "undamaged": null,
-            "working": null,
-            "comments": null,
-            "tenant_agrees": null
-          }
-        },
-        {
-          "item_name": "cupboards",
-          "start_of_tenancy": {
-            "clean": null,
-            "undamaged": null,
-            "working": null,
-            "landlord_comments": null,
-            "tenant_agrees": null,
-            "tenant_comments": null
-          },
-          "end_of_tenancy": {
-            "clean": null,
-            "undamaged": null,
-            "working": null,
-            "comments": null,
-            "tenant_agrees": null
-          }
-        },
-        {
-          "item_name": "exhaust fan/vent",
-          "start_of_tenancy": {
-            "clean": null,
-            "undamaged": null,
-            "working": null,
-            "landlord_comments": null,
-            "tenant_agrees": null,
-            "tenant_comments": null
-          },
-          "end_of_tenancy": {
-            "clean": null,
-            "undamaged": null,
-            "working": null,
-            "comments": null,
-            "tenant_agrees": null
-          }
-        },
-        {
-          "item_name": "floor/covering",
-          "start_of_tenancy": {
-            "clean": null,
-            "undamaged": null,
-            "working": null,
-            "landlord_comments": null,
-            "tenant_agrees": null,
-            "tenant_comments": null
-          },
-          "end_of_tenancy": {
-            "clean": null,
-            "undamaged": null,
-            "working": null,
-            "comments": null,
-            "tenant_agrees": null
-          }
-        },
-        {
-          "item_name": "blinds/curtains",
-          "start_of_tenancy": {
-            "clean": null,
-            "undamaged": null,
-            "working": null,
-            "landlord_comments": null,
-            "tenant_agrees": null,
-            "tenant_comments": null
-          },
-          "end_of_tenancy": {
-            "clean": null,
-            "undamaged": null,
-            "working": null,
-            "comments": null,
-            "tenant_agrees": null
-          }
-        },
-        {
-          "item_name": "walls/doors",
-          "start_of_tenancy": {
-            "clean": null,
-            "undamaged": null,
-            "working": null,
-            "landlord_comments": null,
-            "tenant_agrees": null,
-            "tenant_comments": null
-          },
-          "end_of_tenancy": {
-            "clean": null,
-            "undamaged": null,
-            "working": null,
-            "comments": null,
-            "tenant_agrees": null
-          }
-        },
-        {
-          "item_name": "windows/screens",
-          "start_of_tenancy": {
-            "clean": null,
-            "undamaged": null,
-            "working": null,
-            "landlord_comments": null,
-            "tenant_agrees": null,
-            "tenant_comments": null
-          },
-          "end_of_tenancy": {
-            "clean": null,
-            "undamaged": null,
-            "working": null,
-            "comments": null,
-            "tenant_agrees": null
-          }
-        },
-        {
-          "item_name": "ceiling/light fittings",
-          "start_of_tenancy": {
-            "clean": null,
-            "undamaged": null,
-            "working": null,
-            "landlord_comments": null,
-            "tenant_agrees": null,
-            "tenant_comments": null
-          },
-          "end_of_tenancy": {
-            "clean": null,
-            "undamaged": null,
-            "working": null,
-            "comments": null,
-            "tenant_agrees": null
-          }
-        },
-        {
-          "item_name": "powerpoints/switches",
-          "start_of_tenancy": {
-            "clean": null,
-            "undamaged": null,
-            "working": null,
-            "landlord_comments": null,
-            "tenant_agrees": null,
-            "tenant_comments": null
-          },
-          "end_of_tenancy": {
-            "clean": null,
-            "undamaged": null,
-            "working": null,
-            "comments": null,
-            "tenant_agrees": null
-          }
-        },
-        {
-          "item_name": "other",
-          "start_of_tenancy": {
-            "clean": null,
-            "undamaged": null,
-            "working": null,
-            "landlord_comments": null,
-            "tenant_agrees": null,
-            "tenant_comments": null
-          },
-          "end_of_tenancy": {
-            "clean": null,
-            "undamaged": null,
-            "working": null,
-            "comments": null,
-            "tenant_agrees": null
-          }
-        }
-      ]
-    },
-    {
-      "room_name": "BEDROOM 1",
-      "page_number": 2,
-      "items": [
-        {
-          "item_name": "built-ins",
-          "start_of_tenancy": {
-            "clean": null,
-            "undamaged": null,
-            "working": null,
-            "landlord_comments": null,
-            "tenant_agrees": null,
-            "tenant_comments": null
-          },
-          "end_of_tenancy": {
-            "clean": null,
-            "undamaged": null,
-            "working": null,
-            "comments": null,
-            "tenant_agrees": null
-          }
-        },
-        {
-          "item_name": "floor/covering",
-          "start_of_tenancy": {
-            "clean": null,
-            "undamaged": null,
-            "working": null,
-            "landlord_comments": null,
-            "tenant_agrees": null,
-            "tenant_comments": null
-          },
-          "end_of_tenancy": {
-            "clean": null,
-            "undamaged": null,
-            "working": null,
-            "comments": null,
-            "tenant_agrees": null
-          }
-        },
-        {
-          "item_name": "blinds/curtains",
-          "start_of_tenancy": {
-            "clean": null,
-            "undamaged": null,
-            "working": null,
-            "landlord_comments": null,
-            "tenant_agrees": null,
-            "tenant_comments": null
-          },
-          "end_of_tenancy": {
-            "clean": null,
-            "undamaged": null,
-            "working": null,
-            "comments": null,
-            "tenant_agrees": null
-          }
-        },
-        {
-          "item_name": "walls/doors",
-          "start_of_tenancy": {
-            "clean": null,
-            "undamaged": null,
-            "working": null,
-            "landlord_comments": null,
-            "tenant_agrees": null,
-            "tenant_comments": null
-          },
-          "end_of_tenancy": {
-            "clean": null,
-            "undamaged": null,
-            "working": null,
-            "comments": null,
-            "tenant_agrees": null
-          }
-        },
-        {
-          "item_name": "windows/screens",
-          "start_of_tenancy": {
-            "clean": null,
-            "undamaged": null,
-            "working": null,
-            "landlord_comments": null,
-            "tenant_agrees": null,
-            "tenant_comments": null
-          },
-          "end_of_tenancy": {
-            "clean": null,
-            "undamaged": null,
-            "working": null,
-            "comments": null,
-            "tenant_agrees": null
-          }
-        },
-        {
-          "item_name": "ceiling/light fittings",
-          "start_of_tenancy": {
-            "clean": null,
-            "undamaged": null,
-            "working": null,
-            "landlord_comments": null,
-            "tenant_agrees": null,
-            "tenant_comments": null
-          },
-          "end_of_tenancy": {
-            "clean": null,
-            "undamaged": null,
-            "working": null,
-            "comments": null,
-            "tenant_agrees": null
-          }
-        },
-        {
-          "item_name": "powerpoints/switches",
-          "start_of_tenancy": {
-            "clean": null,
-            "undamaged": null,
-            "working": null,
-            "landlord_comments": null,
-            "tenant_agrees": null,
-            "tenant_comments": null
-          },
-          "end_of_tenancy": {
-            "clean": null,
-            "undamaged": null,
-            "working": null,
-            "comments": null,
-            "tenant_agrees": null
-          }
-        },
-        {
-          "item_name": "other",
-          "start_of_tenancy": {
-            "clean": null,
-            "undamaged": null,
-            "working": null,
-            "landlord_comments": null,
-            "tenant_agrees": null,
-            "tenant_comments": null
-          },
-          "end_of_tenancy": {
-            "clean": null,
-            "undamaged": null,
-            "working": null,
-            "comments": null,
-            "tenant_agrees": null
-          }
-        }
-      ]
-    },
-    {
-      "room_name": "ENSUITE",
-      "page_number": 2,
-      "items": [
-        {
-          "item_name": "basin/vanity/mirror",
-          "start_of_tenancy": {
-            "clean": null,
-            "undamaged": null,
-            "working": null,
-            "landlord_comments": null,
-            "tenant_agrees": null,
-            "tenant_comments": null
-          },
-          "end_of_tenancy": {
-            "clean": null,
-            "undamaged": null,
-            "working": null,
-            "comments": null,
-            "tenant_agrees": null
-          }
-        },
-        {
-          "item_name": "shower recess",
-          "start_of_tenancy": {
-            "clean": null,
-            "undamaged": null,
-            "working": null,
-            "landlord_comments": null,
-            "tenant_agrees": null,
-            "tenant_comments": null
-          },
-          "end_of_tenancy": {
-            "clean": null,
-            "undamaged": null,
-            "working": null,
-            "comments": null,
-            "tenant_agrees": null
-          }
-        },
-        {
-          "item_name": "shower screen/curtain",
-          "start_of_tenancy": {
-            "clean": null,
-            "undamaged": null,
-            "working": null,
-            "landlord_comments": null,
-            "tenant_agrees": null,
-            "tenant_comments": null
-          },
-          "end_of_tenancy": {
-            "clean": null,
-            "undamaged": null,
-            "working": null,
-            "comments": null,
-            "tenant_agrees": null
-          }
-        },
-        {
-          "item_name": "towel rail/soap holder",
-          "start_of_tenancy": {
-            "clean": null,
-            "undamaged": null,
-            "working": null,
-            "landlord_comments": null,
-            "tenant_agrees": null,
-            "tenant_comments": null
-          },
-          "end_of_tenancy": {
-            "clean": null,
-            "undamaged": null,
-            "working": null,
-            "comments": null,
-            "tenant_agrees": null
-          }
-        },
-        {
-          "item_name": "toilet bowl",
-          "start_of_tenancy": {
-            "clean": null,
-            "undamaged": null,
-            "working": null,
-            "landlord_comments": null,
-            "tenant_agrees": null,
-            "tenant_comments": null
-          },
-          "end_of_tenancy": {
-            "clean": null,
-            "undamaged": null,
-            "working": null,
-            "comments": "COMMENTS",
-            "tenant_agrees": null
-          }
-        },
-        {
-          "item_name": "toilet seat",
-          "start_of_tenancy": {
-            "clean": null,
-            "undamaged": null,
-            "working": null,
-            "landlord_comments": null,
-            "tenant_agrees": null,
-            "tenant_comments": null
-          },
-          "end_of_tenancy": {
-            "clean": null,
-            "undamaged": null,
-            "working": null,
-            "comments": null,
-            "tenant_agrees": null
-          }
-        },
-        {
-          "item_name": "cistern",
-          "start_of_tenancy": {
-            "clean": null,
-            "undamaged": null,
-            "working": null,
-            "landlord_comments": null,
-            "tenant_agrees": null,
-            "tenant_comments": null
-          },
-          "end_of_tenancy": {
-            "clean": null,
-            "undamaged": null,
-            "working": null,
-            "comments": null,
-            "tenant_agrees": null
-          }
-        },
-        {
-          "item_name": "exhaust fan/vent",
-          "start_of_tenancy": {
-            "clean": null,
-            "undamaged": null,
-            "working": null,
-            "landlord_comments": null,
-            "tenant_agrees": null,
-            "tenant_comments": null
-          },
-          "end_of_tenancy": {
-            "clean": null,
-            "undamaged": null,
-            "working": null,
-            "comments": null,
-            "tenant_agrees": null
-          }
-        },
-        {
-          "item_name": "floor/covering",
-          "start_of_tenancy": {
-            "clean": null,
-            "undamaged": null,
-            "working": null,
-            "landlord_comments": null,
-            "tenant_agrees": null,
-            "tenant_comments": null
-          },
-          "end_of_tenancy": {
-            "clean": null,
-            "undamaged": null,
-            "working": null,
-            "comments": null,
-            "tenant_agrees": null
-          }
-        },
-        {
-          "item_name": "blinds/curtains",
-          "start_of_tenancy": {
-            "clean": null,
-            "undamaged": null,
-            "working": null,
-            "landlord_comments": null,
-            "tenant_agrees": null,
-            "tenant_comments": null
-          },
-          "end_of_tenancy": {
-            "clean": null,
-            "undamaged": null,
-            "working": null,
-            "comments": null,
-            "tenant_agrees": null
-          }
-        },
-        {
-          "item_name": "walls/doors",
-          "start_of_tenancy": {
-            "clean": null,
-            "undamaged": null,
-            "working": null,
-            "landlord_comments": null,
-            "tenant_agrees": null,
-            "tenant_comments": null
-          },
-          "end_of_tenancy": {
-            "clean": null,
-            "undamaged": null,
-            "working": null,
-            "comments": null,
-            "tenant_agrees": null
-          }
-        },
-        {
-          "item_name": "windows/screens",
-          "start_of_tenancy": {
-            "clean": null,
-            "undamaged": null,
-            "working": null,
-            "landlord_comments": null,
-            "tenant_agrees": null,
-            "tenant_comments": null
-          },
-          "end_of_tenancy": {
-            "clean": null,
-            "undamaged": null,
-            "working": null,
-            "comments": null,
-            "tenant_agrees": null
-          }
-        },
-        {
-          "item_name": "shower head/rose",
-          "start_of_tenancy": {
-            "clean": null,
-            "undamaged": null,
-            "working": null,
-            "landlord_comments": null,
-            "tenant_agrees": null,
-            "tenant_comments": null
-          },
-          "end_of_tenancy": {
-            "clean": null,
-            "undamaged": null,
-            "working": null,
-            "comments": null,
-            "tenant_agrees": null
-          }
-        },
-        {
-          "item_name": "ceiling/light fittings",
-          "start_of_tenancy": {
-            "clean": null,
-            "undamaged": null,
-            "working": null,
-            "landlord_comments": null,
-            "tenant_agrees": null,
-            "tenant_comments": null
-          },
-          "end_of_tenancy": {
-            "clean": null,
-            "undamaged": null,
-            "working": null,
-            "comments": null,
-            "tenant_agrees": null
-          }
-        },
-        {
-          "item_name": "powerpoints/switches",
-          "start_of_tenancy": {
-            "clean": null,
-            "undamaged": null,
-            "working": null,
-            "landlord_comments": null,
-            "tenant_agrees": null,
-            "tenant_comments": null
-          },
-          "end_of_tenancy": {
-            "clean": null,
-            "undamaged": null,
-            "working": null,
-            "comments": null,
-            "tenant_agrees": null
-          }
-        },
-        {
-          "item_name": "other",
-          "start_of_tenancy": {
-            "clean": null,
-            "undamaged": null,
-            "working": null,
-            "landlord_comments": null,
-            "tenant_agrees": null,
-            "tenant_comments": null
-          },
-          "end_of_tenancy": {
-            "clean": null,
-            "undamaged": null,
-            "working": null,
-            "comments": null,
-            "tenant_agrees": null
-          }
-        }
-      ]
-    },
-    {
-      "room_name": "BEDROOM 2",
-      "page_number": 2,
-      "items": [
-        {
-          "item_name": "built-ins",
-          "start_of_tenancy": {
-            "clean": null,
-            "undamaged": null,
-            "working": null,
-            "landlord_comments": null,
-            "tenant_agrees": null,
-            "tenant_comments": null
-          },
-          "end_of_tenancy": {
-            "clean": null,
-            "undamaged": null,
-            "working": null,
-            "comments": null,
-            "tenant_agrees": null
-          }
-        },
-        {
-          "item_name": "floor/covering",
-          "start_of_tenancy": {
-            "clean": null,
-            "undamaged": null,
-            "working": null,
-            "landlord_comments": null,
-            "tenant_agrees": null,
-            "tenant_comments": null
-          },
-          "end_of_tenancy": {
-            "clean": null,
-            "undamaged": null,
-            "working": null,
-            "comments": null,
-            "tenant_agrees": null
-          }
-        },
-        {
-          "item_name": "blinds/curtains",
-          "start_of_tenancy": {
-            "clean": null,
-            "undamaged": null,
-            "working": null,
-            "landlord_comments": null,
-            "tenant_agrees": null,
-            "tenant_comments": null
-          },
-          "end_of_tenancy": {
-            "clean": null,
-            "undamaged": null,
-            "working": null,
-            "comments": null,
-            "tenant_agrees": null
-          }
-        },
-        {
-          "item_name": "walls/doors",
-          "start_of_tenancy": {
-            "clean": null,
-            "undamaged": null,
-            "working": null,
-            "landlord_comments": null,
-            "tenant_agrees": null,
-            "tenant_comments": null
-          },
-          "end_of_tenancy": {
-            "clean": null,
-            "undamaged": null,
-            "working": null,
-            "comments": null,
-            "tenant_agrees": null
-          }
-        },
-        {
-          "item_name": "windows/screens",
-          "start_of_tenancy": {
-            "clean": null,
-            "undamaged": null,
-            "working": null,
-            "landlord_comments": null,
-            "tenant_agrees": null,
-            "tenant_comments": null
-          },
-          "end_of_tenancy": {
-            "clean": null,
-            "undamaged": null,
-            "working": null,
-            "comments": null,
-            "tenant_agrees": null
-          }
-        },
-        {
-          "item_name": "ceiling/light fittings",
-          "start_of_tenancy": {
-            "clean": null,
-            "undamaged": null,
-            "working": null,
-            "landlord_comments": null,
-            "tenant_agrees": null,
-            "tenant_comments": null
-          },
-          "end_of_tenancy": {
-            "clean": null,
-            "undamaged": null,
-            "working": null,
-            "comments": null,
-            "tenant_agrees": null
-          }
-        },
-        {
-          "item_name": "powerpoints/switches",
-          "start_of_tenancy": {
-            "clean": null,
-            "undamaged": null,
-            "working": null,
-            "landlord_comments": null,
-            "tenant_agrees": null,
-            "tenant_comments": null
-          },
-          "end_of_tenancy": {
-            "clean": null,
-            "undamaged": null,
-            "working": null,
-            "comments": null,
-            "tenant_agrees": null
-          }
-        },
-        {
-          "item_name": "other",
-          "start_of_tenancy": {
-            "clean": null,
-            "undamaged": null,
-            "working": null,
-            "landlord_comments": null,
-            "tenant_agrees": null,
-            "tenant_comments": null
-          },
-          "end_of_tenancy": {
-            "clean": null,
-            "undamaged": null,
-            "working": null,
-            "comments": null,
-            "tenant_agrees": null
-          }
-        }
-      ]
-    },
-    {
-      "room_name": "BEDROOM 3",
-      "page_number": 3,
-      "items": [
-        {
-          "item_name": "built-ins",
-          "start_of_tenancy": {
-            "clean": null,
-            "undamaged": null,
-            "working": null,
-            "landlord_comments": null,
-            "tenant_agrees": null,
-            "tenant_comments": null
-          },
-          "end_of_tenancy": {
-            "clean": null,
-            "undamaged": null,
-            "working": null,
-            "comments": null,
-            "tenant_agrees": null
-          }
-        },
-        {
-          "item_name": "floor/covering",
-          "start_of_tenancy": {
-            "clean": null,
-            "undamaged": null,
-            "working": null,
-            "landlord_comments": null,
-            "tenant_agrees": null,
-            "tenant_comments": null
-          },
-          "end_of_tenancy": {
-            "clean": null,
-            "undamaged": null,
-            "working": null,
-            "comments": null,
-            "tenant_agrees": null
-          }
-        },
-        {
-          "item_name": "blinds/curtains",
-          "start_of_tenancy": {
-            "clean": null,
-            "undamaged": null,
-            "working": null,
-            "landlord_comments": null,
-            "tenant_agrees": null,
-            "tenant_comments": null
-          },
-          "end_of_tenancy": {
-            "clean": null,
-            "undamaged": null,
-            "working": null,
-            "comments": null,
-            "tenant_agrees": null
-          }
-        },
-        {
-          "item_name": "walls/doors",
-          "start_of_tenancy": {
-            "clean": null,
-            "undamaged": null,
-            "working": null,
-            "landlord_comments": null,
-            "tenant_agrees": null,
-            "tenant_comments": null
-          },
-          "end_of_tenancy": {
-            "clean": null,
-            "undamaged": null,
-            "working": null,
-            "comments": null,
-            "tenant_agrees": null
-          }
-        },
-        {
-          "item_name": "windows/screens",
-          "start_of_tenancy": {
-            "clean": null,
-            "undamaged": null,
-            "working": null,
-            "landlord_comments": null,
-            "tenant_agrees": null,
-            "tenant_comments": null
-          },
-          "end_of_tenancy": {
-            "clean": null,
-            "undamaged": null,
-            "working": null,
-            "comments": null,
-            "tenant_agrees": null
-          }
-        },
-        {
-          "item_name": "ceiling/light fittings",
-          "start_of_tenancy": {
-            "clean": null,
-            "undamaged": null,
-            "working": null,
-            "landlord_comments": null,
-            "tenant_agrees": null,
-            "tenant_comments": null
-          },
-          "end_of_tenancy": {
-            "clean": null,
-            "undamaged": null,
-            "working": null,
-            "comments": null,
-            "tenant_agrees": null
-          }
-        },
-        {
-          "item_name": "powerpoints/switches",
+          "item_name": "floor coverings",
           "start_of_tenancy": {
             "clean": null,
             "undamaged": null,
@@ -1705,10 +205,10 @@
     },
     {
       "room_name": "LOUNGE ROOM",
-      "page_number": 3,
+      "page_number": null,
       "items": [
         {
-          "item_name": "heating system",
+          "item_name": "walls/picture hooks",
           "start_of_tenancy": {
             "clean": null,
             "undamaged": null,
@@ -1726,7 +226,43 @@
           }
         },
         {
-          "item_name": "floor/covering",
+          "item_name": "doors/doorway frames",
+          "start_of_tenancy": {
+            "clean": null,
+            "undamaged": null,
+            "working": null,
+            "landlord_comments": null,
+            "tenant_agrees": null,
+            "tenant_comments": null
+          },
+          "end_of_tenancy": {
+            "clean": null,
+            "undamaged": null,
+            "working": null,
+            "comments": null,
+            "tenant_agrees": null
+          }
+        },
+        {
+          "item_name": "windows/screens",
+          "start_of_tenancy": {
+            "clean": null,
+            "undamaged": null,
+            "working": null,
+            "landlord_comments": null,
+            "tenant_agrees": null,
+            "tenant_comments": null
+          },
+          "end_of_tenancy": {
+            "clean": null,
+            "undamaged": null,
+            "working": null,
+            "comments": null,
+            "tenant_agrees": null
+          }
+        },
+        {
+          "item_name": "ceiling/light fittings",
           "start_of_tenancy": {
             "clean": null,
             "undamaged": null,
@@ -1762,7 +298,7 @@
           }
         },
         {
-          "item_name": "walls/doors",
+          "item_name": "lights/power points",
           "start_of_tenancy": {
             "clean": null,
             "undamaged": null,
@@ -1780,7 +316,7 @@
           }
         },
         {
-          "item_name": "windows/screens",
+          "item_name": "skirting boards",
           "start_of_tenancy": {
             "clean": null,
             "undamaged": null,
@@ -1798,25 +334,7 @@
           }
         },
         {
-          "item_name": "ceiling/light fittings",
-          "start_of_tenancy": {
-            "clean": null,
-            "undamaged": null,
-            "working": null,
-            "landlord_comments": null,
-            "tenant_agrees": null,
-            "tenant_comments": null
-          },
-          "end_of_tenancy": {
-            "clean": null,
-            "undamaged": null,
-            "working": null,
-            "comments": null,
-            "tenant_agrees": null
-          }
-        },
-        {
-          "item_name": "powerpoints/switches",
+          "item_name": "floor coverings",
           "start_of_tenancy": {
             "clean": null,
             "undamaged": null,
@@ -1854,11 +372,11 @@
       ]
     },
     {
-      "room_name": "OTHER ROOM 1",
-      "page_number": 3,
+      "room_name": "DINING ROOM",
+      "page_number": null,
       "items": [
         {
-          "item_name": "built-ins",
+          "item_name": "walls/picture hooks",
           "start_of_tenancy": {
             "clean": null,
             "undamaged": null,
@@ -1876,7 +394,43 @@
           }
         },
         {
-          "item_name": "floor/covering",
+          "item_name": "doors/doorway frames",
+          "start_of_tenancy": {
+            "clean": null,
+            "undamaged": null,
+            "working": null,
+            "landlord_comments": null,
+            "tenant_agrees": null,
+            "tenant_comments": null
+          },
+          "end_of_tenancy": {
+            "clean": null,
+            "undamaged": null,
+            "working": null,
+            "comments": null,
+            "tenant_agrees": null
+          }
+        },
+        {
+          "item_name": "windows/screens",
+          "start_of_tenancy": {
+            "clean": null,
+            "undamaged": null,
+            "working": null,
+            "landlord_comments": null,
+            "tenant_agrees": null,
+            "tenant_comments": null
+          },
+          "end_of_tenancy": {
+            "clean": null,
+            "undamaged": null,
+            "working": null,
+            "comments": null,
+            "tenant_agrees": null
+          }
+        },
+        {
+          "item_name": "ceiling/light fittings",
           "start_of_tenancy": {
             "clean": null,
             "undamaged": null,
@@ -1912,7 +466,7 @@
           }
         },
         {
-          "item_name": "walls/doors",
+          "item_name": "lights/power points",
           "start_of_tenancy": {
             "clean": null,
             "undamaged": null,
@@ -1930,7 +484,7 @@
           }
         },
         {
-          "item_name": "windows/screens",
+          "item_name": "skirting boards",
           "start_of_tenancy": {
             "clean": null,
             "undamaged": null,
@@ -1948,25 +502,7 @@
           }
         },
         {
-          "item_name": "ceiling/light fittings",
-          "start_of_tenancy": {
-            "clean": null,
-            "undamaged": null,
-            "working": null,
-            "landlord_comments": null,
-            "tenant_agrees": null,
-            "tenant_comments": null
-          },
-          "end_of_tenancy": {
-            "clean": null,
-            "undamaged": null,
-            "working": null,
-            "comments": null,
-            "tenant_agrees": null
-          }
-        },
-        {
-          "item_name": "powerpoints/switches",
+          "item_name": "floor coverings",
           "start_of_tenancy": {
             "clean": null,
             "undamaged": null,
@@ -2004,11 +540,11 @@
       ]
     },
     {
-      "room_name": "OTHER ROOM 2",
-      "page_number": 3,
+      "room_name": "KITCHEN",
+      "page_number": null,
       "items": [
         {
-          "item_name": "built-ins",
+          "item_name": "walls/picture hooks",
           "start_of_tenancy": {
             "clean": null,
             "undamaged": null,
@@ -2026,7 +562,43 @@
           }
         },
         {
-          "item_name": "floor/covering",
+          "item_name": "doors/doorway frames",
+          "start_of_tenancy": {
+            "clean": null,
+            "undamaged": null,
+            "working": null,
+            "landlord_comments": null,
+            "tenant_agrees": null,
+            "tenant_comments": null
+          },
+          "end_of_tenancy": {
+            "clean": null,
+            "undamaged": null,
+            "working": null,
+            "comments": null,
+            "tenant_agrees": null
+          }
+        },
+        {
+          "item_name": "windows/screens",
+          "start_of_tenancy": {
+            "clean": null,
+            "undamaged": null,
+            "working": null,
+            "landlord_comments": null,
+            "tenant_agrees": null,
+            "tenant_comments": null
+          },
+          "end_of_tenancy": {
+            "clean": null,
+            "undamaged": null,
+            "working": null,
+            "comments": null,
+            "tenant_agrees": null
+          }
+        },
+        {
+          "item_name": "ceiling/light fittings",
           "start_of_tenancy": {
             "clean": null,
             "undamaged": null,
@@ -2062,7 +634,247 @@
           }
         },
         {
-          "item_name": "walls/doors",
+          "item_name": "lights/power points",
+          "start_of_tenancy": {
+            "clean": null,
+            "undamaged": null,
+            "working": null,
+            "landlord_comments": null,
+            "tenant_agrees": null,
+            "tenant_comments": null
+          },
+          "end_of_tenancy": {
+            "clean": null,
+            "undamaged": null,
+            "working": null,
+            "comments": null,
+            "tenant_agrees": null
+          }
+        },
+        {
+          "item_name": "skirting boards",
+          "start_of_tenancy": {
+            "clean": null,
+            "undamaged": null,
+            "working": null,
+            "landlord_comments": null,
+            "tenant_agrees": null,
+            "tenant_comments": null
+          },
+          "end_of_tenancy": {
+            "clean": null,
+            "undamaged": null,
+            "working": null,
+            "comments": null,
+            "tenant_agrees": null
+          }
+        },
+        {
+          "item_name": "floor coverings",
+          "start_of_tenancy": {
+            "clean": null,
+            "undamaged": null,
+            "working": null,
+            "landlord_comments": null,
+            "tenant_agrees": null,
+            "tenant_comments": null
+          },
+          "end_of_tenancy": {
+            "clean": null,
+            "undamaged": null,
+            "working": null,
+            "comments": null,
+            "tenant_agrees": null
+          }
+        },
+        {
+          "item_name": "cupboards/drawers",
+          "start_of_tenancy": {
+            "clean": null,
+            "undamaged": null,
+            "working": null,
+            "landlord_comments": null,
+            "tenant_agrees": null,
+            "tenant_comments": null
+          },
+          "end_of_tenancy": {
+            "clean": null,
+            "undamaged": null,
+            "working": null,
+            "comments": null,
+            "tenant_agrees": null
+          }
+        },
+        {
+          "item_name": "bench tops/tiling",
+          "start_of_tenancy": {
+            "clean": null,
+            "undamaged": null,
+            "working": null,
+            "landlord_comments": null,
+            "tenant_agrees": null,
+            "tenant_comments": null
+          },
+          "end_of_tenancy": {
+            "clean": null,
+            "undamaged": null,
+            "working": null,
+            "comments": null,
+            "tenant_agrees": null
+          }
+        },
+        {
+          "item_name": "sinks/taps",
+          "start_of_tenancy": {
+            "clean": null,
+            "undamaged": null,
+            "working": null,
+            "landlord_comments": null,
+            "tenant_agrees": null,
+            "tenant_comments": null
+          },
+          "end_of_tenancy": {
+            "clean": null,
+            "undamaged": null,
+            "working": null,
+            "comments": null,
+            "tenant_agrees": null
+          }
+        },
+        {
+          "item_name": "stove tops/hot plates",
+          "start_of_tenancy": {
+            "clean": null,
+            "undamaged": null,
+            "working": null,
+            "landlord_comments": null,
+            "tenant_agrees": null,
+            "tenant_comments": null
+          },
+          "end_of_tenancy": {
+            "clean": null,
+            "undamaged": null,
+            "working": null,
+            "comments": null,
+            "tenant_agrees": null
+          }
+        },
+        {
+          "item_name": "oven/griller",
+          "start_of_tenancy": {
+            "clean": null,
+            "undamaged": null,
+            "working": null,
+            "landlord_comments": null,
+            "tenant_agrees": null,
+            "tenant_comments": null
+          },
+          "end_of_tenancy": {
+            "clean": null,
+            "undamaged": null,
+            "working": null,
+            "comments": null,
+            "tenant_agrees": null
+          }
+        },
+        {
+          "item_name": "exhaust fan/range hood",
+          "start_of_tenancy": {
+            "clean": null,
+            "undamaged": null,
+            "working": null,
+            "landlord_comments": null,
+            "tenant_agrees": null,
+            "tenant_comments": null
+          },
+          "end_of_tenancy": {
+            "clean": null,
+            "undamaged": null,
+            "working": null,
+            "comments": null,
+            "tenant_agrees": null
+          }
+        },
+        {
+          "item_name": "dishwasher",
+          "start_of_tenancy": {
+            "clean": null,
+            "undamaged": null,
+            "working": null,
+            "landlord_comments": null,
+            "tenant_agrees": null,
+            "tenant_comments": null
+          },
+          "end_of_tenancy": {
+            "clean": null,
+            "undamaged": null,
+            "working": null,
+            "comments": null,
+            "tenant_agrees": null
+          }
+        },
+        {
+          "item_name": "other",
+          "start_of_tenancy": {
+            "clean": null,
+            "undamaged": null,
+            "working": null,
+            "landlord_comments": null,
+            "tenant_agrees": null,
+            "tenant_comments": null
+          },
+          "end_of_tenancy": {
+            "clean": null,
+            "undamaged": null,
+            "working": null,
+            "comments": null,
+            "tenant_agrees": null
+          }
+        }
+      ]
+    },
+    {
+      "room_name": "BEDROOM 1",
+      "page_number": null,
+      "items": [
+        {
+          "item_name": "walls/picture hooks",
+          "start_of_tenancy": {
+            "clean": null,
+            "undamaged": null,
+            "working": null,
+            "landlord_comments": null,
+            "tenant_agrees": null,
+            "tenant_comments": null
+          },
+          "end_of_tenancy": {
+            "clean": null,
+            "undamaged": null,
+            "working": null,
+            "comments": null,
+            "tenant_agrees": null
+          }
+        },
+        {
+          "item_name": "built-in wardrobe/shelves",
+          "start_of_tenancy": {
+            "clean": null,
+            "undamaged": null,
+            "working": null,
+            "landlord_comments": null,
+            "tenant_agrees": null,
+            "tenant_comments": null
+          },
+          "end_of_tenancy": {
+            "clean": null,
+            "undamaged": null,
+            "working": null,
+            "comments": null,
+            "tenant_agrees": null
+          }
+        },
+        {
+          "item_name": "doors/doorway frames",
           "start_of_tenancy": {
             "clean": null,
             "undamaged": null,
@@ -2116,7 +928,61 @@
           }
         },
         {
-          "item_name": "powerpoints/switches",
+          "item_name": "blinds/curtains",
+          "start_of_tenancy": {
+            "clean": null,
+            "undamaged": null,
+            "working": null,
+            "landlord_comments": null,
+            "tenant_agrees": null,
+            "tenant_comments": null
+          },
+          "end_of_tenancy": {
+            "clean": null,
+            "undamaged": null,
+            "working": null,
+            "comments": null,
+            "tenant_agrees": null
+          }
+        },
+        {
+          "item_name": "lights/power points",
+          "start_of_tenancy": {
+            "clean": null,
+            "undamaged": null,
+            "working": null,
+            "landlord_comments": null,
+            "tenant_agrees": null,
+            "tenant_comments": null
+          },
+          "end_of_tenancy": {
+            "clean": null,
+            "undamaged": null,
+            "working": null,
+            "comments": null,
+            "tenant_agrees": null
+          }
+        },
+        {
+          "item_name": "skirting boards",
+          "start_of_tenancy": {
+            "clean": null,
+            "undamaged": null,
+            "working": null,
+            "landlord_comments": null,
+            "tenant_agrees": null,
+            "tenant_comments": null
+          },
+          "end_of_tenancy": {
+            "clean": null,
+            "undamaged": null,
+            "working": null,
+            "comments": null,
+            "tenant_agrees": null
+          }
+        },
+        {
+          "item_name": "floor coverings",
           "start_of_tenancy": {
             "clean": null,
             "undamaged": null,
@@ -2154,11 +1020,11 @@
       ]
     },
     {
-      "room_name": "EXTERIOR",
-      "page_number": 3,
+      "room_name": "ENSUITE",
+      "page_number": null,
       "items": [
         {
-          "item_name": "letterbox",
+          "item_name": "walls/tiles",
           "start_of_tenancy": {
             "clean": null,
             "undamaged": null,
@@ -2176,7 +1042,7 @@
           }
         },
         {
-          "item_name": "external awnings",
+          "item_name": "floor tiles/floor coverings",
           "start_of_tenancy": {
             "clean": null,
             "undamaged": null,
@@ -2194,301 +1060,7 @@
           }
         },
         {
-          "item_name": "security/screen doors",
-          "start_of_tenancy": {
-            "clean": null,
-            "undamaged": null,
-            "working": null,
-            "landlord_comments": null,
-            "tenant_agrees": null,
-            "tenant_comments": null
-          },
-          "end_of_tenancy": {
-            "clean": null,
-            "undamaged": null,
-            "working": null,
-            "comments": null,
-            "tenant_agrees": null
-          }
-        },
-        {
-          "item_name": "concrete footpaths",
-          "start_of_tenancy": {
-            "clean": null,
-            "undamaged": null,
-            "working": null,
-            "landlord_comments": null,
-            "tenant_agrees": null,
-            "tenant_comments": null
-          },
-          "end_of_tenancy": {
-            "clean": null,
-            "undamaged": null,
-            "working": null,
-            "comments": null,
-            "tenant_agrees": null
-          }
-        },
-        {
-          "item_name": "garden (front)",
-          "start_of_tenancy": {
-            "clean": null,
-            "undamaged": null,
-            "working": null,
-            "landlord_comments": null,
-            "tenant_agrees": null,
-            "tenant_comments": null
-          },
-          "end_of_tenancy": {
-            "clean": null,
-            "undamaged": null,
-            "working": null,
-            "comments": null,
-            "tenant_agrees": null
-          }
-        },
-        {
-          "item_name": "lawn (front)",
-          "start_of_tenancy": {
-            "clean": null,
-            "undamaged": null,
-            "working": null,
-            "landlord_comments": null,
-            "tenant_agrees": null,
-            "tenant_comments": null
-          },
-          "end_of_tenancy": {
-            "clean": null,
-            "undamaged": null,
-            "working": null,
-            "comments": null,
-            "tenant_agrees": null
-          }
-        },
-        {
-          "item_name": "garden (back)",
-          "start_of_tenancy": {
-            "clean": null,
-            "undamaged": null,
-            "working": null,
-            "landlord_comments": null,
-            "tenant_agrees": null,
-            "tenant_comments": null
-          },
-          "end_of_tenancy": {
-            "clean": null,
-            "undamaged": null,
-            "working": null,
-            "comments": null,
-            "tenant_agrees": null
-          }
-        },
-        {
-          "item_name": "lawn (back)",
-          "start_of_tenancy": {
-            "clean": null,
-            "undamaged": null,
-            "working": null,
-            "landlord_comments": null,
-            "tenant_agrees": null,
-            "tenant_comments": null
-          },
-          "end_of_tenancy": {
-            "clean": null,
-            "undamaged": null,
-            "working": null,
-            "comments": null,
-            "tenant_agrees": null
-          }
-        },
-        {
-          "item_name": "garden hose/fittings",
-          "start_of_tenancy": {
-            "clean": null,
-            "undamaged": null,
-            "working": null,
-            "landlord_comments": null,
-            "tenant_agrees": null,
-            "tenant_comments": null
-          },
-          "end_of_tenancy": {
-            "clean": null,
-            "undamaged": null,
-            "working": null,
-            "comments": null,
-            "tenant_agrees": null
-          }
-        },
-        {
-          "item_name": "watering system",
-          "start_of_tenancy": {
-            "clean": null,
-            "undamaged": null,
-            "working": null,
-            "landlord_comments": null,
-            "tenant_agrees": null,
-            "tenant_comments": null
-          },
-          "end_of_tenancy": {
-            "clean": null,
-            "undamaged": null,
-            "working": null,
-            "comments": null,
-            "tenant_agrees": null
-          }
-        },
-        {
-          "item_name": "driveway",
-          "start_of_tenancy": {
-            "clean": null,
-            "undamaged": null,
-            "working": null,
-            "landlord_comments": null,
-            "tenant_agrees": null,
-            "tenant_comments": null
-          },
-          "end_of_tenancy": {
-            "clean": null,
-            "undamaged": null,
-            "working": null,
-            "comments": null,
-            "tenant_agrees": null
-          }
-        },
-        {
-          "item_name": "television antenna",
-          "start_of_tenancy": {
-            "clean": null,
-            "undamaged": null,
-            "working": null,
-            "landlord_comments": null,
-            "tenant_agrees": null,
-            "tenant_comments": null
-          },
-          "end_of_tenancy": {
-            "clean": null,
-            "undamaged": null,
-            "working": null,
-            "comments": null,
-            "tenant_agrees": null
-          }
-        },
-        {
-          "item_name": "water softener",
-          "start_of_tenancy": {
-            "clean": null,
-            "undamaged": null,
-            "working": null,
-            "landlord_comments": null,
-            "tenant_agrees": null,
-            "tenant_comments": null
-          },
-          "end_of_tenancy": {
-            "clean": null,
-            "undamaged": null,
-            "working": null,
-            "comments": null,
-            "tenant_agrees": null
-          }
-        },
-        {
-          "item_name": "clothesline",
-          "start_of_tenancy": {
-            "clean": null,
-            "undamaged": null,
-            "working": null,
-            "landlord_comments": null,
-            "tenant_agrees": null,
-            "tenant_comments": null
-          },
-          "end_of_tenancy": {
-            "clean": null,
-            "undamaged": null,
-            "working": null,
-            "comments": null,
-            "tenant_agrees": null
-          }
-        },
-        {
-          "item_name": "garbage bin",
-          "start_of_tenancy": {
-            "clean": null,
-            "undamaged": null,
-            "working": null,
-            "landlord_comments": null,
-            "tenant_agrees": null,
-            "tenant_comments": null
-          },
-          "end_of_tenancy": {
-            "clean": null,
-            "undamaged": null,
-            "working": null,
-            "comments": null,
-            "tenant_agrees": null
-          }
-        },
-        {
-          "item_name": "gutters",
-          "start_of_tenancy": {
-            "clean": null,
-            "undamaged": null,
-            "working": null,
-            "landlord_comments": null,
-            "tenant_agrees": null,
-            "tenant_comments": null
-          },
-          "end_of_tenancy": {
-            "clean": null,
-            "undamaged": null,
-            "working": null,
-            "comments": null,
-            "tenant_agrees": null
-          }
-        },
-        {
-          "item_name": "other",
-          "start_of_tenancy": {
-            "clean": null,
-            "undamaged": null,
-            "working": null,
-            "landlord_comments": null,
-            "tenant_agrees": null,
-            "tenant_comments": null
-          },
-          "end_of_tenancy": {
-            "clean": null,
-            "undamaged": null,
-            "working": null,
-            "comments": null,
-            "tenant_agrees": null
-          }
-        }
-      ]
-    },
-    {
-      "room_name": "GARAGE/CARPORT",
-      "page_number": 4,
-      "items": [
-        {
-          "item_name": "floor",
-          "start_of_tenancy": {
-            "clean": null,
-            "undamaged": null,
-            "working": null,
-            "landlord_comments": null,
-            "tenant_agrees": null,
-            "tenant_comments": null
-          },
-          "end_of_tenancy": {
-            "clean": null,
-            "undamaged": null,
-            "working": null,
-            "comments": null,
-            "tenant_agrees": null
-          }
-        },
-        {
-          "item_name": "walls/doors",
+          "item_name": "doors/doorway frame",
           "start_of_tenancy": {
             "clean": null,
             "undamaged": null,
@@ -2524,24 +1096,6 @@
           }
         },
         {
-          "item_name": "shelves",
-          "start_of_tenancy": {
-            "clean": null,
-            "undamaged": null,
-            "working": null,
-            "landlord_comments": null,
-            "tenant_agrees": null,
-            "tenant_comments": null
-          },
-          "end_of_tenancy": {
-            "clean": null,
-            "undamaged": null,
-            "working": null,
-            "comments": null,
-            "tenant_agrees": null
-          }
-        },
-        {
           "item_name": "ceiling/light fittings",
           "start_of_tenancy": {
             "clean": null,
@@ -2560,7 +1114,169 @@
           }
         },
         {
-          "item_name": "powerpoints/switches",
+          "item_name": "blinds/curtains",
+          "start_of_tenancy": {
+            "clean": null,
+            "undamaged": null,
+            "working": null,
+            "landlord_comments": null,
+            "tenant_agrees": null,
+            "tenant_comments": null
+          },
+          "end_of_tenancy": {
+            "clean": null,
+            "undamaged": null,
+            "working": null,
+            "comments": null,
+            "tenant_agrees": null
+          }
+        },
+        {
+          "item_name": "lights/power points",
+          "start_of_tenancy": {
+            "clean": null,
+            "undamaged": null,
+            "working": null,
+            "landlord_comments": null,
+            "tenant_agrees": null,
+            "tenant_comments": null
+          },
+          "end_of_tenancy": {
+            "clean": null,
+            "undamaged": null,
+            "working": null,
+            "comments": null,
+            "tenant_agrees": null
+          }
+        },
+        {
+          "item_name": "baths/taps",
+          "start_of_tenancy": {
+            "clean": null,
+            "undamaged": null,
+            "working": null,
+            "landlord_comments": null,
+            "tenant_agrees": null,
+            "tenant_comments": null
+          },
+          "end_of_tenancy": {
+            "clean": null,
+            "undamaged": null,
+            "working": null,
+            "comments": null,
+            "tenant_agrees": null
+          }
+        },
+        {
+          "item_name": "shower/screen/taps",
+          "start_of_tenancy": {
+            "clean": null,
+            "undamaged": null,
+            "working": null,
+            "landlord_comments": null,
+            "tenant_agrees": null,
+            "tenant_comments": null
+          },
+          "end_of_tenancy": {
+            "clean": null,
+            "undamaged": null,
+            "working": null,
+            "comments": null,
+            "tenant_agrees": null
+          }
+        },
+        {
+          "item_name": "wash basin/taps",
+          "start_of_tenancy": {
+            "clean": null,
+            "undamaged": null,
+            "working": null,
+            "landlord_comments": null,
+            "tenant_agrees": null,
+            "tenant_comments": null
+          },
+          "end_of_tenancy": {
+            "clean": null,
+            "undamaged": null,
+            "working": null,
+            "comments": null,
+            "tenant_agrees": null
+          }
+        },
+        {
+          "item_name": "mirror/cabinet/vanity",
+          "start_of_tenancy": {
+            "clean": null,
+            "undamaged": null,
+            "working": null,
+            "landlord_comments": null,
+            "tenant_agrees": null,
+            "tenant_comments": null
+          },
+          "end_of_tenancy": {
+            "clean": null,
+            "undamaged": null,
+            "working": null,
+            "comments": null,
+            "tenant_agrees": null
+          }
+        },
+        {
+          "item_name": "towel rails",
+          "start_of_tenancy": {
+            "clean": null,
+            "undamaged": null,
+            "working": null,
+            "landlord_comments": null,
+            "tenant_agrees": null,
+            "tenant_comments": null
+          },
+          "end_of_tenancy": {
+            "clean": null,
+            "undamaged": null,
+            "working": null,
+            "comments": null,
+            "tenant_agrees": null
+          }
+        },
+        {
+          "item_name": "toilet/cistern/seat",
+          "start_of_tenancy": {
+            "clean": null,
+            "undamaged": null,
+            "working": null,
+            "landlord_comments": null,
+            "tenant_agrees": null,
+            "tenant_comments": null
+          },
+          "end_of_tenancy": {
+            "clean": null,
+            "undamaged": null,
+            "working": null,
+            "comments": null,
+            "tenant_agrees": null
+          }
+        },
+        {
+          "item_name": "toilet roll holder",
+          "start_of_tenancy": {
+            "clean": null,
+            "undamaged": null,
+            "working": null,
+            "landlord_comments": null,
+            "tenant_agrees": null,
+            "tenant_comments": null
+          },
+          "end_of_tenancy": {
+            "clean": null,
+            "undamaged": null,
+            "working": null,
+            "comments": null,
+            "tenant_agrees": null
+          }
+        },
+        {
+          "item_name": "heating/exhaust fan/vent",
           "start_of_tenancy": {
             "clean": null,
             "undamaged": null,
@@ -2598,11 +1314,11 @@
       ]
     },
     {
-      "room_name": "SHED",
-      "page_number": 4,
+      "room_name": "BEDROOM 2",
+      "page_number": null,
       "items": [
         {
-          "item_name": "floor",
+          "item_name": "walls/picture hooks",
           "start_of_tenancy": {
             "clean": null,
             "undamaged": null,
@@ -2620,7 +1336,25 @@
           }
         },
         {
-          "item_name": "walls/doors",
+          "item_name": "built-in wardrobe/shelves",
+          "start_of_tenancy": {
+            "clean": null,
+            "undamaged": null,
+            "working": null,
+            "landlord_comments": null,
+            "tenant_agrees": null,
+            "tenant_comments": null
+          },
+          "end_of_tenancy": {
+            "clean": null,
+            "undamaged": null,
+            "working": null,
+            "comments": null,
+            "tenant_agrees": null
+          }
+        },
+        {
+          "item_name": "doors/doorway frames",
           "start_of_tenancy": {
             "clean": null,
             "undamaged": null,
@@ -2656,7 +1390,175 @@
           }
         },
         {
-          "item_name": "shelves",
+          "item_name": "ceiling/light fittings",
+          "start_of_tenancy": {
+            "clean": null,
+            "undamaged": null,
+            "working": null,
+            "landlord_comments": null,
+            "tenant_agrees": null,
+            "tenant_comments": null
+          },
+          "end_of_tenancy": {
+            "clean": null,
+            "undamaged": null,
+            "working": null,
+            "comments": null,
+            "tenant_agrees": null
+          }
+        },
+        {
+          "item_name": "blinds/curtains",
+          "start_of_tenancy": {
+            "clean": null,
+            "undamaged": null,
+            "working": null,
+            "landlord_comments": null,
+            "tenant_agrees": null,
+            "tenant_comments": null
+          },
+          "end_of_tenancy": {
+            "clean": null,
+            "undamaged": null,
+            "working": null,
+            "comments": null,
+            "tenant_agrees": null
+          }
+        },
+        {
+          "item_name": "lights/power points",
+          "start_of_tenancy": {
+            "clean": null,
+            "undamaged": null,
+            "working": null,
+            "landlord_comments": null,
+            "tenant_agrees": null,
+            "tenant_comments": null
+          },
+          "end_of_tenancy": {
+            "clean": null,
+            "undamaged": null,
+            "working": null,
+            "comments": null,
+            "tenant_agrees": null
+          }
+        },
+        {
+          "item_name": "skirting boards",
+          "start_of_tenancy": {
+            "clean": null,
+            "undamaged": null,
+            "working": null,
+            "landlord_comments": null,
+            "tenant_agrees": null,
+            "tenant_comments": null
+          },
+          "end_of_tenancy": {
+            "clean": null,
+            "undamaged": null,
+            "working": null,
+            "comments": null,
+            "tenant_agrees": null
+          }
+        },
+        {
+          "item_name": "floor coverings",
+          "start_of_tenancy": {
+            "clean": null,
+            "undamaged": null,
+            "working": null,
+            "landlord_comments": null,
+            "tenant_agrees": null,
+            "tenant_comments": null
+          },
+          "end_of_tenancy": {
+            "clean": null,
+            "undamaged": null,
+            "working": null,
+            "comments": null,
+            "tenant_agrees": null
+          }
+        },
+        {
+          "item_name": "other",
+          "start_of_tenancy": {
+            "clean": null,
+            "undamaged": null,
+            "working": null,
+            "landlord_comments": null,
+            "tenant_agrees": null,
+            "tenant_comments": null
+          },
+          "end_of_tenancy": {
+            "clean": null,
+            "undamaged": null,
+            "working": null,
+            "comments": null,
+            "tenant_agrees": null
+          }
+        }
+      ]
+    },
+    {
+      "room_name": "BEDROOM 3",
+      "page_number": null,
+      "items": [
+        {
+          "item_name": "walls/picture hooks",
+          "start_of_tenancy": {
+            "clean": null,
+            "undamaged": null,
+            "working": null,
+            "landlord_comments": null,
+            "tenant_agrees": null,
+            "tenant_comments": null
+          },
+          "end_of_tenancy": {
+            "clean": null,
+            "undamaged": null,
+            "working": null,
+            "comments": null,
+            "tenant_agrees": null
+          }
+        },
+        {
+          "item_name": "built-in wardrobe/shelves",
+          "start_of_tenancy": {
+            "clean": null,
+            "undamaged": null,
+            "working": null,
+            "landlord_comments": null,
+            "tenant_agrees": null,
+            "tenant_comments": null
+          },
+          "end_of_tenancy": {
+            "clean": null,
+            "undamaged": null,
+            "working": null,
+            "comments": null,
+            "tenant_agrees": null
+          }
+        },
+        {
+          "item_name": "doors/doorway frames",
+          "start_of_tenancy": {
+            "clean": null,
+            "undamaged": null,
+            "working": null,
+            "landlord_comments": null,
+            "tenant_agrees": null,
+            "tenant_comments": null
+          },
+          "end_of_tenancy": {
+            "clean": null,
+            "undamaged": null,
+            "working": null,
+            "comments": null,
+            "tenant_agrees": null
+          }
+        },
+        {
+          "item_name": "windows/screens",
           "start_of_tenancy": {
             "clean": null,
             "undamaged": null,
@@ -2692,7 +1594,691 @@
           }
         },
         {
-          "item_name": "powerpoints/switches",
+          "item_name": "blinds/curtains",
+          "start_of_tenancy": {
+            "clean": null,
+            "undamaged": null,
+            "working": null,
+            "landlord_comments": null,
+            "tenant_agrees": null,
+            "tenant_comments": null
+          },
+          "end_of_tenancy": {
+            "clean": null,
+            "undamaged": null,
+            "working": null,
+            "comments": null,
+            "tenant_agrees": null
+          }
+        },
+        {
+          "item_name": "lights/power points",
+          "start_of_tenancy": {
+            "clean": null,
+            "undamaged": null,
+            "working": null,
+            "landlord_comments": null,
+            "tenant_agrees": null,
+            "tenant_comments": null
+          },
+          "end_of_tenancy": {
+            "clean": null,
+            "undamaged": null,
+            "working": null,
+            "comments": null,
+            "tenant_agrees": null
+          }
+        },
+        {
+          "item_name": "skirting boards",
+          "start_of_tenancy": {
+            "clean": null,
+            "undamaged": null,
+            "working": null,
+            "landlord_comments": null,
+            "tenant_agrees": null,
+            "tenant_comments": null
+          },
+          "end_of_tenancy": {
+            "clean": null,
+            "undamaged": null,
+            "working": null,
+            "comments": null,
+            "tenant_agrees": null
+          }
+        },
+        {
+          "item_name": "floor coverings",
+          "start_of_tenancy": {
+            "clean": null,
+            "undamaged": null,
+            "working": null,
+            "landlord_comments": null,
+            "tenant_agrees": null,
+            "tenant_comments": null
+          },
+          "end_of_tenancy": {
+            "clean": null,
+            "undamaged": null,
+            "working": null,
+            "comments": null,
+            "tenant_agrees": null
+          }
+        },
+        {
+          "item_name": "other",
+          "start_of_tenancy": {
+            "clean": null,
+            "undamaged": null,
+            "working": null,
+            "landlord_comments": null,
+            "tenant_agrees": null,
+            "tenant_comments": null
+          },
+          "end_of_tenancy": {
+            "clean": null,
+            "undamaged": null,
+            "working": null,
+            "comments": null,
+            "tenant_agrees": null
+          }
+        }
+      ]
+    },
+    {
+      "room_name": "BATHROOM",
+      "page_number": null,
+      "items": [
+        {
+          "item_name": "walls/tiles",
+          "start_of_tenancy": {
+            "clean": null,
+            "undamaged": null,
+            "working": null,
+            "landlord_comments": null,
+            "tenant_agrees": null,
+            "tenant_comments": null
+          },
+          "end_of_tenancy": {
+            "clean": null,
+            "undamaged": null,
+            "working": null,
+            "comments": null,
+            "tenant_agrees": null
+          }
+        },
+        {
+          "item_name": "floor tiles/floor coverings",
+          "start_of_tenancy": {
+            "clean": null,
+            "undamaged": null,
+            "working": null,
+            "landlord_comments": null,
+            "tenant_agrees": null,
+            "tenant_comments": null
+          },
+          "end_of_tenancy": {
+            "clean": null,
+            "undamaged": null,
+            "working": null,
+            "comments": null,
+            "tenant_agrees": null
+          }
+        },
+        {
+          "item_name": "doors/doorway frame",
+          "start_of_tenancy": {
+            "clean": null,
+            "undamaged": null,
+            "working": null,
+            "landlord_comments": null,
+            "tenant_agrees": null,
+            "tenant_comments": null
+          },
+          "end_of_tenancy": {
+            "clean": null,
+            "undamaged": null,
+            "working": null,
+            "comments": null,
+            "tenant_agrees": null
+          }
+        },
+        {
+          "item_name": "windows/screens",
+          "start_of_tenancy": {
+            "clean": null,
+            "undamaged": null,
+            "working": null,
+            "landlord_comments": null,
+            "tenant_agrees": null,
+            "tenant_comments": null
+          },
+          "end_of_tenancy": {
+            "clean": null,
+            "undamaged": null,
+            "working": null,
+            "comments": null,
+            "tenant_agrees": null
+          }
+        },
+        {
+          "item_name": "ceiling/light fittings",
+          "start_of_tenancy": {
+            "clean": null,
+            "undamaged": null,
+            "working": null,
+            "landlord_comments": null,
+            "tenant_agrees": null,
+            "tenant_comments": null
+          },
+          "end_of_tenancy": {
+            "clean": null,
+            "undamaged": null,
+            "working": null,
+            "comments": null,
+            "tenant_agrees": null
+          }
+        },
+        {
+          "item_name": "blinds/curtains",
+          "start_of_tenancy": {
+            "clean": null,
+            "undamaged": null,
+            "working": null,
+            "landlord_comments": null,
+            "tenant_agrees": null,
+            "tenant_comments": null
+          },
+          "end_of_tenancy": {
+            "clean": null,
+            "undamaged": null,
+            "working": null,
+            "comments": null,
+            "tenant_agrees": null
+          }
+        },
+        {
+          "item_name": "lights/power points",
+          "start_of_tenancy": {
+            "clean": null,
+            "undamaged": null,
+            "working": null,
+            "landlord_comments": null,
+            "tenant_agrees": null,
+            "tenant_comments": null
+          },
+          "end_of_tenancy": {
+            "clean": null,
+            "undamaged": null,
+            "working": null,
+            "comments": null,
+            "tenant_agrees": null
+          }
+        },
+        {
+          "item_name": "baths/taps",
+          "start_of_tenancy": {
+            "clean": null,
+            "undamaged": null,
+            "working": null,
+            "landlord_comments": null,
+            "tenant_agrees": null,
+            "tenant_comments": null
+          },
+          "end_of_tenancy": {
+            "clean": null,
+            "undamaged": null,
+            "working": null,
+            "comments": null,
+            "tenant_agrees": null
+          }
+        },
+        {
+          "item_name": "shower/screen/taps",
+          "start_of_tenancy": {
+            "clean": null,
+            "undamaged": null,
+            "working": null,
+            "landlord_comments": null,
+            "tenant_agrees": null,
+            "tenant_comments": null
+          },
+          "end_of_tenancy": {
+            "clean": null,
+            "undamaged": null,
+            "working": null,
+            "comments": null,
+            "tenant_agrees": null
+          }
+        },
+        {
+          "item_name": "wash basin/taps",
+          "start_of_tenancy": {
+            "clean": null,
+            "undamaged": null,
+            "working": null,
+            "landlord_comments": null,
+            "tenant_agrees": null,
+            "tenant_comments": null
+          },
+          "end_of_tenancy": {
+            "clean": null,
+            "undamaged": null,
+            "working": null,
+            "comments": null,
+            "tenant_agrees": null
+          }
+        },
+        {
+          "item_name": "mirror/cabinet/vanity",
+          "start_of_tenancy": {
+            "clean": null,
+            "undamaged": null,
+            "working": null,
+            "landlord_comments": null,
+            "tenant_agrees": null,
+            "tenant_comments": null
+          },
+          "end_of_tenancy": {
+            "clean": null,
+            "undamaged": null,
+            "working": null,
+            "comments": null,
+            "tenant_agrees": null
+          }
+        },
+        {
+          "item_name": "towel rails",
+          "start_of_tenancy": {
+            "clean": null,
+            "undamaged": null,
+            "working": null,
+            "landlord_comments": null,
+            "tenant_agrees": null,
+            "tenant_comments": null
+          },
+          "end_of_tenancy": {
+            "clean": null,
+            "undamaged": null,
+            "working": null,
+            "comments": null,
+            "tenant_agrees": null
+          }
+        },
+        {
+          "item_name": "toilet/cistern/seat",
+          "start_of_tenancy": {
+            "clean": null,
+            "undamaged": null,
+            "working": null,
+            "landlord_comments": null,
+            "tenant_agrees": null,
+            "tenant_comments": null
+          },
+          "end_of_tenancy": {
+            "clean": null,
+            "undamaged": null,
+            "working": null,
+            "comments": null,
+            "tenant_agrees": null
+          }
+        },
+        {
+          "item_name": "toilet roll holder",
+          "start_of_tenancy": {
+            "clean": null,
+            "undamaged": null,
+            "working": null,
+            "landlord_comments": null,
+            "tenant_agrees": null,
+            "tenant_comments": null
+          },
+          "end_of_tenancy": {
+            "clean": null,
+            "undamaged": null,
+            "working": null,
+            "comments": null,
+            "tenant_agrees": null
+          }
+        },
+        {
+          "item_name": "heating/exhaust fan/vent",
+          "start_of_tenancy": {
+            "clean": null,
+            "undamaged": null,
+            "working": null,
+            "landlord_comments": null,
+            "tenant_agrees": null,
+            "tenant_comments": null
+          },
+          "end_of_tenancy": {
+            "clean": null,
+            "undamaged": null,
+            "working": null,
+            "comments": null,
+            "tenant_agrees": null
+          }
+        },
+        {
+          "item_name": "other",
+          "start_of_tenancy": {
+            "clean": null,
+            "undamaged": null,
+            "working": null,
+            "landlord_comments": null,
+            "tenant_agrees": null,
+            "tenant_comments": null
+          },
+          "end_of_tenancy": {
+            "clean": null,
+            "undamaged": null,
+            "working": null,
+            "comments": null,
+            "tenant_agrees": null
+          }
+        }
+      ]
+    },
+    {
+      "room_name": "LAUNDRY",
+      "page_number": null,
+      "items": [
+        {
+          "item_name": "walls/tiles",
+          "start_of_tenancy": {
+            "clean": null,
+            "undamaged": null,
+            "working": null,
+            "landlord_comments": null,
+            "tenant_agrees": null,
+            "tenant_comments": null
+          },
+          "end_of_tenancy": {
+            "clean": null,
+            "undamaged": null,
+            "working": null,
+            "comments": null,
+            "tenant_agrees": null
+          }
+        },
+        {
+          "item_name": "floor tiles/floor coverings",
+          "start_of_tenancy": {
+            "clean": null,
+            "undamaged": null,
+            "working": null,
+            "landlord_comments": null,
+            "tenant_agrees": null,
+            "tenant_comments": null
+          },
+          "end_of_tenancy": {
+            "clean": null,
+            "undamaged": null,
+            "working": null,
+            "comments": null,
+            "tenant_agrees": null
+          }
+        },
+        {
+          "item_name": "doors/doorway frame",
+          "start_of_tenancy": {
+            "clean": null,
+            "undamaged": null,
+            "working": null,
+            "landlord_comments": null,
+            "tenant_agrees": null,
+            "tenant_comments": null
+          },
+          "end_of_tenancy": {
+            "clean": null,
+            "undamaged": null,
+            "working": null,
+            "comments": null,
+            "tenant_agrees": null
+          }
+        },
+        {
+          "item_name": "windows/screens",
+          "start_of_tenancy": {
+            "clean": null,
+            "undamaged": null,
+            "working": null,
+            "landlord_comments": null,
+            "tenant_agrees": null,
+            "tenant_comments": null
+          },
+          "end_of_tenancy": {
+            "clean": null,
+            "undamaged": null,
+            "working": null,
+            "comments": null,
+            "tenant_agrees": null
+          }
+        },
+        {
+          "item_name": "ceiling/light fittings",
+          "start_of_tenancy": {
+            "clean": null,
+            "undamaged": null,
+            "working": null,
+            "landlord_comments": null,
+            "tenant_agrees": null,
+            "tenant_comments": null
+          },
+          "end_of_tenancy": {
+            "clean": null,
+            "undamaged": null,
+            "working": null,
+            "comments": null,
+            "tenant_agrees": null
+          }
+        },
+        {
+          "item_name": "blinds/curtains",
+          "start_of_tenancy": {
+            "clean": null,
+            "undamaged": null,
+            "working": null,
+            "landlord_comments": null,
+            "tenant_agrees": null,
+            "tenant_comments": null
+          },
+          "end_of_tenancy": {
+            "clean": null,
+            "undamaged": null,
+            "working": null,
+            "comments": null,
+            "tenant_agrees": null
+          }
+        },
+        {
+          "item_name": "lights/power points",
+          "start_of_tenancy": {
+            "clean": null,
+            "undamaged": null,
+            "working": null,
+            "landlord_comments": null,
+            "tenant_agrees": null,
+            "tenant_comments": null
+          },
+          "end_of_tenancy": {
+            "clean": null,
+            "undamaged": null,
+            "working": null,
+            "comments": null,
+            "tenant_agrees": null
+          }
+        },
+        {
+          "item_name": "washing machine taps",
+          "start_of_tenancy": {
+            "clean": null,
+            "undamaged": null,
+            "working": null,
+            "landlord_comments": null,
+            "tenant_agrees": null,
+            "tenant_comments": null
+          },
+          "end_of_tenancy": {
+            "clean": null,
+            "undamaged": null,
+            "working": null,
+            "comments": null,
+            "tenant_agrees": null
+          }
+        },
+        {
+          "item_name": "exhaust fan/vent",
+          "start_of_tenancy": {
+            "clean": null,
+            "undamaged": null,
+            "working": null,
+            "landlord_comments": null,
+            "tenant_agrees": null,
+            "tenant_comments": null
+          },
+          "end_of_tenancy": {
+            "clean": null,
+            "undamaged": null,
+            "working": null,
+            "comments": null,
+            "tenant_agrees": null
+          }
+        },
+        {
+          "item_name": "washing tub",
+          "start_of_tenancy": {
+            "clean": null,
+            "undamaged": null,
+            "working": null,
+            "landlord_comments": null,
+            "tenant_agrees": null,
+            "tenant_comments": null
+          },
+          "end_of_tenancy": {
+            "clean": null,
+            "undamaged": null,
+            "working": null,
+            "comments": null,
+            "tenant_agrees": null
+          }
+        },
+        {
+          "item_name": "dryer",
+          "start_of_tenancy": {
+            "clean": null,
+            "undamaged": null,
+            "working": null,
+            "landlord_comments": null,
+            "tenant_agrees": null,
+            "tenant_comments": null
+          },
+          "end_of_tenancy": {
+            "clean": null,
+            "undamaged": null,
+            "working": null,
+            "comments": null,
+            "tenant_agrees": null
+          }
+        },
+        {
+          "item_name": "other",
+          "start_of_tenancy": {
+            "clean": null,
+            "undamaged": null,
+            "working": null,
+            "landlord_comments": null,
+            "tenant_agrees": null,
+            "tenant_comments": null
+          },
+          "end_of_tenancy": {
+            "clean": null,
+            "undamaged": null,
+            "working": null,
+            "comments": null,
+            "tenant_agrees": null
+          }
+        }
+      ]
+    },
+    {
+      "room_name": "SECURITY/SAFETY",
+      "page_number": null,
+      "items": [
+        {
+          "item_name": "external door locks",
+          "start_of_tenancy": {
+            "clean": null,
+            "undamaged": null,
+            "working": null,
+            "landlord_comments": null,
+            "tenant_agrees": null,
+            "tenant_comments": null
+          },
+          "end_of_tenancy": {
+            "clean": null,
+            "undamaged": null,
+            "working": null,
+            "comments": null,
+            "tenant_agrees": null
+          }
+        },
+        {
+          "item_name": "window locks",
+          "start_of_tenancy": {
+            "clean": null,
+            "undamaged": null,
+            "working": null,
+            "landlord_comments": null,
+            "tenant_agrees": null,
+            "tenant_comments": null
+          },
+          "end_of_tenancy": {
+            "clean": null,
+            "undamaged": null,
+            "working": null,
+            "comments": null,
+            "tenant_agrees": null
+          }
+        },
+        {
+          "item_name": "keys/other security devices",
+          "start_of_tenancy": {
+            "clean": null,
+            "undamaged": null,
+            "working": null,
+            "landlord_comments": null,
+            "tenant_agrees": null,
+            "tenant_comments": null
+          },
+          "end_of_tenancy": {
+            "clean": null,
+            "undamaged": null,
+            "working": null,
+            "comments": null,
+            "tenant_agrees": null
+          }
+        },
+        {
+          "item_name": "smoke alarms",
+          "start_of_tenancy": {
+            "clean": null,
+            "undamaged": null,
+            "working": null,
+            "landlord_comments": null,
+            "tenant_agrees": null,
+            "tenant_comments": null
+          },
+          "end_of_tenancy": {
+            "clean": null,
+            "undamaged": null,
+            "working": null,
+            "comments": null,
+            "tenant_agrees": null
+          }
+        },
+        {
+          "item_name": "residual current device (rcd)",
           "start_of_tenancy": {
             "clean": null,
             "undamaged": null,
@@ -2731,10 +2317,10 @@
     },
     {
       "room_name": "GENERAL",
-      "page_number": 4,
+      "page_number": null,
       "items": [
         {
-          "item_name": "smoke detectors",
+          "item_name": "heating/air conditioning",
           "start_of_tenancy": {
             "clean": null,
             "undamaged": null,
@@ -2752,7 +2338,7 @@
           }
         },
         {
-          "item_name": "security system",
+          "item_name": "staircase/handrails",
           "start_of_tenancy": {
             "clean": null,
             "undamaged": null,
@@ -2770,7 +2356,7 @@
           }
         },
         {
-          "item_name": "remote controls",
+          "item_name": "external tv antenna/tv points",
           "start_of_tenancy": {
             "clean": null,
             "undamaged": null,
@@ -2788,7 +2374,205 @@
           }
         },
         {
-          "item_name": "roller shutters",
+          "item_name": "balcony/porch/deck",
+          "start_of_tenancy": {
+            "clean": null,
+            "undamaged": null,
+            "working": null,
+            "landlord_comments": null,
+            "tenant_agrees": null,
+            "tenant_comments": null
+          },
+          "end_of_tenancy": {
+            "clean": null,
+            "undamaged": null,
+            "working": null,
+            "comments": null,
+            "tenant_agrees": null
+          }
+        },
+        {
+          "item_name": "hot water system",
+          "start_of_tenancy": {
+            "clean": null,
+            "undamaged": null,
+            "working": null,
+            "landlord_comments": null,
+            "tenant_agrees": null,
+            "tenant_comments": null
+          },
+          "end_of_tenancy": {
+            "clean": null,
+            "undamaged": null,
+            "working": null,
+            "comments": null,
+            "tenant_agrees": null
+          }
+        },
+        {
+          "item_name": "gates/fences",
+          "start_of_tenancy": {
+            "clean": null,
+            "undamaged": null,
+            "working": null,
+            "landlord_comments": null,
+            "tenant_agrees": null,
+            "tenant_comments": null
+          },
+          "end_of_tenancy": {
+            "clean": null,
+            "undamaged": null,
+            "working": null,
+            "comments": null,
+            "tenant_agrees": null
+          }
+        },
+        {
+          "item_name": "garden beds",
+          "start_of_tenancy": {
+            "clean": null,
+            "undamaged": null,
+            "working": null,
+            "landlord_comments": null,
+            "tenant_agrees": null,
+            "tenant_comments": null
+          },
+          "end_of_tenancy": {
+            "clean": null,
+            "undamaged": null,
+            "working": null,
+            "comments": null,
+            "tenant_agrees": null
+          }
+        },
+        {
+          "item_name": "lawns/edges",
+          "start_of_tenancy": {
+            "clean": null,
+            "undamaged": null,
+            "working": null,
+            "landlord_comments": null,
+            "tenant_agrees": null,
+            "tenant_comments": null
+          },
+          "end_of_tenancy": {
+            "clean": null,
+            "undamaged": null,
+            "working": null,
+            "comments": null,
+            "tenant_agrees": null
+          }
+        },
+        {
+          "item_name": "garage/carport/storeroom",
+          "start_of_tenancy": {
+            "clean": null,
+            "undamaged": null,
+            "working": null,
+            "landlord_comments": null,
+            "tenant_agrees": null,
+            "tenant_comments": null
+          },
+          "end_of_tenancy": {
+            "clean": null,
+            "undamaged": null,
+            "working": null,
+            "comments": null,
+            "tenant_agrees": null
+          }
+        },
+        {
+          "item_name": "garage/roller doors",
+          "start_of_tenancy": {
+            "clean": null,
+            "undamaged": null,
+            "working": null,
+            "landlord_comments": null,
+            "tenant_agrees": null,
+            "tenant_comments": null
+          },
+          "end_of_tenancy": {
+            "clean": null,
+            "undamaged": null,
+            "working": null,
+            "comments": null,
+            "tenant_agrees": null
+          }
+        },
+        {
+          "item_name": "garden hose/fittings",
+          "start_of_tenancy": {
+            "clean": null,
+            "undamaged": null,
+            "working": null,
+            "landlord_comments": null,
+            "tenant_agrees": null,
+            "tenant_comments": null
+          },
+          "end_of_tenancy": {
+            "clean": null,
+            "undamaged": null,
+            "working": null,
+            "comments": null,
+            "tenant_agrees": null
+          }
+        },
+        {
+          "item_name": "clothesline",
+          "start_of_tenancy": {
+            "clean": null,
+            "undamaged": null,
+            "working": null,
+            "landlord_comments": null,
+            "tenant_agrees": null,
+            "tenant_comments": null
+          },
+          "end_of_tenancy": {
+            "clean": null,
+            "undamaged": null,
+            "working": null,
+            "comments": null,
+            "tenant_agrees": null
+          }
+        },
+        {
+          "item_name": "letter box/street number",
+          "start_of_tenancy": {
+            "clean": null,
+            "undamaged": null,
+            "working": null,
+            "landlord_comments": null,
+            "tenant_agrees": null,
+            "tenant_comments": null
+          },
+          "end_of_tenancy": {
+            "clean": null,
+            "undamaged": null,
+            "working": null,
+            "comments": null,
+            "tenant_agrees": null
+          }
+        },
+        {
+          "item_name": "gutters/downpipe",
+          "start_of_tenancy": {
+            "clean": null,
+            "undamaged": null,
+            "working": null,
+            "landlord_comments": null,
+            "tenant_agrees": null,
+            "tenant_comments": null
+          },
+          "end_of_tenancy": {
+            "clean": null,
+            "undamaged": null,
+            "working": null,
+            "comments": null,
+            "tenant_agrees": null
+          }
+        },
+        {
+          "item_name": "swimming pool",
           "start_of_tenancy": {
             "clean": null,
             "undamaged": null,
@@ -2861,8 +2645,8 @@
     }
   },
   "utilities": {
-    "telephone": null,
-    "internet": null,
+    "telephone": "Yes",
+    "internet": "Yes",
     "electricity": null,
     "gas": null,
     "water_supply": null
@@ -2900,85 +2684,175 @@
   },
   "images": [
     {
-      "page": 4,
+      "page": 1,
       "index": 0,
-      "width": 765,
-      "height": 21,
+      "width": 1737,
+      "height": 639,
       "format": "png",
       "data_base64": null,
-      "file_path": "page4_img0.png"
+      "file_path": "page1_img0.png"
     },
     {
-      "page": 4,
+      "page": 3,
+      "index": 0,
+      "width": 128,
+      "height": 76,
+      "format": "png",
+      "data_base64": null,
+      "file_path": "page3_img0.png"
+    },
+    {
+      "page": 3,
       "index": 1,
-      "width": 482,
-      "height": 21,
+      "width": 128,
+      "height": 76,
       "format": "png",
       "data_base64": null,
-      "file_path": "page4_img1.png"
+      "file_path": "page3_img1.png"
     },
     {
-      "page": 4,
+      "page": 3,
       "index": 2,
-      "width": 561,
-      "height": 21,
+      "width": 128,
+      "height": 76,
       "format": "png",
       "data_base64": null,
-      "file_path": "page4_img2.png"
+      "file_path": "page3_img2.png"
     },
     {
-      "page": 4,
+      "page": 3,
       "index": 3,
-      "width": 374,
-      "height": 21,
+      "width": 48,
+      "height": 29,
       "format": "png",
       "data_base64": null,
-      "file_path": "page4_img3.png"
+      "file_path": "page3_img3.png"
     },
     {
-      "page": 4,
+      "page": 3,
       "index": 4,
-      "width": 631,
-      "height": 21,
+      "width": 48,
+      "height": 29,
       "format": "png",
       "data_base64": null,
-      "file_path": "page4_img4.png"
+      "file_path": "page3_img4.png"
     },
     {
-      "page": 4,
-      "index": 5,
-      "width": 724,
-      "height": 21,
+      "page": 5,
+      "index": 0,
+      "width": 45,
+      "height": 27,
       "format": "png",
       "data_base64": null,
-      "file_path": "page4_img5.png"
+      "file_path": "page5_img0.png"
     },
     {
-      "page": 4,
-      "index": 6,
-      "width": 482,
-      "height": 21,
+      "page": 5,
+      "index": 1,
+      "width": 45,
+      "height": 27,
       "format": "png",
       "data_base64": null,
-      "file_path": "page4_img6.png"
+      "file_path": "page5_img1.png"
     },
     {
-      "page": 4,
-      "index": 7,
-      "width": 561,
-      "height": 21,
+      "page": 6,
+      "index": 0,
+      "width": 43,
+      "height": 26,
       "format": "png",
       "data_base64": null,
-      "file_path": "page4_img7.png"
+      "file_path": "page6_img0.png"
     },
     {
-      "page": 4,
-      "index": 8,
-      "width": 1085,
-      "height": 21,
+      "page": 6,
+      "index": 1,
+      "width": 43,
+      "height": 26,
       "format": "png",
       "data_base64": null,
-      "file_path": "page4_img8.png"
+      "file_path": "page6_img1.png"
+    },
+    {
+      "page": 7,
+      "index": 0,
+      "width": 50,
+      "height": 30,
+      "format": "png",
+      "data_base64": null,
+      "file_path": "page7_img0.png"
+    },
+    {
+      "page": 7,
+      "index": 1,
+      "width": 50,
+      "height": 30,
+      "format": "png",
+      "data_base64": null,
+      "file_path": "page7_img1.png"
+    },
+    {
+      "page": 9,
+      "index": 0,
+      "width": 48,
+      "height": 29,
+      "format": "png",
+      "data_base64": null,
+      "file_path": "page9_img0.png"
+    },
+    {
+      "page": 9,
+      "index": 1,
+      "width": 48,
+      "height": 29,
+      "format": "png",
+      "data_base64": null,
+      "file_path": "page9_img1.png"
+    },
+    {
+      "page": 11,
+      "index": 0,
+      "width": 48,
+      "height": 29,
+      "format": "png",
+      "data_base64": null,
+      "file_path": "page11_img0.png"
+    },
+    {
+      "page": 11,
+      "index": 1,
+      "width": 48,
+      "height": 29,
+      "format": "png",
+      "data_base64": null,
+      "file_path": "page11_img1.png"
+    },
+    {
+      "page": 14,
+      "index": 0,
+      "width": 48,
+      "height": 29,
+      "format": "png",
+      "data_base64": null,
+      "file_path": "page14_img0.png"
+    },
+    {
+      "page": 14,
+      "index": 1,
+      "width": 48,
+      "height": 29,
+      "format": "png",
+      "data_base64": null,
+      "file_path": "page14_img1.png"
+    },
+    {
+      "page": 15,
+      "index": 0,
+      "width": 86,
+      "height": 51,
+      "format": "png",
+      "data_base64": null,
+      "file_path": "page15_img0.png"
     }
   ]
 }

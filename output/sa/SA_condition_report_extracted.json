@@ -1,19 +1,19 @@
 {
   "metadata": {
-    "jurisdiction": "ACT",
-    "report_type": "combined",
-    "detected_report_type": "combined",
+    "jurisdiction": "SA",
+    "report_type": "move_in",
+    "detected_report_type": "move_in",
     "address": null,
     "report_number": null,
-    "tenant_name": "or Occupant",
-    "landlord_name": "or Grantor",
+    "tenant_name": "COMMENCEMENT",
+    "landlord_name": "T = Tenant",
     "property_manager": null,
     "date_received": null,
     "start_date": null,
     "end_date": null,
-    "source_file": "ACT_condition_report.pdf",
+    "source_file": "SA_condition_report.pdf",
     "total_pages": 4,
-    "extraction_timestamp": "2026-07-01T13:20:33.618834+00:00",
+    "extraction_timestamp": "2026-07-01T13:20:43.979361+00:00",
     "extractor_version": "1.0.0"
   },
   "rooms": [
@@ -796,7 +796,7 @@
           }
         },
         {
-          "item_name": "cupboards",
+          "item_name": "cupboard/s",
           "start_of_tenancy": {
             "clean": null,
             "undamaged": null,
@@ -2900,85 +2900,31 @@
   },
   "images": [
     {
-      "page": 4,
+      "page": 1,
       "index": 0,
-      "width": 765,
-      "height": 21,
+      "width": 367,
+      "height": 51,
       "format": "png",
       "data_base64": null,
-      "file_path": "page4_img0.png"
+      "file_path": "page1_img0.png"
     },
     {
-      "page": 4,
+      "page": 1,
       "index": 1,
-      "width": 482,
-      "height": 21,
+      "width": 369,
+      "height": 77,
       "format": "png",
       "data_base64": null,
-      "file_path": "page4_img1.png"
+      "file_path": "page1_img1.png"
     },
     {
-      "page": 4,
+      "page": 1,
       "index": 2,
-      "width": 561,
-      "height": 21,
+      "width": 736,
+      "height": 32,
       "format": "png",
       "data_base64": null,
-      "file_path": "page4_img2.png"
-    },
-    {
-      "page": 4,
-      "index": 3,
-      "width": 374,
-      "height": 21,
-      "format": "png",
-      "data_base64": null,
-      "file_path": "page4_img3.png"
-    },
-    {
-      "page": 4,
-      "index": 4,
-      "width": 631,
-      "height": 21,
-      "format": "png",
-      "data_base64": null,
-      "file_path": "page4_img4.png"
-    },
-    {
-      "page": 4,
-      "index": 5,
-      "width": 724,
-      "height": 21,
-      "format": "png",
-      "data_base64": null,
-      "file_path": "page4_img5.png"
-    },
-    {
-      "page": 4,
-      "index": 6,
-      "width": 482,
-      "height": 21,
-      "format": "png",
-      "data_base64": null,
-      "file_path": "page4_img6.png"
-    },
-    {
-      "page": 4,
-      "index": 7,
-      "width": 561,
-      "height": 21,
-      "format": "png",
-      "data_base64": null,
-      "file_path": "page4_img7.png"
-    },
-    {
-      "page": 4,
-      "index": 8,
-      "width": 1085,
-      "height": 21,
-      "format": "png",
-      "data_base64": null,
-      "file_path": "page4_img8.png"
+      "file_path": "page1_img2.png"
     }
   ]
 }
