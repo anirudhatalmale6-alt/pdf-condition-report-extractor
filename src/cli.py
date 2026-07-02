@@ -40,8 +40,9 @@ def main():
     elif args.pdf:
         pdf_files = [args.pdf]
     else:
-        parser.print_help()
-        sys.exit(1)
+        from .gui import run_gui
+        run_gui()
+        return
 
     for pdf_path in pdf_files:
         if not os.path.isfile(pdf_path):
