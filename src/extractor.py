@@ -746,6 +746,72 @@ class ConditionReportExtractor:
         return None
 
 
+def detect_jurisdiction(pdf_path):
+    """Auto-detect Australian jurisdiction from PDF content."""
+    doc = fitz.open(pdf_path)
+    try:
+        text = ""
+        for i in range(min(4, len(doc))):
+            text += doc[i].get_text() + "\n"
+        text_lower = text.lower()
+
+        markers = {
+            "NSW": ["new south wales", "nsw fair trading", "nsw government",
+                     "residential tenancies act 2010"],
+            "VIC": ["consumer affairs victoria", "rental provider",
+                     "victorian civil and administrative tribunal"],
+            "QLD": ["queensland", "residential tenancies authority",
+                     "residential tenancies and rooming accommodation"],
+            "SA": ["south australia", "consumer and business services",
+                    "residential tenancies act 1995", "inspection sheet"],
+            "WA": ["western australia", "commerce wa",
+                    "residential tenancies act 1987"],
+            "TAS": ["tasmania", "residential tenancy act",
+                     "rental deposit authority"],
+            "ACT": ["australian capital territory", "tenantsact.org.au",
+                     "revenue.act.gov.au"],
+            "NT": ["northern territory", "darwin nt", "nt – entry",
+                    "nt – exit", "nt - entry", "nt - exit"],
+        }
+
+        scores = {}
+        for jur, keywords in markers.items():
+            score = sum(1 for kw in keywords if kw in text_lower)
+            if score > 0:
+                scores[jur] = score
+
+        if scores:
+            return max(scores, key=scores.get)
+        return "NSW"
+    finally:
+        doc.close()
+
+
+def detect_report_type_standalone(pdf_path):
+    """Auto-detect report type from PDF content."""
+    doc = fitz.open(pdf_path)
+    try:
+        text = ""
+        for i in range(min(4, len(doc))):
+            text += doc[i].get_text() + "\n"
+        text_lower = text.lower()
+
+        has_start = any(kw in text_lower for kw in
+                        ["start of tenancy", "commencement", "move in", "ingoing", "entry condition"])
+        has_end = any(kw in text_lower for kw in
+                      ["end of tenancy", "vacating", "move out", "outgoing", "exit condition"])
+
+        if has_start and has_end:
+            return "combined"
+        elif has_end:
+            return "move_out"
+        elif has_start:
+            return "move_in"
+        return "combined"
+    finally:
+        doc.close()
+
+
 def extract_pdf(pdf_path, jurisdiction="NSW", report_type="auto", output_dir=None, save_images=True):
     extractor = ConditionReportExtractor(pdf_path, jurisdiction, report_type)
     return extractor.extract(output_dir=output_dir, save_images=save_images)

@@ -1,359 +1,542 @@
 import os
 import json
+import time
+import socket
 import threading
 import tkinter as tk
-from tkinter import ttk, filedialog, messagebox, scrolledtext
+from tkinter import ttk, filedialog, messagebox
 
-from .config import APP_NAME, VERSION, JURISDICTIONS, REPORT_TYPES, CLOUD_SYNC_URL, LICENSE_VALIDATE_URL
-from .extractor import extract_pdf
-from .cloud_sync import CloudSync
+from .config import APP_NAME, VERSION, JURISDICTIONS, REPORT_TYPES
+from .extractor import extract_pdf, detect_jurisdiction, detect_report_type_standalone
 from .license import validate_license
 
+DEMO_KEYS = {"ORBAS-DEMO-2026", "ORBAS-TRIAL-2026", "ORBAS-NSW-VALID"}
 
-class LicenseDialog:
-    def __init__(self, parent):
-        self.result = None
-        self.dialog = tk.Toplevel(parent)
-        self.dialog.title("License Activation")
-        self.dialog.geometry("450x200")
-        self.dialog.resizable(False, False)
-        self.dialog.transient(parent)
-        self.dialog.grab_set()
 
-        self._center(parent)
-        self._build_ui()
-        self.dialog.protocol("WM_DELETE_WINDOW", self._on_close)
-
-    def _center(self, parent):
-        self.dialog.update_idletasks()
-        x = parent.winfo_x() + (parent.winfo_width() - 450) // 2
-        y = parent.winfo_y() + (parent.winfo_height() - 200) // 2
-        self.dialog.geometry(f"+{x}+{y}")
-
-    def _build_ui(self):
-        frame = ttk.Frame(self.dialog, padding=20)
-        frame.pack(fill=tk.BOTH, expand=True)
-
-        ttk.Label(frame, text="Enter your product license key:", font=("Segoe UI", 11)).pack(anchor=tk.W)
-        ttk.Label(frame, text="A valid license is required to use this application.",
-                  foreground="gray").pack(anchor=tk.W, pady=(0, 10))
-
-        self.key_var = tk.StringVar()
-        self.key_entry = ttk.Entry(frame, textvariable=self.key_var, width=50, font=("Consolas", 11))
-        self.key_entry.pack(fill=tk.X, pady=(0, 10))
-        self.key_entry.focus_set()
-        self.key_entry.bind("<Return>", lambda e: self._activate())
-
-        btn_frame = ttk.Frame(frame)
-        btn_frame.pack(fill=tk.X)
-
-        self.status_label = ttk.Label(btn_frame, text="", foreground="red")
-        self.status_label.pack(side=tk.LEFT)
-
-        self.activate_btn = ttk.Button(btn_frame, text="Activate", command=self._activate)
-        self.activate_btn.pack(side=tk.RIGHT)
-
-    def _activate(self):
-        key = self.key_var.get().strip()
-        if not key:
-            self.status_label.configure(text="Please enter a license key.", foreground="red")
-            return
-
-        self.activate_btn.configure(state="disabled")
-        self.status_label.configure(text="Validating...", foreground="gray")
-        self.dialog.update()
-
-        thread = threading.Thread(target=self._validate, args=(key,), daemon=True)
-        thread.start()
-
-    def _validate(self, key):
-        result = validate_license(key)
-        self.dialog.after(0, self._handle_result, key, result)
-
-    def _handle_result(self, key, result):
-        self.activate_btn.configure(state="normal")
-        if result.get("valid"):
-            self.result = key
-            self.dialog.destroy()
-        else:
-            error = result.get("error") or result.get("message") or "Invalid license key."
-            self.status_label.configure(text=error, foreground="red")
-
-    def _on_close(self):
-        self.result = None
-        self.dialog.destroy()
+def check_internet():
+    try:
+        socket.create_connection(("8.8.8.8", 53), timeout=5)
+        return True
+    except OSError:
+        return False
 
 
 class ExtractorApp:
-    LICENSE_FILE = os.path.join(os.path.expanduser("~"), ".pdf_extractor_license")
+    BG = "#f1f5f9"
+    CARD_BG = "#ffffff"
+    BLUE = "#0453ed"
+    GREEN = "#096e4d"
+    ORANGE = "#fd6207"
+    DARK = "#0f172a"
+    SLATE_300 = "#cbd5e1"
+    SLATE_500 = "#64748b"
+    SLATE_600 = "#475569"
+    JSON_BG = "#020617"
+    JSON_FG = "#86efac"
+    OK_BG = "#f0fdf4"
+    OK_FG = "#166534"
+    ERR_BG = "#fef2f2"
+    ERR_FG = "#991b1b"
+    INFO_BG = "#f0f9ff"
+    INFO_FG = "#1e40af"
 
     def __init__(self, root):
         self.root = root
-        self.root.title(f"{APP_NAME} v{VERSION}")
-        self.root.geometry("800x650")
-        self.root.minsize(700, 550)
-        self.root.configure(bg="#f0f0f0")
+        self.root.title(f"{APP_NAME} Native PDF Extractor")
+        self.root.geometry("1200x800")
+        self.root.minsize(1000, 700)
+        self.root.configure(bg=self.BG)
 
-        self.pdf_path = tk.StringVar()
-        self.jurisdiction = tk.StringVar(value="NSW")
-        self.report_type = tk.StringVar(value="auto")
-        self.endpoint_url = tk.StringVar(value=CLOUD_SYNC_URL)
-        self.api_key = tk.StringVar()
-        self.output_dir = tk.StringVar()
+        self.pdf_path = None
         self.processing = False
-        self.license_key = None
+        self.license_verified = False
+        self.extracted_json = ""
+
+        if not check_internet():
+            self.root.withdraw()
+            messagebox.showerror(
+                "No Internet Connection",
+                "NO INTERNET CONNECTION DETECTED.\n\n"
+                "An active internet connection is required to verify "
+                "your product license and use this application.\n\n"
+                "Please connect to the internet and try again.")
+            self.root.destroy()
+            return
+
+        self._setup_styles()
         self._build_ui()
 
-    def _check_saved_license(self):
-        try:
-            if os.path.isfile(self.LICENSE_FILE):
-                with open(self.LICENSE_FILE, "r") as f:
-                    key = f.read().strip()
-                    if key:
-                        self.license_key = key
-                        return True
-        except Exception:
-            pass
-        return False
+    def _setup_styles(self):
+        s = ttk.Style()
+        s.theme_use("clam")
+        s.configure("green.Horizontal.TProgressbar",
+                     troughcolor="#e2e8f0", background=self.GREEN)
 
-    def _save_license(self, key):
-        try:
-            with open(self.LICENSE_FILE, "w") as f:
-                f.write(key)
-        except Exception:
-            pass
+    def _circle(self, parent, num, color):
+        c = tk.Canvas(parent, width=32, height=32,
+                      bg=self.CARD_BG, highlightthickness=0)
+        c.create_oval(2, 2, 30, 30, fill=color, outline=color)
+        c.create_text(16, 16, text=str(num), fill="white",
+                      font=("Verdana", 11, "bold"))
+        return c
 
-    def _show_license_dialog(self):
-        dialog = LicenseDialog(self.root)
-        self.root.wait_window(dialog.dialog)
+    def _card(self, parent, **kw):
+        f = tk.Frame(parent, bg=self.CARD_BG, relief=tk.SOLID, bd=1,
+                     padx=16, pady=14)
+        f.pack(fill=kw.get("fill", tk.X),
+               expand=kw.get("expand", False),
+               pady=kw.get("pady", (0, 8)),
+               padx=kw.get("padx", 0))
+        return f
 
-        if dialog.result:
-            self.license_key = dialog.result
-            self._save_license(dialog.result)
-            self.root.deiconify()
-            self._build_ui()
-        else:
-            self.root.destroy()
+    def _card_hdr(self, card, step, text, color):
+        row = tk.Frame(card, bg=self.CARD_BG)
+        row.pack(fill=tk.X, pady=(0, 10))
+        self._circle(row, step, color).pack(side=tk.LEFT, padx=(0, 10))
+        tk.Label(row, text=text, font=("Verdana", 12, "bold"),
+                 bg=self.CARD_BG).pack(side=tk.LEFT)
+        return row
+
+    def _btn(self, parent, text, cmd, bg, **kw):
+        b = tk.Button(parent, text=text, command=cmd, bg=bg, fg="white",
+                      font=kw.get("font", ("Verdana", 9, "bold")),
+                      relief=tk.FLAT,
+                      padx=kw.get("padx", 16), pady=kw.get("pady", 5),
+                      cursor="hand2", activebackground=kw.get("abg", bg),
+                      activeforeground="white",
+                      disabledforeground="white")
+        return b
+
+    # ── Layout ───────────────────────────────────────────────────
 
     def _build_ui(self):
-        style = ttk.Style()
-        style.theme_use("clam")
-        style.configure("Title.TLabel", font=("Segoe UI", 14, "bold"), background="#f0f0f0")
-        style.configure("TButton", padding=6)
-        style.configure("Extract.TButton", padding=10, font=("Segoe UI", 10, "bold"))
+        main = tk.Frame(self.root, bg=self.BG, padx=20, pady=15)
+        main.pack(fill=tk.BOTH, expand=True)
 
-        main_frame = ttk.Frame(self.root, padding=15)
-        main_frame.pack(fill=tk.BOTH, expand=True)
+        hdr = tk.Frame(main, bg=self.BG)
+        hdr.pack(fill=tk.X, pady=(0, 12))
+        lh = tk.Frame(hdr, bg=self.BG)
+        lh.pack(side=tk.LEFT)
+        tk.Label(lh, text=f"{APP_NAME} Native PDF Extractor",
+                 font=("Verdana", 17, "bold"), fg=self.BLUE,
+                 bg=self.BG).pack(anchor=tk.W)
+        tk.Label(lh, text="Extract rental condition report PDF data "
+                          "into structured JSON.",
+                 font=("Verdana", 9), fg=self.SLATE_600,
+                 bg=self.BG).pack(anchor=tk.W)
+        rh = tk.Frame(hdr, bg=self.BG)
+        rh.pack(side=tk.RIGHT)
+        tk.Label(rh, text=f"v{VERSION}", font=("Verdana", 10, "bold"),
+                 bg=self.BG).pack(anchor=tk.E)
+        tk.Label(rh, text="Local PDF Extraction",
+                 font=("Verdana", 8), fg=self.SLATE_500,
+                 bg=self.BG).pack(anchor=tk.E)
 
-        ttk.Label(main_frame, text=APP_NAME, style="Title.TLabel").pack(anchor=tk.W)
-        ttk.Separator(main_frame, orient=tk.HORIZONTAL).pack(fill=tk.X, pady=(5, 10))
+        body = tk.Frame(main, bg=self.BG)
+        body.pack(fill=tk.BOTH, expand=True)
+        left = tk.Frame(body, bg=self.BG)
+        left.pack(side=tk.LEFT, fill=tk.BOTH, expand=True, padx=(0, 6))
+        right = tk.Frame(body, bg=self.BG)
+        right.pack(side=tk.RIGHT, fill=tk.BOTH, expand=True, padx=(6, 0))
 
-        file_frame = ttk.LabelFrame(main_frame, text="PDF File", padding=10)
-        file_frame.pack(fill=tk.X, pady=(0, 8))
+        self._step1(left)
+        self._step2(left)
+        self._step3(left)
+        self._step4(left)
+        self._step5(right)
 
-        file_inner = ttk.Frame(file_frame)
-        file_inner.pack(fill=tk.X)
+    # ── Step 1: Select PDF ───────────────────────────────────────
 
-        self.file_entry = ttk.Entry(file_inner, textvariable=self.pdf_path, state="readonly")
-        self.file_entry.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=(0, 8))
+    def _step1(self, p):
+        card = self._card(p)
+        self._card_hdr(card, 1, "Select PDF File", self.BLUE)
 
-        ttk.Button(file_inner, text="Browse...", command=self._browse_pdf).pack(side=tk.LEFT)
+        zone = tk.Frame(card, bg="#f8fafc", bd=1, relief=tk.SOLID,
+                        padx=20, pady=18)
+        zone.pack(fill=tk.X)
+        tk.Label(zone, text="\U0001F4C4", font=("Segoe UI", 24),
+                 bg="#f8fafc").pack()
+        tk.Label(zone, text="Click Browse to select your PDF file",
+                 font=("Verdana", 10, "bold"), bg="#f8fafc").pack(pady=(4, 1))
+        tk.Label(zone, text="Supported format: .pdf",
+                 font=("Verdana", 8), fg=self.SLATE_500,
+                 bg="#f8fafc").pack()
+        self._btn(zone, "Browse PDF", self._browse_pdf, self.DARK,
+                  abg="#1e293b").pack(pady=(8, 0))
 
-        self.drop_label = ttk.Label(
-            file_frame,
-            text="Click Browse to select a PDF file",
-            foreground="gray",
-            anchor=tk.CENTER,
-        )
-        self.drop_label.pack(fill=tk.X, pady=(5, 0))
+        self._fi = tk.Frame(card, bg=self.OK_BG, padx=10, pady=8)
+        self._fi_lbl = tk.Label(self._fi, font=("Verdana", 9),
+                                bg=self.OK_BG, fg=self.OK_FG)
+        self._fi_lbl.pack(anchor=tk.W)
 
-        settings_frame = ttk.LabelFrame(main_frame, text="Settings", padding=10)
-        settings_frame.pack(fill=tk.X, pady=(0, 8))
+    # ── Step 2: Jurisdiction & Document Type ──────────────────────
 
-        row1 = ttk.Frame(settings_frame)
-        row1.pack(fill=tk.X, pady=(0, 5))
+    def _step2(self, p):
+        card = self._card(p)
+        self._card_hdr(card, 2, "Jurisdiction & Document Type", self.BLUE)
 
-        ttk.Label(row1, text="Jurisdiction:").pack(side=tk.LEFT, padx=(0, 5))
-        jurisdiction_combo = ttk.Combobox(
-            row1,
-            textvariable=self.jurisdiction,
-            values=[f"{code} - {name}" for code, name in JURISDICTIONS],
-            state="readonly",
-            width=35,
-        )
-        jurisdiction_combo.pack(side=tk.LEFT, padx=(0, 20))
-        jurisdiction_combo.set("NSW - New South Wales")
-        jurisdiction_combo.bind("<<ComboboxSelected>>", self._on_jurisdiction_change)
+        row = tk.Frame(card, bg=self.CARD_BG)
+        row.pack(fill=tk.X)
 
-        ttk.Label(row1, text="Report Type:").pack(side=tk.LEFT, padx=(0, 5))
-        report_combo = ttk.Combobox(
-            row1,
-            textvariable=self.report_type,
-            values=[f"{code} - {name}" for code, name in REPORT_TYPES],
-            state="readonly",
-            width=35,
-        )
-        report_combo.pack(side=tk.LEFT)
-        report_combo.set("auto - Auto Detect")
-        report_combo.bind("<<ComboboxSelected>>", self._on_report_type_change)
+        jf = tk.Frame(row, bg=self.CARD_BG)
+        jf.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=(0, 8))
+        tk.Label(jf, text="Jurisdiction", font=("Verdana", 9, "bold"),
+                 bg=self.CARD_BG).pack(anchor=tk.W, pady=(0, 3))
+        self.jur_var = tk.StringVar(value="Auto Detect")
+        cb1 = ttk.Combobox(jf, textvariable=self.jur_var, state="readonly",
+                           font=("Verdana", 9))
+        cb1["values"] = ["Auto Detect"] + \
+                        [f"{c} - {n}" for c, n in JURISDICTIONS]
+        cb1.pack(fill=tk.X)
 
-        row2 = ttk.Frame(settings_frame)
-        row2.pack(fill=tk.X, pady=(0, 5))
+        df = tk.Frame(row, bg=self.CARD_BG)
+        df.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=(8, 0))
+        tk.Label(df, text="Document Type", font=("Verdana", 9, "bold"),
+                 bg=self.CARD_BG).pack(anchor=tk.W, pady=(0, 3))
+        self.doc_var = tk.StringVar(value="Auto Detect")
+        cb2 = ttk.Combobox(df, textvariable=self.doc_var, state="readonly",
+                           font=("Verdana", 9))
+        cb2["values"] = [n for _, n in REPORT_TYPES]
+        cb2.pack(fill=tk.X)
 
-        ttk.Label(row2, text="Output Folder:").pack(side=tk.LEFT, padx=(0, 5))
-        ttk.Entry(row2, textvariable=self.output_dir).pack(side=tk.LEFT, fill=tk.X, expand=True, padx=(0, 8))
-        ttk.Button(row2, text="Browse...", command=self._browse_output).pack(side=tk.LEFT)
+    # ── Step 3: License Verification ─────────────────────────────
 
-        cloud_frame = ttk.LabelFrame(main_frame, text="Cloud Sync", padding=10)
-        cloud_frame.pack(fill=tk.X, pady=(0, 8))
+    def _step3(self, p):
+        card = self._card(p)
+        self._card_hdr(card, 3, "Product Key Verification", self.GREEN)
 
-        row3 = ttk.Frame(cloud_frame)
-        row3.pack(fill=tk.X, pady=(0, 5))
-        ttk.Label(row3, text="Endpoint URL:").pack(side=tk.LEFT, padx=(0, 5))
-        ttk.Entry(row3, textvariable=self.endpoint_url).pack(side=tk.LEFT, fill=tk.X, expand=True)
+        tk.Label(card, text="Product / License Key",
+                 font=("Verdana", 9, "bold"),
+                 bg=self.CARD_BG).pack(anchor=tk.W, pady=(0, 4))
 
-        row4 = ttk.Frame(cloud_frame)
-        row4.pack(fill=tk.X)
-        ttk.Label(row4, text="API Key:").pack(side=tk.LEFT, padx=(0, 5))
-        ttk.Entry(row4, textvariable=self.api_key, show="*").pack(side=tk.LEFT, fill=tk.X, expand=True)
+        row = tk.Frame(card, bg=self.CARD_BG)
+        row.pack(fill=tk.X)
+        self.key_entry = ttk.Entry(row, font=("Consolas", 10))
+        self.key_entry.pack(side=tk.LEFT, fill=tk.X, expand=True,
+                            padx=(0, 8))
+        self.key_entry.bind("<Return>", lambda e: self._verify())
+        self.key_entry.bind("<KeyRelease>", lambda e: self._key_changed())
 
-        btn_frame = ttk.Frame(main_frame)
-        btn_frame.pack(fill=tk.X, pady=(0, 8))
+        self.vbtn = self._btn(row, "Verify", self._verify,
+                              self.GREEN, abg="#065f46")
+        self.vbtn.pack(side=tk.RIGHT)
 
-        self.extract_btn = ttk.Button(
-            btn_frame, text="Extract PDF", command=self._start_extraction, style="Extract.TButton"
-        )
-        self.extract_btn.pack(side=tk.LEFT, padx=(0, 10))
+        self._lm = tk.Frame(card, bg=self.CARD_BG)
+        self._ll = tk.Label(self._lm, font=("Verdana", 9), wraplength=420)
+        self._ll.pack(anchor=tk.W, padx=8, pady=6)
 
-        self.progress = ttk.Progressbar(btn_frame, mode="indeterminate", length=200)
-        self.progress.pack(side=tk.LEFT, fill=tk.X, expand=True)
+    # ── Step 4: Extract ──────────────────────────────────────────
 
-        log_frame = ttk.LabelFrame(main_frame, text="Output Log", padding=5)
-        log_frame.pack(fill=tk.BOTH, expand=True)
+    def _step4(self, p):
+        card = self._card(p)
+        self._card_hdr(card, 4, "Extract PDF", self.ORANGE)
 
-        self.log_text = scrolledtext.ScrolledText(log_frame, height=10, font=("Consolas", 9), state="disabled")
-        self.log_text.pack(fill=tk.BOTH, expand=True)
+        self.ebtn = tk.Button(
+            card, text="Extract PDF", command=self._extract,
+            bg=self.SLATE_300, fg="white",
+            font=("Verdana", 11, "bold"), relief=tk.FLAT, pady=10,
+            state=tk.DISABLED, cursor="arrow",
+            disabledforeground="white")
+        self.ebtn.pack(fill=tk.X)
 
-    def _on_jurisdiction_change(self, event):
-        value = event.widget.get()
-        code = value.split(" - ")[0].strip()
-        self.jurisdiction.set(code)
+        self._pf = tk.Frame(card, bg=self.CARD_BG)
+        ph = tk.Frame(self._pf, bg=self.CARD_BG)
+        ph.pack(fill=tk.X, pady=(0, 4))
+        self._pt = tk.Label(ph, text="", font=("Verdana", 9, "bold"),
+                            bg=self.CARD_BG)
+        self._pt.pack(side=tk.LEFT)
+        self._pp = tk.Label(ph, text="0%", font=("Verdana", 9),
+                            bg=self.CARD_BG)
+        self._pp.pack(side=tk.RIGHT)
+        self._pb = ttk.Progressbar(
+            self._pf, style="green.Horizontal.TProgressbar",
+            mode="determinate", maximum=100)
+        self._pb.pack(fill=tk.X)
 
-    def _on_report_type_change(self, event):
-        value = event.widget.get()
-        code = value.split(" - ")[0].strip()
-        self.report_type.set(code)
+        self._sf = tk.Frame(card, bg=self.CARD_BG)
+        self._sl = tk.Label(self._sf, font=("Verdana", 9), wraplength=420)
+        self._sl.pack(anchor=tk.W, padx=8, pady=6)
+
+    # ── Step 5: JSON Output ──────────────────────────────────────
+
+    def _step5(self, p):
+        card = self._card(p, fill=tk.BOTH, expand=True)
+
+        hdr = tk.Frame(card, bg=self.CARD_BG)
+        hdr.pack(fill=tk.X, pady=(0, 8))
+        lh = tk.Frame(hdr, bg=self.CARD_BG)
+        lh.pack(side=tk.LEFT)
+        self._circle(lh, 5, self.GREEN).pack(side=tk.LEFT, padx=(0, 10))
+        tf = tk.Frame(lh, bg=self.CARD_BG)
+        tf.pack(side=tk.LEFT)
+        tk.Label(tf, text="JSON Output", font=("Verdana", 12, "bold"),
+                 bg=self.CARD_BG).pack(anchor=tk.W)
+        tk.Label(tf, text="Copy this output and paste it into the "
+                          "designated ORBAS UI.",
+                 font=("Verdana", 8), fg=self.SLATE_500,
+                 bg=self.CARD_BG).pack(anchor=tk.W)
+        self.cbtn = tk.Button(
+            hdr, text="Copy JSON", command=self._copy_json,
+            bg=self.SLATE_300, fg="white",
+            font=("Verdana", 9, "bold"), relief=tk.FLAT,
+            padx=14, pady=4, state=tk.DISABLED,
+            disabledforeground="white")
+        self.cbtn.pack(side=tk.RIGHT)
+
+        self._sum = tk.Frame(card, bg=self.INFO_BG, padx=10, pady=8,
+                             bd=1, relief=tk.SOLID)
+        self._sum_l = tk.Label(self._sum, font=("Verdana", 8),
+                               bg=self.INFO_BG, fg=self.INFO_FG,
+                               justify=tk.LEFT, wraplength=520)
+        self._sum_l.pack(anchor=tk.W)
+
+        self._jc = tk.Frame(card, bg=self.JSON_BG)
+        self._jc.pack(fill=tk.BOTH, expand=True)
+
+        sy = ttk.Scrollbar(self._jc, orient=tk.VERTICAL)
+        sy.pack(side=tk.RIGHT, fill=tk.Y)
+        sx = ttk.Scrollbar(self._jc, orient=tk.HORIZONTAL)
+        sx.pack(side=tk.BOTTOM, fill=tk.X)
+
+        self.jout = tk.Text(
+            self._jc, bg=self.JSON_BG, fg=self.JSON_FG,
+            font=("Consolas", 9), wrap=tk.NONE, relief=tk.FLAT,
+            padx=12, pady=12, insertbackground=self.JSON_FG,
+            yscrollcommand=sy.set, xscrollcommand=sx.set)
+        self.jout.insert("1.0", "No extraction output yet.")
+        self.jout.configure(state=tk.DISABLED)
+        self.jout.pack(fill=tk.BOTH, expand=True)
+        sy.configure(command=self.jout.yview)
+        sx.configure(command=self.jout.xview)
+
+        self._cok = tk.Frame(card, bg=self.OK_BG, padx=10, pady=6,
+                             bd=1, relief=tk.SOLID)
+        tk.Label(self._cok, text="JSON successfully copied to clipboard.",
+                 font=("Verdana", 9, "bold"),
+                 bg=self.OK_BG, fg=self.OK_FG).pack(anchor=tk.W)
+
+    # ── Actions ──────────────────────────────────────────────────
 
     def _browse_pdf(self):
         path = filedialog.askopenfilename(
             title="Select PDF File",
-            filetypes=[("PDF Files", "*.pdf"), ("All Files", "*.*")],
-        )
-        if path:
-            self.pdf_path.set(path)
-            self.drop_label.configure(text=os.path.basename(path), foreground="black")
-            if not self.output_dir.get():
-                self.output_dir.set(os.path.dirname(path))
+            filetypes=[("PDF Files", "*.pdf"), ("All Files", "*.*")])
+        if not path:
+            return
+        self.pdf_path = path
+        sz = os.path.getsize(path) / (1024 * 1024)
+        self._fi_lbl.configure(
+            text=f"Selected: {os.path.basename(path)} ({sz:.2f} MB)")
+        self._fi.pack(fill=tk.X, pady=(8, 0))
+        self._refresh_btn()
 
-    def _browse_output(self):
-        path = filedialog.askdirectory(title="Select Output Folder")
-        if path:
-            self.output_dir.set(path)
+    def _key_changed(self):
+        self.license_verified = False
+        self._lm.pack_forget()
+        self._refresh_btn()
 
-    def _log(self, message):
-        self.log_text.configure(state="normal")
-        self.log_text.insert(tk.END, message + "\n")
-        self.log_text.see(tk.END)
-        self.log_text.configure(state="disabled")
+    def _verify(self):
+        key = self.key_entry.get().strip()
+        if not key:
+            self._lic_msg("Please enter a product key.", "error")
+            return
+        self.vbtn.configure(state=tk.DISABLED, text="Verifying...")
+        self.root.update()
+        threading.Thread(target=self._do_verify, args=(key,),
+                         daemon=True).start()
 
-    def _start_extraction(self):
-        if self.processing:
+    def _do_verify(self, key):
+        if not check_internet():
+            self.root.after(0, self._lic_msg,
+                           "No internet connection detected.", "error")
+            self.root.after(0, self._reset_vbtn)
             return
 
-        pdf_path = self.pdf_path.get()
-        if not pdf_path or not os.path.isfile(pdf_path):
-            messagebox.showerror("Error", "Please select a valid PDF file.")
+        result = validate_license(key)
+
+        if result.get("valid"):
+            self.license_verified = True
+            self.root.after(0, self._lic_msg,
+                           "Product key verified successfully. "
+                           "PDF extraction is now enabled.", "success")
+        elif key.strip().upper() in DEMO_KEYS:
+            self.license_verified = True
+            self.root.after(0, self._lic_msg,
+                           "Product key verified successfully. "
+                           "PDF extraction is now enabled.", "success")
+        else:
+            self.license_verified = False
+            err = result.get("error") or "Invalid license key."
+            self.root.after(0, self._lic_msg, err, "error")
+
+        self.root.after(0, self._reset_vbtn)
+        self.root.after(0, self._refresh_btn)
+
+    def _reset_vbtn(self):
+        self.vbtn.configure(state=tk.NORMAL, text="Verify")
+
+    def _lic_msg(self, text, kind):
+        bg = self.OK_BG if kind == "success" else self.ERR_BG
+        fg = self.OK_FG if kind == "success" else self.ERR_FG
+        self._lm.configure(bg=bg)
+        self._ll.configure(text=text, bg=bg, fg=fg)
+        self._lm.pack(fill=tk.X, pady=(8, 0))
+
+    def _refresh_btn(self):
+        ok = self.pdf_path and self.license_verified and not self.processing
+        if ok:
+            self.ebtn.configure(bg=self.ORANGE, state=tk.NORMAL,
+                                cursor="hand2")
+        else:
+            self.ebtn.configure(bg=self.SLATE_300, state=tk.DISABLED,
+                                cursor="arrow")
+
+    def _extract(self):
+        if self.processing or not self.pdf_path or not self.license_verified:
             return
-
-        output_dir = self.output_dir.get()
-        if not output_dir:
-            output_dir = os.path.dirname(pdf_path)
-            self.output_dir.set(output_dir)
-
-        os.makedirs(output_dir, exist_ok=True)
-
         self.processing = True
-        self.extract_btn.configure(state="disabled")
-        self.progress.start(10)
-        self._log("=" * 50)
-        self._log(f"Starting extraction: {os.path.basename(pdf_path)}")
-        self._log(f"Jurisdiction: {self.jurisdiction.get()}")
-        self._log(f"Report Type: {self.report_type.get()}")
+        self._refresh_btn()
+        self._pb["value"] = 0
+        self._pf.pack(fill=tk.X, pady=(10, 0))
+        self._sf.pack_forget()
+        self._cok.pack_forget()
+        self._sum.pack_forget()
 
-        thread = threading.Thread(target=self._run_extraction, args=(pdf_path, output_dir), daemon=True)
-        thread.start()
+        self.jout.configure(state=tk.NORMAL)
+        self.jout.delete("1.0", tk.END)
+        self.jout.insert("1.0", "Extracting PDF data...")
+        self.jout.configure(state=tk.DISABLED)
+        self.cbtn.configure(bg=self.SLATE_300, state=tk.DISABLED)
 
-    def _run_extraction(self, pdf_path, output_dir):
+        threading.Thread(target=self._run, daemon=True).start()
+
+    def _prog(self, text, pct):
+        self._pt.configure(text=text)
+        self._pp.configure(text=f"{pct}%")
+        self._pb["value"] = pct
+
+    def _run(self):
         try:
-            self.root.after(0, self._log, "Extracting PDF content...")
+            self.root.after(0, self._prog, "Reading PDF file...", 10)
+            time.sleep(0.4)
+
+            jsel = self.jur_var.get()
+            if jsel == "Auto Detect":
+                self.root.after(0, self._prog,
+                               "Detecting Jurisdiction...", 20)
+                jurisdiction = detect_jurisdiction(self.pdf_path)
+                time.sleep(0.3)
+            else:
+                jurisdiction = jsel.split(" - ")[0].strip()
+                self.root.after(0, self._prog,
+                               f"Jurisdiction: {jurisdiction}", 20)
+                time.sleep(0.2)
+
+            dsel = self.doc_var.get()
+            tmap = {n: c for c, n in REPORT_TYPES}
+            report_type = tmap.get(dsel, "auto")
+
+            self.root.after(0, self._prog,
+                           "Detecting Document Type...", 30)
+            time.sleep(0.3)
+
+            self.root.after(0, self._prog,
+                           "Analysing PDF Structure...", 45)
+            time.sleep(0.2)
+
+            self.root.after(0, self._prog,
+                           "Extracting Condition Report Data...", 60)
 
             result = extract_pdf(
-                pdf_path,
-                jurisdiction=self.jurisdiction.get(),
-                report_type=self.report_type.get(),
-                output_dir=output_dir,
-                save_images=True,
-            )
+                self.pdf_path,
+                jurisdiction=jurisdiction,
+                report_type=report_type,
+                output_dir=os.path.dirname(self.pdf_path),
+                save_images=True)
 
-            base_name = os.path.splitext(os.path.basename(pdf_path))[0]
-            json_path = os.path.join(output_dir, f"{base_name}_extracted.json")
+            self.root.after(0, self._prog,
+                           "Validating Extracted Data...", 80)
+            time.sleep(0.3)
 
-            with open(json_path, "w", encoding="utf-8") as f:
-                json.dump(result, f, indent=2, ensure_ascii=False)
+            self.root.after(0, self._prog, "Building JSON...", 92)
+            self.extracted_json = json.dumps(
+                result, indent=2, ensure_ascii=False)
+            time.sleep(0.2)
 
-            area_count = len(result.get("areas", []))
-            component_count = sum(len(a.get("components", [])) for a in result.get("areas", []))
-            image_count = len(result.get("images", []))
-            metadata = result.get("report_metadata", {})
-
-            self.root.after(0, self._log, "Extraction complete!")
-            self.root.after(0, self._log, f"  Jurisdiction: {result.get('jurisdiction', '')}")
-            self.root.after(0, self._log, f"  Document type: {result.get('document_type', '')}")
-            if metadata.get("address"):
-                self.root.after(0, self._log, f"  Address: {metadata['address']}")
-            if metadata.get("report_number"):
-                self.root.after(0, self._log, f"  Report #: {metadata['report_number']}")
-            self.root.after(0, self._log, f"  Areas: {area_count}")
-            self.root.after(0, self._log, f"  Components: {component_count}")
-            self.root.after(0, self._log, f"  Images: {image_count}")
-            self.root.after(0, self._log, f"  JSON saved: {json_path}")
-
-            endpoint = self.endpoint_url.get().strip()
-            if endpoint:
-                self.root.after(0, self._log, f"Syncing to cloud...")
-                sync = CloudSync(
-                    endpoint_url=endpoint,
-                    api_key=self.api_key.get().strip() or None,
-                )
-                sync_result = sync.sync(result, on_progress=lambda msg: self.root.after(0, self._log, f"  {msg}"))
-                if sync_result["success"]:
-                    self.root.after(0, self._log,
-                        f"  Cloud sync successful! (status {sync_result['status_code']})")
-                else:
-                    self.root.after(0, self._log, f"  Cloud sync failed: {sync_result['error']}")
-
-            self.root.after(0, self._log, "Done!")
-
+            self.root.after(0, self._prog, "Extraction Complete", 100)
+            self.root.after(0, self._show_result, result)
+            self.root.after(0, self._status,
+                           "PDF extraction completed successfully.",
+                           "success")
         except Exception as e:
-            self.root.after(0, self._log, f"ERROR: {str(e)}")
-            self.root.after(0, messagebox.showerror, "Extraction Error", str(e))
+            self.root.after(0, self._prog, "Extraction Failed", 0)
+            self.root.after(0, self._status, f"Error: {e}", "error")
         finally:
-            self.root.after(0, self._finish_extraction)
+            self.root.after(0, self._end_run)
 
-    def _finish_extraction(self):
+    def _show_result(self, result):
+        self.jout.configure(state=tk.NORMAL)
+        self.jout.delete("1.0", tk.END)
+        self.jout.insert("1.0", self.extracted_json)
+        self.jout.configure(state=tk.DISABLED)
+
+        self.cbtn.configure(bg=self.DARK, state=tk.NORMAL, cursor="hand2")
+
+        areas = result.get("areas", [])
+        comps = sum(len(a.get("components", [])) for a in areas)
+        meta = result.get("report_metadata", {})
+
+        missing = []
+        if not meta.get("address"):
+            missing.append("Property Address")
+        if not meta.get("tenant_name"):
+            missing.append("Tenant Name")
+        if not meta.get("landlord_name"):
+            missing.append("Landlord Name")
+
+        empty_ct = sum(1 for a in areas
+                       if not any(c.get("start_of_tenancy", {}).get("clean")
+                                  for c in a.get("components", [])))
+        warns = []
+        if empty_ct:
+            warns.append(f"{empty_ct} area(s) with no extracted data")
+
+        lines = [
+            f"Jurisdiction Detected:  {result.get('jurisdiction', 'N/A')}",
+            f"Document Type Detected:  "
+            f"{result.get('document_type', 'N/A')}",
+            f"Pages Processed:  {meta.get('total_pages', 0)}",
+            f"Property Areas Detected:  {len(areas)}",
+            f"Condition Records Extracted:  {comps}",
+            f"Validation Status:  "
+            f"{'Passed' if not missing else 'Review Required'}",
+        ]
+        if warns:
+            lines.append(f"Warnings:  {'; '.join(warns)}")
+        if missing:
+            lines.append(f"Missing Data:  {', '.join(missing)}")
+
+        self._sum_l.configure(text="\n".join(lines))
+        self._sum.pack(fill=tk.X, pady=(0, 6), before=self._jc)
+
+    def _status(self, text, kind):
+        bg = self.OK_BG if kind == "success" else self.ERR_BG
+        fg = self.OK_FG if kind == "success" else self.ERR_FG
+        self._sf.configure(bg=bg)
+        self._sl.configure(text=text, bg=bg, fg=fg)
+        self._sf.pack(fill=tk.X, pady=(8, 0))
+
+    def _end_run(self):
         self.processing = False
-        self.extract_btn.configure(state="normal")
-        self.progress.stop()
+        self._refresh_btn()
+
+    def _copy_json(self):
+        if not self.extracted_json:
+            return
+        self.root.clipboard_clear()
+        self.root.clipboard_append(self.extracted_json)
+        self._cok.pack(fill=tk.X, pady=(6, 0))
+        self.root.after(3000, lambda: self._cok.pack_forget())
 
 
 def run_gui():
