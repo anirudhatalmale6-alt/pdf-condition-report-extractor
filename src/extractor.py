@@ -196,7 +196,31 @@ class ConditionReportExtractor:
         if not room_config:
             return self._extract_rooms_generic()
 
-        return self._extract_rooms_structured(room_config)
+        structured = self._extract_rooms_structured(room_config)
+
+        total = 0
+        filled = 0
+        for room in structured:
+            for item in room.get("items", []):
+                total += 1
+                sot = item.get("start_of_tenancy", {})
+                if sot.get("clean") or sot.get("undamaged") or sot.get("working"):
+                    filled += 1
+
+        if total > 0 and filled / total < 0.3:
+            generic = self._extract_rooms_generic()
+            g_total = 0
+            g_filled = 0
+            for room in generic:
+                for item in room.get("items", []):
+                    g_total += 1
+                    sot = item.get("start_of_tenancy", {})
+                    if sot.get("clean") or sot.get("undamaged") or sot.get("working"):
+                        g_filled += 1
+            if g_total > 0 and g_filled > filled:
+                return generic
+
+        return structured
 
     def _extract_rooms_structured(self, room_config):
         rooms = []
@@ -402,22 +426,25 @@ class ConditionReportExtractor:
                 if cell_check not in item_lower and item_lower not in cell_check:
                     comment_cells.append((i, cell_clean))
 
-        yn_values = [v for _, v in yn_cells if v is not None]
-        if len(yn_values) >= 3:
-            item_data["start_of_tenancy"]["clean"] = yn_values[0]
-            item_data["start_of_tenancy"]["undamaged"] = yn_values[1]
-            item_data["start_of_tenancy"]["working"] = yn_values[2]
-        if len(yn_values) >= 4:
-            item_data["start_of_tenancy"]["tenant_agrees"] = yn_values[3]
-        if len(yn_values) >= 7:
-            item_data["end_of_tenancy"]["clean"] = yn_values[4]
-            item_data["end_of_tenancy"]["undamaged"] = yn_values[5]
-            item_data["end_of_tenancy"]["working"] = yn_values[6]
-        if len(yn_values) >= 8:
-            item_data["end_of_tenancy"]["tenant_agrees"] = yn_values[7]
+        mid = len(cells) // 2
+        start_yn = [v for idx, v in yn_cells if v is not None and idx < mid]
+        end_yn = [v for idx, v in yn_cells if v is not None and idx >= mid]
+
+        if len(start_yn) >= 3:
+            item_data["start_of_tenancy"]["clean"] = start_yn[0]
+            item_data["start_of_tenancy"]["undamaged"] = start_yn[1]
+            item_data["start_of_tenancy"]["working"] = start_yn[2]
+        if len(start_yn) >= 4:
+            item_data["start_of_tenancy"]["tenant_agrees"] = start_yn[3]
+
+        if len(end_yn) >= 3:
+            item_data["end_of_tenancy"]["clean"] = end_yn[0]
+            item_data["end_of_tenancy"]["undamaged"] = end_yn[1]
+            item_data["end_of_tenancy"]["working"] = end_yn[2]
+        if len(end_yn) >= 4:
+            item_data["end_of_tenancy"]["tenant_agrees"] = end_yn[3]
 
         if comment_cells:
-            mid = len(cells) // 2
             for idx, comment in comment_cells:
                 if idx < mid:
                     if not item_data["start_of_tenancy"]["landlord_comments"]:
@@ -525,34 +552,51 @@ class ConditionReportExtractor:
 
     def _extract_rooms_generic(self):
         rooms = []
+        current_room = None
+
         for i, page in enumerate(self.plumber_pdf.pages):
             tables = page.extract_tables()
             if not tables:
                 continue
-            page_text = self.fitz_doc[i].get_text()
-            room_name = self._guess_room_name(page_text, i)
 
             for table in tables:
                 for row in table:
                     if not row or not row[0]:
                         continue
-                    item_name = str(row[0]).strip().replace('\n', ' ')
-                    if not item_name or len(item_name) > 100:
+                    first_cell = str(row[0]).strip().replace('\n', ' ')
+                    if not first_cell or len(first_cell) > 100:
                         continue
-                    if any(skip in item_name.upper() for skip in [
+                    if any(skip in first_cell.upper() for skip in [
                         'CONDITION', 'ADDRESS', 'LANDLORD', 'TENANT', 'CLEAN',
-                        'UNDAMAGED', 'WORKING', 'Y N',
+                        'UNDAMAGED', 'WORKING', 'Y N', 'LESSOR', 'DATE:',
+                        'RESIDENTIAL TENANCIES', 'SCHEDULE',
                     ]):
                         continue
 
-                    item_data = self._parse_table_row_for_item(item_name, row)
-                    if not rooms or rooms[-1]["room_name"] != room_name:
+                    has_yn = any(
+                        str(c).strip() in ('Y', 'N')
+                        for c in row[1:] if c
+                    )
+
+                    if not has_yn and len(first_cell) > 2:
+                        current_room = first_cell
                         rooms.append({
-                            "room_name": room_name,
+                            "room_name": current_room,
                             "page_number": i + 1,
                             "items": [],
                         })
-                    rooms[-1]["items"].append(item_data)
+                        continue
+
+                    if has_yn:
+                        item_data = self._parse_table_row_for_item(first_cell, row)
+                        if not rooms:
+                            rooms.append({
+                                "room_name": self._guess_room_name(
+                                    self.fitz_doc[i].get_text(), i),
+                                "page_number": i + 1,
+                                "items": [],
+                            })
+                        rooms[-1]["items"].append(item_data)
 
         return rooms
 

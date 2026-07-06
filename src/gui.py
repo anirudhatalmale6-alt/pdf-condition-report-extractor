@@ -193,22 +193,27 @@ class Api:
         self._temp_dirs.clear()
 
     def copy_to_clipboard(self, text):
-        """Copy text to clipboard using PowerShell Set-Clipboard (reliable on Windows)."""
+        """Copy text to clipboard. Tries clip.exe first (fast), PowerShell fallback."""
+        si = subprocess.STARTUPINFO()
+        si.dwFlags |= subprocess.STARTF_USESHOWWINDOW
+        si.wShowWindow = 0
+
         try:
-            # Write to temp file first (avoids stdin encoding issues with large text)
+            p = subprocess.Popen(['clip'], stdin=subprocess.PIPE, startupinfo=si)
+            p.communicate(input=text.encode('utf-8'), timeout=5)
+            if p.returncode == 0:
+                return True
+        except Exception:
+            pass
+
+        try:
             tmp = os.path.join(tempfile.gettempdir(), "orbas_clip.txt")
             with open(tmp, "w", encoding="utf-8") as f:
                 f.write(text)
-            si = subprocess.STARTUPINFO()
-            si.dwFlags |= subprocess.STARTF_USESHOWWINDOW
-            si.wShowWindow = 0
             p = subprocess.run(
-                ["powershell", "-NoProfile", "-Command",
+                ["powershell", "-NoProfile", "-NoLogo", "-Command",
                  f"Get-Content -Path '{tmp}' -Raw | Set-Clipboard"],
-                startupinfo=si,
-                capture_output=True,
-                timeout=10,
-            )
+                startupinfo=si, capture_output=True, timeout=10)
             try:
                 os.remove(tmp)
             except Exception:
