@@ -2,7 +2,6 @@ import os
 import json
 import time
 import socket
-import threading
 import webview
 
 from .config import APP_NAME, VERSION, JURISDICTIONS, REPORT_TYPES
@@ -14,7 +13,7 @@ DEMO_KEYS = {"ORBAS-DEMO-2026", "ORBAS-TRIAL-2026", "ORBAS-NSW-VALID"}
 
 def check_internet():
     try:
-        socket.create_connection(("8.8.8.8", 53), timeout=5)
+        socket.create_connection(("8.8.8.8", 53), timeout=3)
         return True
     except OSError:
         return False
@@ -26,15 +25,6 @@ class Api:
         self.pdf_path = None
         self.license_verified = False
         self.extracted_json = ""
-
-    def get_config(self):
-        return {
-            "version": VERSION,
-            "app_name": APP_NAME,
-            "has_internet": check_internet(),
-            "jurisdictions": [{"code": c, "name": n} for c, n in JURISDICTIONS],
-            "report_types": [{"code": c, "name": n} for c, n in REPORT_TYPES],
-        }
 
     def select_file(self):
         result = self.window.create_file_dialog(
@@ -56,7 +46,7 @@ class Api:
             return {"valid": False, "message": "Please enter a product key."}
 
         if not check_internet():
-            return {"valid": False, "message": "No internet connection detected."}
+            return {"valid": False, "message": "No internet connection. Please connect and try again."}
 
         result = validate_license(key)
         if result.get("valid"):
@@ -166,112 +156,112 @@ class Api:
             return False
 
 
-HTML = """<!DOCTYPE html>
+def _build_html():
+    jur_options = '<option value="auto">Auto Detect</option>'
+    for code, name in JURISDICTIONS:
+        jur_options += f'<option value="{code}">{code} - {name}</option>'
+
+    doc_options = ""
+    for code, name in REPORT_TYPES:
+        doc_options += f'<option value="{code}">{name}</option>'
+
+    return """<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="UTF-8">
 <title>ORBAS Native PDF Extractor</title>
 <style>
 *,*::before,*::after{margin:0;padding:0;box-sizing:border-box}
-body{font-family:Verdana,Geneva,sans-serif;background:#f1f5f9;color:#0f172a;overflow:hidden;height:100vh}
-.app{display:flex;flex-direction:column;height:100vh;padding:1.1rem 1.25rem}
+body{font-family:Verdana,Geneva,sans-serif;background:#f1f5f9;color:#0f172a;height:100vh;overflow:hidden}
+.app{display:flex;flex-direction:column;height:100vh;padding:1.2vh 1.2vw}
 
 /* Header */
-.hdr{display:flex;align-items:center;justify-content:space-between;margin-bottom:.85rem}
-.hdr h1{font-size:1.35rem;font-weight:700;color:#0453ed}
-.hdr .sub{font-size:.78rem;color:#475569;margin-top:.1rem}
-.hdr .ver{font-size:.8rem;font-weight:600;text-align:right}
-.hdr .ver-sub{font-size:.7rem;color:#64748b}
+.hdr{display:flex;align-items:center;justify-content:space-between;margin-bottom:1vh;flex-shrink:0}
+.hdr h1{font-size:clamp(1rem,1.8vw,1.4rem);font-weight:700;color:#0453ed}
+.hdr .sub{font-size:clamp(.65rem,1vw,.8rem);color:#475569;margin-top:.1rem}
+.hdr .ver{font-size:clamp(.7rem,1vw,.85rem);font-weight:600;text-align:right}
+.hdr .ver-sub{font-size:clamp(.6rem,.8vw,.72rem);color:#64748b}
 
 /* Grid */
-.grid{flex:1;display:grid;grid-template-columns:1fr 1fr;gap:1.1rem;min-height:0}
-.left{display:flex;flex-direction:column;gap:.75rem;overflow-y:auto;padding-right:.25rem}
-.left::-webkit-scrollbar{width:5px}
+.grid{flex:1;display:grid;grid-template-columns:1fr 1fr;gap:clamp(.6rem,1.2vw,1.2rem);min-height:0;overflow:hidden}
+.left{display:flex;flex-direction:column;gap:clamp(.4rem,.8vh,.7rem);overflow-y:auto;padding-right:4px}
+.left::-webkit-scrollbar{width:4px}
 .left::-webkit-scrollbar-thumb{background:#cbd5e1;border-radius:4px}
 
 /* Card */
-.card{background:#fff;border-radius:.75rem;border:1px solid #e2e8f0;box-shadow:0 1px 2px rgba(0,0,0,.05);padding:1rem 1.1rem}
-.card-h{display:flex;align-items:center;gap:.6rem;margin-bottom:.7rem}
-.circ{width:1.65rem;height:1.65rem;border-radius:50%;color:#fff;display:flex;align-items:center;justify-content:center;font-size:.75rem;font-weight:700;flex-shrink:0}
+.card{background:#fff;border-radius:.65rem;border:1px solid #e2e8f0;box-shadow:0 1px 2px rgba(0,0,0,.05);padding:clamp(.5rem,1.2vh,.9rem) clamp(.6rem,1vw,1rem);flex-shrink:0}
+.card-h{display:flex;align-items:center;gap:.5rem;margin-bottom:clamp(.3rem,.7vh,.6rem)}
+.circ{width:clamp(1.2rem,2.2vh,1.6rem);height:clamp(1.2rem,2.2vh,1.6rem);border-radius:50%;color:#fff;display:flex;align-items:center;justify-content:center;font-size:clamp(.6rem,.9vh,.75rem);font-weight:700;flex-shrink:0}
 .c-blue{background:#0453ed}
 .c-green{background:#096e4d}
 .c-orange{background:#fd6207}
-.card-h h2{font-size:.95rem;font-weight:700}
+.card-h h2{font-size:clamp(.78rem,1.3vw,.95rem);font-weight:700}
 
 /* Drop zone */
-.dz{border:2px dashed #cbd5e1;border-radius:.75rem;padding:1rem 1.25rem;text-align:center;background:#f8fafc;cursor:pointer;transition:.2s}
+.dz{border:2px dashed #cbd5e1;border-radius:.65rem;padding:clamp(.5rem,1.2vh,.9rem) 1rem;text-align:center;background:#f8fafc;cursor:pointer;transition:.2s}
 .dz:hover{background:#eff6ff;border-color:#0453ed}
-.dz .ico{font-size:1.75rem;margin-bottom:.25rem}
-.dz .main{font-weight:600;font-size:.82rem}
-.dz .hint{font-size:.72rem;color:#64748b;margin-top:.1rem}
+.dz .ico{font-size:clamp(1.2rem,2.5vh,1.8rem);margin-bottom:.15rem}
+.dz .main{font-weight:600;font-size:clamp(.7rem,1vw,.82rem)}
+.dz .hint{font-size:clamp(.6rem,.85vw,.72rem);color:#64748b;margin-top:.1rem}
 
 /* Buttons */
-.btn{border:none;border-radius:.5rem;font-weight:600;cursor:pointer;font-family:inherit;transition:.15s;font-size:.78rem;padding:.4rem .9rem}
+.btn{border:none;border-radius:.45rem;font-weight:600;cursor:pointer;font-family:inherit;transition:.15s;font-size:clamp(.68rem,.95vw,.78rem);padding:clamp(.25rem,.5vh,.38rem) clamp(.5rem,.8vw,.85rem)}
 .btn-dark{background:#0f172a;color:#fff}.btn-dark:hover{background:#1e293b}
 .btn-green{background:#096e4d;color:#fff}.btn-green:hover{background:#065f46}
-.btn-orange{background:#fd6207;color:#fff;font-size:.9rem;font-weight:700;padding:.6rem 1rem;width:100%;border-radius:.65rem}
+.btn-orange{background:#fd6207;color:#fff;font-size:clamp(.78rem,1.2vw,.92rem);font-weight:700;padding:clamp(.35rem,.8vh,.55rem) 1rem;width:100%;border-radius:.55rem}
 .btn-orange:hover{background:#ea580c}
 .btn-slate{background:#0f172a;color:#fff}.btn-slate:hover{background:#1e293b}
 .btn:disabled{background:#cbd5e1!important;cursor:not-allowed!important;color:#fff}
 
 /* File info */
-.fi{margin-top:.55rem;padding:.5rem .65rem;border-radius:.45rem;background:#f0fdf4;border:1px solid #bbf7d0;display:none}
-.fi p{font-size:.78rem;color:#166534}
+.fi{margin-top:.4rem;padding:clamp(.3rem,.5vh,.45rem) .6rem;border-radius:.4rem;background:#f0fdf4;border:1px solid #bbf7d0;display:none}
+.fi p{font-size:clamp(.65rem,.9vw,.76rem);color:#166534}
 .fi .l{font-weight:600}
 
 /* Form */
-label{display:block;font-size:.78rem;font-weight:600;margin-bottom:.25rem}
-select,input[type=text]{width:100%;border:1px solid #e2e8f0;border-radius:.45rem;padding:.38rem .55rem;font-size:.78rem;font-family:inherit;outline:none;background:#fff}
+label{display:block;font-size:clamp(.65rem,.9vw,.76rem);font-weight:600;margin-bottom:.2rem}
+select,input[type=text]{width:100%;border:1px solid #e2e8f0;border-radius:.4rem;padding:clamp(.2rem,.45vh,.35rem) .5rem;font-size:clamp(.65rem,.9vw,.76rem);font-family:inherit;outline:none;background:#fff}
 select:focus,input[type=text]:focus{border-color:#0453ed;box-shadow:0 0 0 2px rgba(4,83,237,.1)}
-.form-row{display:grid;grid-template-columns:1fr 1fr;gap:.7rem}
+.form-row{display:grid;grid-template-columns:1fr 1fr;gap:.6rem}
 .lic-row{display:flex;gap:.5rem}
 .lic-row input{flex:1;font-family:Consolas,'Courier New',monospace}
 
 /* Messages */
-.msg{margin-top:.5rem;padding:.45rem .6rem;border-radius:.45rem;font-size:.78rem;display:none}
+.msg{margin-top:.4rem;padding:clamp(.25rem,.45vh,.4rem) .55rem;border-radius:.4rem;font-size:clamp(.65rem,.9vw,.76rem);display:none}
 .msg-ok{background:#f0fdf4;border:1px solid #bbf7d0;color:#166534}
 .msg-err{background:#fef2f2;border:1px solid #fecaca;color:#991b1b}
-.msg-info{background:#f0f9ff;border:1px solid #bfdbfe;color:#1e40af}
 
 /* Progress */
-.pbox{margin-top:.6rem;display:none}
-.ph{display:flex;justify-content:space-between;font-size:.78rem;margin-bottom:.25rem}
+.pbox{margin-top:.5rem;display:none}
+.ph{display:flex;justify-content:space-between;font-size:clamp(.65rem,.9vw,.76rem);margin-bottom:.2rem}
 .ph .l{font-weight:600}
-.ptrack{width:100%;background:#e2e8f0;border-radius:99px;height:.5rem;overflow:hidden}
+.ptrack{width:100%;background:#e2e8f0;border-radius:99px;height:clamp(.35rem,.6vh,.5rem);overflow:hidden}
 .pbar{background:#096e4d;height:100%;border-radius:99px;transition:width .3s;width:0%}
 
 /* JSON panel */
-.json-card{display:flex;flex-direction:column;min-height:0}
-.json-hdr{display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:.5rem}
-.json-left{display:flex;align-items:center;gap:.6rem}
-.json-tt .t{font-size:.95rem;font-weight:700}
-.json-tt .s{font-size:.68rem;color:#64748b;margin-top:.05rem}
-.json-out{flex:1;background:#020617;color:#86efac;border-radius:.75rem;padding:.75rem;font-family:Consolas,'Courier New',monospace;font-size:.68rem;line-height:1.3rem;overflow:auto;border:1px solid #1e293b;white-space:pre;min-height:0}
+.json-card{display:flex;flex-direction:column;min-height:0;overflow:hidden}
+.json-hdr{display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:.4rem;flex-shrink:0}
+.json-left{display:flex;align-items:center;gap:.5rem}
+.json-tt .t{font-size:clamp(.78rem,1.3vw,.95rem);font-weight:700}
+.json-tt .s{font-size:clamp(.58rem,.75vw,.68rem);color:#64748b;margin-top:.05rem}
+.json-out{flex:1;background:#020617;color:#86efac;border-radius:.65rem;padding:clamp(.5rem,.8vh,.7rem);font-family:Consolas,'Courier New',monospace;font-size:clamp(.58rem,.8vw,.68rem);line-height:1.35;overflow:auto;border:1px solid #1e293b;white-space:pre;min-height:0}
 
 /* Summary */
-.summ{padding:.5rem .65rem;border-radius:.45rem;background:#f0f9ff;border:1px solid #bfdbfe;font-size:.72rem;color:#1e40af;margin-bottom:.4rem;line-height:1.35;display:none}
+.summ{padding:clamp(.3rem,.5vh,.45rem) .6rem;border-radius:.4rem;background:#f0f9ff;border:1px solid #bfdbfe;font-size:clamp(.58rem,.8vw,.7rem);color:#1e40af;margin-bottom:.35rem;line-height:1.35;display:none;flex-shrink:0}
 
 /* Copy ok */
-.copy-ok{margin-top:.4rem;padding:.4rem .6rem;border-radius:.45rem;background:#f0fdf4;border:1px solid #bbf7d0;color:#166534;font-size:.78rem;font-weight:600;display:none}
-
-/* No internet overlay */
-.overlay{position:fixed;inset:0;background:rgba(15,23,42,.7);display:flex;align-items:center;justify-content:center;z-index:999}
-.overlay-box{background:#fff;border-radius:.75rem;padding:2rem;max-width:420px;text-align:center;box-shadow:0 20px 40px rgba(0,0,0,.2)}
-.overlay-box h2{color:#991b1b;margin-bottom:.5rem;font-size:1.1rem}
-.overlay-box p{font-size:.82rem;color:#475569;line-height:1.5}
-.overlay-box .ic{font-size:2.5rem;margin-bottom:.6rem}
-.hidden{display:none!important}
+.copy-ok{margin-top:.35rem;padding:.35rem .55rem;border-radius:.4rem;background:#f0fdf4;border:1px solid #bbf7d0;color:#166534;font-size:clamp(.65rem,.9vw,.76rem);font-weight:600;display:none;flex-shrink:0}
 </style>
 </head>
 <body>
 <div class="app">
   <div class="hdr">
     <div>
-      <h1 id="appTitle">ORBAS Native PDF Extractor</h1>
+      <h1>ORBAS Native PDF Extractor</h1>
       <div class="sub">Extract rental condition report PDF data into structured JSON.</div>
     </div>
     <div>
-      <div class="ver" id="verLabel">v2.1.0</div>
+      <div class="ver">v""" + VERSION + """</div>
       <div class="ver-sub">Local PDF Extraction</div>
     </div>
   </div>
@@ -286,7 +276,7 @@ select:focus,input[type=text]:focus{border-color:#0453ed;box-shadow:0 0 0 2px rg
           <div class="ico">&#128196;</div>
           <div class="main">Click to select your PDF file</div>
           <div class="hint">Supported format: .pdf</div>
-          <button class="btn btn-dark" style="margin-top:.5rem" type="button" onclick="event.stopPropagation();selectFile()">Browse PDF</button>
+          <button class="btn btn-dark" style="margin-top:.4rem" type="button" onclick="event.stopPropagation();selectFile()">Browse PDF</button>
         </div>
         <div class="fi" id="fileInfo">
           <p class="l">Selected File</p>
@@ -300,11 +290,11 @@ select:focus,input[type=text]:focus{border-color:#0453ed;box-shadow:0 0 0 2px rg
         <div class="form-row">
           <div>
             <label>Jurisdiction</label>
-            <select id="jurisdiction"></select>
+            <select id="jurisdiction">""" + jur_options + """</select>
           </div>
           <div>
             <label>Document Type</label>
-            <select id="documentType"></select>
+            <select id="documentType">""" + doc_options + """</select>
           </div>
         </div>
       </div>
@@ -355,48 +345,11 @@ select:focus,input[type=text]:focus{border-color:#0453ed;box-shadow:0 0 0 2px rg
   </div>
 </div>
 
-<!-- No internet overlay (hidden by default) -->
-<div class="overlay hidden" id="noInet">
-  <div class="overlay-box">
-    <div class="ic">&#9888;&#65039;</div>
-    <h2>No Internet Connection</h2>
-    <p>An active internet connection is required to verify your product license and use this application.<br><br>Please connect to the internet and restart the application.</p>
-  </div>
-</div>
-
 <script>
 let fileSelected = false;
 let licenseVerified = false;
 let extractedJson = '';
 let extracting = false;
-
-window.addEventListener('pywebviewready', () => {
-  pywebview.api.get_config().then(cfg => {
-    document.getElementById('verLabel').textContent = 'v' + cfg.version;
-
-    const jSel = document.getElementById('jurisdiction');
-    jSel.innerHTML = '<option value="auto">Auto Detect</option>';
-    cfg.jurisdictions.forEach(j => {
-      const o = document.createElement('option');
-      o.value = j.code;
-      o.textContent = j.code + ' - ' + j.name;
-      jSel.appendChild(o);
-    });
-
-    const dSel = document.getElementById('documentType');
-    dSel.innerHTML = '';
-    cfg.report_types.forEach(r => {
-      const o = document.createElement('option');
-      o.value = r.code;
-      o.textContent = r.name;
-      dSel.appendChild(o);
-    });
-
-    if (!cfg.has_internet) {
-      document.getElementById('noInet').classList.remove('hidden');
-    }
-  });
-});
 
 function selectFile() {
   pywebview.api.select_file().then(f => {
@@ -528,13 +481,14 @@ function hideMsg(id) {
 
 def run_gui():
     api = Api()
+    html = _build_html()
     window = webview.create_window(
         f"{APP_NAME} Native PDF Extractor",
-        html=HTML,
+        html=html,
         js_api=api,
         width=1200,
         height=800,
-        min_size=(1000, 700),
+        min_size=(900, 600),
     )
     api.window = window
     webview.start()
