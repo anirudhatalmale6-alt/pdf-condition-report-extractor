@@ -1,12 +1,23 @@
 # -*- mode: python ; coding: utf-8 -*-
+import os
+import importlib
+
+extra_datas = [('schemas', 'schemas')]
+
+try:
+    wv = importlib.import_module('webview')
+    wv_path = os.path.dirname(wv.__file__)
+    wv_lib = os.path.join(wv_path, 'lib')
+    if os.path.isdir(wv_lib):
+        extra_datas.append((wv_lib, 'webview/lib'))
+except ImportError:
+    pass
 
 a = Analysis(
     ['main.py'],
     pathex=[],
     binaries=[],
-    datas=[
-        ('schemas', 'schemas'),
-    ],
+    datas=extra_datas,
     hiddenimports=[
         'pdfplumber',
         'pdfminer',
@@ -25,6 +36,21 @@ a = Analysis(
         'src.license',
         'src.gui',
         'src.cli',
+        'webview',
+        'webview.platforms',
+        'webview.platforms.edgechromium',
+        'webview.platforms.winforms',
+        'webview.platforms.mshtml',
+        'webview.http_server',
+        'bottle',
+        'clr',
+        'clr_loader',
+        'clr_loader.ffi',
+        'clr_loader.ffi.coreclr',
+        'clr_loader.ffi.mono',
+        'clr_loader.ffi.netfx',
+        'proxy_tools',
+        'pythonnet',
     ],
     hookspath=[],
     hooksconfig={},

@@ -3,8 +3,7 @@ import json
 import time
 import socket
 import threading
-import tkinter as tk
-from tkinter import ttk, filedialog, messagebox
+import webview
 
 from .config import APP_NAME, VERSION, JURISDICTIONS, REPORT_TYPES
 from .extractor import extract_pdf, detect_jurisdiction, detect_report_type_standalone
@@ -21,525 +20,521 @@ def check_internet():
         return False
 
 
-class ExtractorApp:
-    BG = "#f1f5f9"
-    CARD_BG = "#ffffff"
-    BLUE = "#0453ed"
-    GREEN = "#096e4d"
-    ORANGE = "#fd6207"
-    DARK = "#0f172a"
-    SLATE_300 = "#cbd5e1"
-    SLATE_500 = "#64748b"
-    SLATE_600 = "#475569"
-    JSON_BG = "#020617"
-    JSON_FG = "#86efac"
-    OK_BG = "#f0fdf4"
-    OK_FG = "#166534"
-    ERR_BG = "#fef2f2"
-    ERR_FG = "#991b1b"
-    INFO_BG = "#f0f9ff"
-    INFO_FG = "#1e40af"
-
-    def __init__(self, root):
-        self.root = root
-        self.root.title(f"{APP_NAME} Native PDF Extractor")
-        self.root.geometry("1200x800")
-        self.root.minsize(1000, 700)
-        self.root.configure(bg=self.BG)
-
+class Api:
+    def __init__(self):
+        self.window = None
         self.pdf_path = None
-        self.processing = False
         self.license_verified = False
         self.extracted_json = ""
 
+    def get_config(self):
+        return {
+            "version": VERSION,
+            "app_name": APP_NAME,
+            "has_internet": check_internet(),
+            "jurisdictions": [{"code": c, "name": n} for c, n in JURISDICTIONS],
+            "report_types": [{"code": c, "name": n} for c, n in REPORT_TYPES],
+        }
+
+    def select_file(self):
+        result = self.window.create_file_dialog(
+            webview.OPEN_DIALOG,
+            file_types=("PDF Files (*.pdf)",),
+        )
+        if result and len(result) > 0:
+            path = result[0] if isinstance(result[0], str) else str(result[0])
+            self.pdf_path = path
+            size = os.path.getsize(path) / (1024 * 1024)
+            return {
+                "name": os.path.basename(path),
+                "size": f"{size:.2f} MB",
+            }
+        return None
+
+    def verify_license(self, key):
+        if not key or not key.strip():
+            return {"valid": False, "message": "Please enter a product key."}
+
         if not check_internet():
-            self.root.withdraw()
-            messagebox.showerror(
-                "No Internet Connection",
-                "NO INTERNET CONNECTION DETECTED.\n\n"
-                "An active internet connection is required to verify "
-                "your product license and use this application.\n\n"
-                "Please connect to the internet and try again.")
-            self.root.destroy()
-            return
-
-        self._setup_styles()
-        self._build_ui()
-
-    def _setup_styles(self):
-        s = ttk.Style()
-        s.theme_use("clam")
-        s.configure("green.Horizontal.TProgressbar",
-                     troughcolor="#e2e8f0", background=self.GREEN)
-
-    def _circle(self, parent, num, color):
-        c = tk.Canvas(parent, width=32, height=32,
-                      bg=self.CARD_BG, highlightthickness=0)
-        c.create_oval(2, 2, 30, 30, fill=color, outline=color)
-        c.create_text(16, 16, text=str(num), fill="white",
-                      font=("Verdana", 11, "bold"))
-        return c
-
-    def _card(self, parent, **kw):
-        f = tk.Frame(parent, bg=self.CARD_BG, relief=tk.SOLID, bd=1,
-                     padx=12, pady=8)
-        f.pack(fill=kw.get("fill", tk.X),
-               expand=kw.get("expand", False),
-               pady=kw.get("pady", (0, 5)),
-               padx=kw.get("padx", 0))
-        return f
-
-    def _card_hdr(self, card, step, text, color):
-        row = tk.Frame(card, bg=self.CARD_BG)
-        row.pack(fill=tk.X, pady=(0, 6))
-        self._circle(row, step, color).pack(side=tk.LEFT, padx=(0, 8))
-        tk.Label(row, text=text, font=("Verdana", 11, "bold"),
-                 bg=self.CARD_BG).pack(side=tk.LEFT)
-        return row
-
-    def _btn(self, parent, text, cmd, bg, **kw):
-        b = tk.Button(parent, text=text, command=cmd, bg=bg, fg="white",
-                      font=kw.get("font", ("Verdana", 9, "bold")),
-                      relief=tk.FLAT,
-                      padx=kw.get("padx", 16), pady=kw.get("pady", 5),
-                      cursor="hand2", activebackground=kw.get("abg", bg),
-                      activeforeground="white",
-                      disabledforeground="white")
-        return b
-
-    # ── Layout ───────────────────────────────────────────────────
-
-    def _build_ui(self):
-        main = tk.Frame(self.root, bg=self.BG, padx=16, pady=10)
-        main.pack(fill=tk.BOTH, expand=True)
-
-        hdr = tk.Frame(main, bg=self.BG)
-        hdr.pack(fill=tk.X, pady=(0, 8))
-        lh = tk.Frame(hdr, bg=self.BG)
-        lh.pack(side=tk.LEFT)
-        tk.Label(lh, text=f"{APP_NAME} Native PDF Extractor",
-                 font=("Verdana", 17, "bold"), fg=self.BLUE,
-                 bg=self.BG).pack(anchor=tk.W)
-        tk.Label(lh, text="Extract rental condition report PDF data "
-                          "into structured JSON.",
-                 font=("Verdana", 9), fg=self.SLATE_600,
-                 bg=self.BG).pack(anchor=tk.W)
-        rh = tk.Frame(hdr, bg=self.BG)
-        rh.pack(side=tk.RIGHT)
-        tk.Label(rh, text=f"v{VERSION}", font=("Verdana", 10, "bold"),
-                 bg=self.BG).pack(anchor=tk.E)
-        tk.Label(rh, text="Local PDF Extraction",
-                 font=("Verdana", 8), fg=self.SLATE_500,
-                 bg=self.BG).pack(anchor=tk.E)
-
-        body = tk.Frame(main, bg=self.BG)
-        body.pack(fill=tk.BOTH, expand=True)
-        left = tk.Frame(body, bg=self.BG)
-        left.pack(side=tk.LEFT, fill=tk.BOTH, expand=True, padx=(0, 6))
-        right = tk.Frame(body, bg=self.BG)
-        right.pack(side=tk.RIGHT, fill=tk.BOTH, expand=True, padx=(6, 0))
-
-        self._step1(left)
-        self._step2(left)
-        self._step3(left)
-        self._step4(left)
-        self._step5(right)
-
-    # ── Step 1: Select PDF ───────────────────────────────────────
-
-    def _step1(self, p):
-        card = self._card(p)
-        self._card_hdr(card, 1, "Select PDF File", self.BLUE)
-
-        zone = tk.Frame(card, bg="#f8fafc", bd=1, relief=tk.SOLID,
-                        padx=14, pady=10)
-        zone.pack(fill=tk.X)
-        tk.Label(zone, text="\U0001F4C4", font=("Segoe UI", 16),
-                 bg="#f8fafc").pack()
-        tk.Label(zone, text="Click Browse to select your PDF file",
-                 font=("Verdana", 9, "bold"), bg="#f8fafc").pack(pady=(2, 0))
-        tk.Label(zone, text="Supported format: .pdf",
-                 font=("Verdana", 8), fg=self.SLATE_500,
-                 bg="#f8fafc").pack()
-        self._btn(zone, "Browse PDF", self._browse_pdf, self.DARK,
-                  abg="#1e293b").pack(pady=(5, 0))
-
-        self._fi = tk.Frame(card, bg=self.OK_BG, padx=10, pady=8)
-        self._fi_lbl = tk.Label(self._fi, font=("Verdana", 9),
-                                bg=self.OK_BG, fg=self.OK_FG)
-        self._fi_lbl.pack(anchor=tk.W)
-
-    # ── Step 2: Jurisdiction & Document Type ──────────────────────
-
-    def _step2(self, p):
-        card = self._card(p)
-        self._card_hdr(card, 2, "Jurisdiction & Document Type", self.BLUE)
-
-        row = tk.Frame(card, bg=self.CARD_BG)
-        row.pack(fill=tk.X)
-
-        jf = tk.Frame(row, bg=self.CARD_BG)
-        jf.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=(0, 8))
-        tk.Label(jf, text="Jurisdiction", font=("Verdana", 9, "bold"),
-                 bg=self.CARD_BG).pack(anchor=tk.W, pady=(0, 3))
-        self.jur_var = tk.StringVar(value="Auto Detect")
-        cb1 = ttk.Combobox(jf, textvariable=self.jur_var, state="readonly",
-                           font=("Verdana", 9))
-        cb1["values"] = ["Auto Detect"] + \
-                        [f"{c} - {n}" for c, n in JURISDICTIONS]
-        cb1.pack(fill=tk.X)
-
-        df = tk.Frame(row, bg=self.CARD_BG)
-        df.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=(8, 0))
-        tk.Label(df, text="Document Type", font=("Verdana", 9, "bold"),
-                 bg=self.CARD_BG).pack(anchor=tk.W, pady=(0, 3))
-        self.doc_var = tk.StringVar(value="Auto Detect")
-        cb2 = ttk.Combobox(df, textvariable=self.doc_var, state="readonly",
-                           font=("Verdana", 9))
-        cb2["values"] = [n for _, n in REPORT_TYPES]
-        cb2.pack(fill=tk.X)
-
-    # ── Step 3: License Verification ─────────────────────────────
-
-    def _step3(self, p):
-        card = self._card(p)
-        self._card_hdr(card, 3, "Product Key Verification", self.GREEN)
-
-        tk.Label(card, text="Product / License Key",
-                 font=("Verdana", 9, "bold"),
-                 bg=self.CARD_BG).pack(anchor=tk.W, pady=(0, 3))
-
-        row = tk.Frame(card, bg=self.CARD_BG)
-        row.pack(fill=tk.X)
-        self.key_entry = ttk.Entry(row, font=("Consolas", 10))
-        self.key_entry.pack(side=tk.LEFT, fill=tk.X, expand=True,
-                            padx=(0, 8))
-        self.key_entry.bind("<Return>", lambda e: self._verify())
-        self.key_entry.bind("<KeyRelease>", lambda e: self._key_changed())
-
-        self.vbtn = self._btn(row, "Verify", self._verify,
-                              self.GREEN, abg="#065f46")
-        self.vbtn.pack(side=tk.RIGHT)
-
-        self._lm = tk.Frame(card, bg=self.CARD_BG)
-        self._ll = tk.Label(self._lm, font=("Verdana", 9), wraplength=420)
-        self._ll.pack(anchor=tk.W, padx=8, pady=6)
-
-    # ── Step 4: Extract ──────────────────────────────────────────
-
-    def _step4(self, p):
-        card = self._card(p)
-        self._card_hdr(card, 4, "Extract PDF", self.ORANGE)
-
-        self.ebtn = tk.Button(
-            card, text="Extract PDF", command=self._extract,
-            bg=self.SLATE_300, fg="white",
-            font=("Verdana", 10, "bold"), relief=tk.FLAT, pady=7,
-            state=tk.DISABLED, cursor="arrow",
-            disabledforeground="white")
-        self.ebtn.pack(fill=tk.X)
-
-        self._pf = tk.Frame(card, bg=self.CARD_BG)
-        ph = tk.Frame(self._pf, bg=self.CARD_BG)
-        ph.pack(fill=tk.X, pady=(0, 4))
-        self._pt = tk.Label(ph, text="", font=("Verdana", 9, "bold"),
-                            bg=self.CARD_BG)
-        self._pt.pack(side=tk.LEFT)
-        self._pp = tk.Label(ph, text="0%", font=("Verdana", 9),
-                            bg=self.CARD_BG)
-        self._pp.pack(side=tk.RIGHT)
-        self._pb = ttk.Progressbar(
-            self._pf, style="green.Horizontal.TProgressbar",
-            mode="determinate", maximum=100)
-        self._pb.pack(fill=tk.X)
-
-        self._sf = tk.Frame(card, bg=self.CARD_BG)
-        self._sl = tk.Label(self._sf, font=("Verdana", 9), wraplength=420)
-        self._sl.pack(anchor=tk.W, padx=8, pady=6)
-
-    # ── Step 5: JSON Output ──────────────────────────────────────
-
-    def _step5(self, p):
-        card = self._card(p, fill=tk.BOTH, expand=True)
-
-        hdr = tk.Frame(card, bg=self.CARD_BG)
-        hdr.pack(fill=tk.X, pady=(0, 8))
-        lh = tk.Frame(hdr, bg=self.CARD_BG)
-        lh.pack(side=tk.LEFT)
-        self._circle(lh, 5, self.GREEN).pack(side=tk.LEFT, padx=(0, 10))
-        tf = tk.Frame(lh, bg=self.CARD_BG)
-        tf.pack(side=tk.LEFT)
-        tk.Label(tf, text="JSON Output", font=("Verdana", 12, "bold"),
-                 bg=self.CARD_BG).pack(anchor=tk.W)
-        tk.Label(tf, text="Copy this output and paste it into the "
-                          "designated ORBAS UI.",
-                 font=("Verdana", 8), fg=self.SLATE_500,
-                 bg=self.CARD_BG).pack(anchor=tk.W)
-        self.cbtn = tk.Button(
-            hdr, text="Copy JSON", command=self._copy_json,
-            bg=self.SLATE_300, fg="white",
-            font=("Verdana", 9, "bold"), relief=tk.FLAT,
-            padx=14, pady=4, state=tk.DISABLED,
-            disabledforeground="white")
-        self.cbtn.pack(side=tk.RIGHT)
-
-        self._sum = tk.Frame(card, bg=self.INFO_BG, padx=10, pady=8,
-                             bd=1, relief=tk.SOLID)
-        self._sum_l = tk.Label(self._sum, font=("Verdana", 8),
-                               bg=self.INFO_BG, fg=self.INFO_FG,
-                               justify=tk.LEFT, wraplength=520)
-        self._sum_l.pack(anchor=tk.W)
-
-        self._jc = tk.Frame(card, bg=self.JSON_BG)
-        self._jc.pack(fill=tk.BOTH, expand=True)
-
-        sy = ttk.Scrollbar(self._jc, orient=tk.VERTICAL)
-        sy.pack(side=tk.RIGHT, fill=tk.Y)
-        sx = ttk.Scrollbar(self._jc, orient=tk.HORIZONTAL)
-        sx.pack(side=tk.BOTTOM, fill=tk.X)
-
-        self.jout = tk.Text(
-            self._jc, bg=self.JSON_BG, fg=self.JSON_FG,
-            font=("Consolas", 9), wrap=tk.NONE, relief=tk.FLAT,
-            padx=12, pady=12, insertbackground=self.JSON_FG,
-            yscrollcommand=sy.set, xscrollcommand=sx.set)
-        self.jout.insert("1.0", "No extraction output yet.")
-        self.jout.configure(state=tk.DISABLED)
-        self.jout.pack(fill=tk.BOTH, expand=True)
-        sy.configure(command=self.jout.yview)
-        sx.configure(command=self.jout.xview)
-
-        self._cok = tk.Frame(card, bg=self.OK_BG, padx=10, pady=6,
-                             bd=1, relief=tk.SOLID)
-        tk.Label(self._cok, text="JSON successfully copied to clipboard.",
-                 font=("Verdana", 9, "bold"),
-                 bg=self.OK_BG, fg=self.OK_FG).pack(anchor=tk.W)
-
-    # ── Actions ──────────────────────────────────────────────────
-
-    def _browse_pdf(self):
-        path = filedialog.askopenfilename(
-            title="Select PDF File",
-            filetypes=[("PDF Files", "*.pdf"), ("All Files", "*.*")])
-        if not path:
-            return
-        self.pdf_path = path
-        sz = os.path.getsize(path) / (1024 * 1024)
-        self._fi_lbl.configure(
-            text=f"Selected: {os.path.basename(path)} ({sz:.2f} MB)")
-        self._fi.pack(fill=tk.X, pady=(8, 0))
-        self._refresh_btn()
-
-    def _key_changed(self):
-        self.license_verified = False
-        self._lm.pack_forget()
-        self._refresh_btn()
-
-    def _verify(self):
-        key = self.key_entry.get().strip()
-        if not key:
-            self._lic_msg("Please enter a product key.", "error")
-            return
-        self.vbtn.configure(state=tk.DISABLED, text="Verifying...")
-        self.root.update()
-        threading.Thread(target=self._do_verify, args=(key,),
-                         daemon=True).start()
-
-    def _do_verify(self, key):
-        if not check_internet():
-            self.root.after(0, self._lic_msg,
-                           "No internet connection detected.", "error")
-            self.root.after(0, self._reset_vbtn)
-            return
+            return {"valid": False, "message": "No internet connection detected."}
 
         result = validate_license(key)
-
         if result.get("valid"):
             self.license_verified = True
-            self.root.after(0, self._lic_msg,
-                           "Product key verified successfully. "
-                           "PDF extraction is now enabled.", "success")
-        elif key.strip().upper() in DEMO_KEYS:
+            return {
+                "valid": True,
+                "message": "Product key verified successfully. PDF extraction is now enabled.",
+            }
+
+        if key.strip().upper() in DEMO_KEYS:
             self.license_verified = True
-            self.root.after(0, self._lic_msg,
-                           "Product key verified successfully. "
-                           "PDF extraction is now enabled.", "success")
-        else:
-            self.license_verified = False
-            err = result.get("error") or "Invalid license key."
-            self.root.after(0, self._lic_msg, err, "error")
+            return {
+                "valid": True,
+                "message": "Product key verified successfully. PDF extraction is now enabled.",
+            }
 
-        self.root.after(0, self._reset_vbtn)
-        self.root.after(0, self._refresh_btn)
+        self.license_verified = False
+        return {
+            "valid": False,
+            "message": result.get("error", "Invalid license key."),
+        }
 
-    def _reset_vbtn(self):
-        self.vbtn.configure(state=tk.NORMAL, text="Verify")
+    def extract(self, jurisdiction, doc_type):
+        if not self.pdf_path:
+            return {"error": "No PDF file selected."}
+        if not self.license_verified:
+            return {"error": "License not verified."}
 
-    def _lic_msg(self, text, kind):
-        bg = self.OK_BG if kind == "success" else self.ERR_BG
-        fg = self.OK_FG if kind == "success" else self.ERR_FG
-        self._lm.configure(bg=bg)
-        self._ll.configure(text=text, bg=bg, fg=fg)
-        self._lm.pack(fill=tk.X, pady=(8, 0))
-
-    def _refresh_btn(self):
-        ok = self.pdf_path and self.license_verified and not self.processing
-        if ok:
-            self.ebtn.configure(bg=self.ORANGE, state=tk.NORMAL,
-                                cursor="hand2")
-        else:
-            self.ebtn.configure(bg=self.SLATE_300, state=tk.DISABLED,
-                                cursor="arrow")
-
-    def _extract(self):
-        if self.processing or not self.pdf_path or not self.license_verified:
-            return
-        self.processing = True
-        self._refresh_btn()
-        self._pb["value"] = 0
-        self._pf.pack(fill=tk.X, pady=(10, 0))
-        self._sf.pack_forget()
-        self._cok.pack_forget()
-        self._sum.pack_forget()
-
-        self.jout.configure(state=tk.NORMAL)
-        self.jout.delete("1.0", tk.END)
-        self.jout.insert("1.0", "Extracting PDF data...")
-        self.jout.configure(state=tk.DISABLED)
-        self.cbtn.configure(bg=self.SLATE_300, state=tk.DISABLED)
-
-        threading.Thread(target=self._run, daemon=True).start()
-
-    def _prog(self, text, pct):
-        self._pt.configure(text=text)
-        self._pp.configure(text=f"{pct}%")
-        self._pb["value"] = pct
-
-    def _run(self):
         try:
-            self.root.after(0, self._prog, "Reading PDF file...", 10)
-            time.sleep(0.4)
-
-            jsel = self.jur_var.get()
-            if jsel == "Auto Detect":
-                self.root.after(0, self._prog,
-                               "Detecting Jurisdiction...", 20)
-                jurisdiction = detect_jurisdiction(self.pdf_path)
-                time.sleep(0.3)
-            else:
-                jurisdiction = jsel.split(" - ")[0].strip()
-                self.root.after(0, self._prog,
-                               f"Jurisdiction: {jurisdiction}", 20)
-                time.sleep(0.2)
-
-            dsel = self.doc_var.get()
-            tmap = {n: c for c, n in REPORT_TYPES}
-            report_type = tmap.get(dsel, "auto")
-
-            self.root.after(0, self._prog,
-                           "Detecting Document Type...", 30)
+            self._prog("Reading PDF file...", 10)
             time.sleep(0.3)
 
-            self.root.after(0, self._prog,
-                           "Analysing PDF Structure...", 45)
+            if jurisdiction == "auto":
+                self._prog("Detecting Jurisdiction...", 20)
+                detected_jur = detect_jurisdiction(self.pdf_path)
+                time.sleep(0.2)
+            else:
+                detected_jur = jurisdiction
+                self._prog(f"Jurisdiction: {detected_jur}", 20)
+
+            self._prog("Detecting Document Type...", 30)
             time.sleep(0.2)
 
-            self.root.after(0, self._prog,
-                           "Extracting Condition Report Data...", 60)
+            self._prog("Analysing PDF Structure...", 45)
+            time.sleep(0.2)
 
+            self._prog("Extracting Condition Report Data...", 60)
             result = extract_pdf(
                 self.pdf_path,
-                jurisdiction=jurisdiction,
-                report_type=report_type,
+                jurisdiction=detected_jur,
+                report_type=doc_type if doc_type != "auto" else "auto",
                 output_dir=os.path.dirname(self.pdf_path),
-                save_images=True)
+                save_images=True,
+            )
 
-            self.root.after(0, self._prog,
-                           "Validating Extracted Data...", 80)
-            time.sleep(0.3)
-
-            self.root.after(0, self._prog, "Building JSON...", 92)
-            self.extracted_json = json.dumps(
-                result, indent=2, ensure_ascii=False)
+            self._prog("Validating Extracted Data...", 80)
             time.sleep(0.2)
 
-            self.root.after(0, self._prog, "Extraction Complete", 100)
-            self.root.after(0, self._show_result, result)
-            self.root.after(0, self._status,
-                           "PDF extraction completed successfully.",
-                           "success")
+            self._prog("Building JSON...", 92)
+            self.extracted_json = json.dumps(result, indent=2, ensure_ascii=False)
+            time.sleep(0.15)
+
+            self._prog("Extraction Complete", 100)
+
+            areas = result.get("areas", [])
+            comps = sum(len(a.get("components", [])) for a in areas)
+            meta = result.get("report_metadata", {})
+            missing = []
+            if not meta.get("address"):
+                missing.append("Property Address")
+            if not meta.get("tenant_name"):
+                missing.append("Tenant Name")
+            if not meta.get("landlord_name"):
+                missing.append("Landlord Name")
+
+            summary = {
+                "jurisdiction": result.get("jurisdiction", "N/A"),
+                "document_type": result.get("document_type", "N/A"),
+                "pages": meta.get("total_pages", 0),
+                "areas": len(areas),
+                "records": comps,
+                "validation": "Passed" if not missing else "Review Required",
+                "missing": missing,
+            }
+            return {"json": self.extracted_json, "summary": summary}
+
         except Exception as e:
-            self.root.after(0, self._prog, "Extraction Failed", 0)
-            self.root.after(0, self._status, f"Error: {e}", "error")
-        finally:
-            self.root.after(0, self._end_run)
+            self._prog("Extraction Failed", 0)
+            return {"error": str(e)}
 
-    def _show_result(self, result):
-        self.jout.configure(state=tk.NORMAL)
-        self.jout.delete("1.0", tk.END)
-        self.jout.insert("1.0", self.extracted_json)
-        self.jout.configure(state=tk.DISABLED)
+    def _prog(self, text, pct):
+        if self.window:
+            safe = text.replace("\\", "\\\\").replace("'", "\\'")
+            self.window.evaluate_js(f"updateProgress('{safe}', {pct})")
 
-        self.cbtn.configure(bg=self.DARK, state=tk.NORMAL, cursor="hand2")
+    def copy_to_clipboard(self, text):
+        try:
+            import tkinter as tk
+            r = tk.Tk()
+            r.withdraw()
+            r.clipboard_clear()
+            r.clipboard_append(text)
+            r.update()
+            r.destroy()
+            return True
+        except Exception:
+            return False
 
-        areas = result.get("areas", [])
-        comps = sum(len(a.get("components", [])) for a in areas)
-        meta = result.get("report_metadata", {})
 
-        missing = []
-        if not meta.get("address"):
-            missing.append("Property Address")
-        if not meta.get("tenant_name"):
-            missing.append("Tenant Name")
-        if not meta.get("landlord_name"):
-            missing.append("Landlord Name")
+HTML = """<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>ORBAS Native PDF Extractor</title>
+<style>
+*,*::before,*::after{margin:0;padding:0;box-sizing:border-box}
+body{font-family:Verdana,Geneva,sans-serif;background:#f1f5f9;color:#0f172a;overflow:hidden;height:100vh}
+.app{display:flex;flex-direction:column;height:100vh;padding:1.1rem 1.25rem}
 
-        empty_ct = sum(1 for a in areas
-                       if not any(c.get("start_of_tenancy", {}).get("clean")
-                                  for c in a.get("components", [])))
-        warns = []
-        if empty_ct:
-            warns.append(f"{empty_ct} area(s) with no extracted data")
+/* Header */
+.hdr{display:flex;align-items:center;justify-content:space-between;margin-bottom:.85rem}
+.hdr h1{font-size:1.35rem;font-weight:700;color:#0453ed}
+.hdr .sub{font-size:.78rem;color:#475569;margin-top:.1rem}
+.hdr .ver{font-size:.8rem;font-weight:600;text-align:right}
+.hdr .ver-sub{font-size:.7rem;color:#64748b}
 
-        lines = [
-            f"Jurisdiction Detected:  {result.get('jurisdiction', 'N/A')}",
-            f"Document Type Detected:  "
-            f"{result.get('document_type', 'N/A')}",
-            f"Pages Processed:  {meta.get('total_pages', 0)}",
-            f"Property Areas Detected:  {len(areas)}",
-            f"Condition Records Extracted:  {comps}",
-            f"Validation Status:  "
-            f"{'Passed' if not missing else 'Review Required'}",
-        ]
-        if warns:
-            lines.append(f"Warnings:  {'; '.join(warns)}")
-        if missing:
-            lines.append(f"Missing Data:  {', '.join(missing)}")
+/* Grid */
+.grid{flex:1;display:grid;grid-template-columns:1fr 1fr;gap:1.1rem;min-height:0}
+.left{display:flex;flex-direction:column;gap:.75rem;overflow-y:auto;padding-right:.25rem}
+.left::-webkit-scrollbar{width:5px}
+.left::-webkit-scrollbar-thumb{background:#cbd5e1;border-radius:4px}
 
-        self._sum_l.configure(text="\n".join(lines))
-        self._sum.pack(fill=tk.X, pady=(0, 6), before=self._jc)
+/* Card */
+.card{background:#fff;border-radius:.75rem;border:1px solid #e2e8f0;box-shadow:0 1px 2px rgba(0,0,0,.05);padding:1rem 1.1rem}
+.card-h{display:flex;align-items:center;gap:.6rem;margin-bottom:.7rem}
+.circ{width:1.65rem;height:1.65rem;border-radius:50%;color:#fff;display:flex;align-items:center;justify-content:center;font-size:.75rem;font-weight:700;flex-shrink:0}
+.c-blue{background:#0453ed}
+.c-green{background:#096e4d}
+.c-orange{background:#fd6207}
+.card-h h2{font-size:.95rem;font-weight:700}
 
-    def _status(self, text, kind):
-        bg = self.OK_BG if kind == "success" else self.ERR_BG
-        fg = self.OK_FG if kind == "success" else self.ERR_FG
-        self._sf.configure(bg=bg)
-        self._sl.configure(text=text, bg=bg, fg=fg)
-        self._sf.pack(fill=tk.X, pady=(8, 0))
+/* Drop zone */
+.dz{border:2px dashed #cbd5e1;border-radius:.75rem;padding:1rem 1.25rem;text-align:center;background:#f8fafc;cursor:pointer;transition:.2s}
+.dz:hover{background:#eff6ff;border-color:#0453ed}
+.dz .ico{font-size:1.75rem;margin-bottom:.25rem}
+.dz .main{font-weight:600;font-size:.82rem}
+.dz .hint{font-size:.72rem;color:#64748b;margin-top:.1rem}
 
-    def _end_run(self):
-        self.processing = False
-        self._refresh_btn()
+/* Buttons */
+.btn{border:none;border-radius:.5rem;font-weight:600;cursor:pointer;font-family:inherit;transition:.15s;font-size:.78rem;padding:.4rem .9rem}
+.btn-dark{background:#0f172a;color:#fff}.btn-dark:hover{background:#1e293b}
+.btn-green{background:#096e4d;color:#fff}.btn-green:hover{background:#065f46}
+.btn-orange{background:#fd6207;color:#fff;font-size:.9rem;font-weight:700;padding:.6rem 1rem;width:100%;border-radius:.65rem}
+.btn-orange:hover{background:#ea580c}
+.btn-slate{background:#0f172a;color:#fff}.btn-slate:hover{background:#1e293b}
+.btn:disabled{background:#cbd5e1!important;cursor:not-allowed!important;color:#fff}
 
-    def _copy_json(self):
-        if not self.extracted_json:
-            return
-        self.root.clipboard_clear()
-        self.root.clipboard_append(self.extracted_json)
-        self._cok.pack(fill=tk.X, pady=(6, 0))
-        self.root.after(3000, lambda: self._cok.pack_forget())
+/* File info */
+.fi{margin-top:.55rem;padding:.5rem .65rem;border-radius:.45rem;background:#f0fdf4;border:1px solid #bbf7d0;display:none}
+.fi p{font-size:.78rem;color:#166534}
+.fi .l{font-weight:600}
+
+/* Form */
+label{display:block;font-size:.78rem;font-weight:600;margin-bottom:.25rem}
+select,input[type=text]{width:100%;border:1px solid #e2e8f0;border-radius:.45rem;padding:.38rem .55rem;font-size:.78rem;font-family:inherit;outline:none;background:#fff}
+select:focus,input[type=text]:focus{border-color:#0453ed;box-shadow:0 0 0 2px rgba(4,83,237,.1)}
+.form-row{display:grid;grid-template-columns:1fr 1fr;gap:.7rem}
+.lic-row{display:flex;gap:.5rem}
+.lic-row input{flex:1;font-family:Consolas,'Courier New',monospace}
+
+/* Messages */
+.msg{margin-top:.5rem;padding:.45rem .6rem;border-radius:.45rem;font-size:.78rem;display:none}
+.msg-ok{background:#f0fdf4;border:1px solid #bbf7d0;color:#166534}
+.msg-err{background:#fef2f2;border:1px solid #fecaca;color:#991b1b}
+.msg-info{background:#f0f9ff;border:1px solid #bfdbfe;color:#1e40af}
+
+/* Progress */
+.pbox{margin-top:.6rem;display:none}
+.ph{display:flex;justify-content:space-between;font-size:.78rem;margin-bottom:.25rem}
+.ph .l{font-weight:600}
+.ptrack{width:100%;background:#e2e8f0;border-radius:99px;height:.5rem;overflow:hidden}
+.pbar{background:#096e4d;height:100%;border-radius:99px;transition:width .3s;width:0%}
+
+/* JSON panel */
+.json-card{display:flex;flex-direction:column;min-height:0}
+.json-hdr{display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:.5rem}
+.json-left{display:flex;align-items:center;gap:.6rem}
+.json-tt .t{font-size:.95rem;font-weight:700}
+.json-tt .s{font-size:.68rem;color:#64748b;margin-top:.05rem}
+.json-out{flex:1;background:#020617;color:#86efac;border-radius:.75rem;padding:.75rem;font-family:Consolas,'Courier New',monospace;font-size:.68rem;line-height:1.3rem;overflow:auto;border:1px solid #1e293b;white-space:pre;min-height:0}
+
+/* Summary */
+.summ{padding:.5rem .65rem;border-radius:.45rem;background:#f0f9ff;border:1px solid #bfdbfe;font-size:.72rem;color:#1e40af;margin-bottom:.4rem;line-height:1.35;display:none}
+
+/* Copy ok */
+.copy-ok{margin-top:.4rem;padding:.4rem .6rem;border-radius:.45rem;background:#f0fdf4;border:1px solid #bbf7d0;color:#166534;font-size:.78rem;font-weight:600;display:none}
+
+/* No internet overlay */
+.overlay{position:fixed;inset:0;background:rgba(15,23,42,.7);display:flex;align-items:center;justify-content:center;z-index:999}
+.overlay-box{background:#fff;border-radius:.75rem;padding:2rem;max-width:420px;text-align:center;box-shadow:0 20px 40px rgba(0,0,0,.2)}
+.overlay-box h2{color:#991b1b;margin-bottom:.5rem;font-size:1.1rem}
+.overlay-box p{font-size:.82rem;color:#475569;line-height:1.5}
+.overlay-box .ic{font-size:2.5rem;margin-bottom:.6rem}
+.hidden{display:none!important}
+</style>
+</head>
+<body>
+<div class="app">
+  <div class="hdr">
+    <div>
+      <h1 id="appTitle">ORBAS Native PDF Extractor</h1>
+      <div class="sub">Extract rental condition report PDF data into structured JSON.</div>
+    </div>
+    <div>
+      <div class="ver" id="verLabel">v2.1.0</div>
+      <div class="ver-sub">Local PDF Extraction</div>
+    </div>
+  </div>
+
+  <div class="grid">
+    <div class="left">
+
+      <!-- Step 1 -->
+      <div class="card">
+        <div class="card-h"><span class="circ c-blue">1</span><h2>Select PDF File</h2></div>
+        <div class="dz" id="dropZone" onclick="selectFile()">
+          <div class="ico">&#128196;</div>
+          <div class="main">Click to select your PDF file</div>
+          <div class="hint">Supported format: .pdf</div>
+          <button class="btn btn-dark" style="margin-top:.5rem" type="button" onclick="event.stopPropagation();selectFile()">Browse PDF</button>
+        </div>
+        <div class="fi" id="fileInfo">
+          <p class="l">Selected File</p>
+          <p id="fileName"></p>
+        </div>
+      </div>
+
+      <!-- Step 2 -->
+      <div class="card">
+        <div class="card-h"><span class="circ c-blue">2</span><h2>Jurisdiction & Document Type</h2></div>
+        <div class="form-row">
+          <div>
+            <label>Jurisdiction</label>
+            <select id="jurisdiction"></select>
+          </div>
+          <div>
+            <label>Document Type</label>
+            <select id="documentType"></select>
+          </div>
+        </div>
+      </div>
+
+      <!-- Step 3 -->
+      <div class="card">
+        <div class="card-h"><span class="circ c-green">3</span><h2>Product Key Verification</h2></div>
+        <label>Product / License Key</label>
+        <div class="lic-row">
+          <input type="text" id="licenseKey" placeholder="Example: ORBAS-DEMO-2026">
+          <button class="btn btn-green" id="verifyBtn" onclick="verifyKey()">Verify</button>
+        </div>
+        <div class="msg" id="licMsg"></div>
+      </div>
+
+      <!-- Step 4 -->
+      <div class="card">
+        <div class="card-h"><span class="circ c-orange">4</span><h2>Extract PDF</h2></div>
+        <button class="btn btn-orange" id="extractBtn" disabled onclick="extractPdf()">Extract PDF</button>
+        <div class="pbox" id="progressBox">
+          <div class="ph">
+            <span class="l" id="progText">Preparing...</span>
+            <span id="progPct">0%</span>
+          </div>
+          <div class="ptrack"><div class="pbar" id="progBar"></div></div>
+        </div>
+        <div class="msg" id="statusMsg"></div>
+      </div>
+
+    </div>
+
+    <!-- Step 5 - JSON Output -->
+    <div class="card json-card">
+      <div class="json-hdr">
+        <div class="json-left">
+          <span class="circ c-green">5</span>
+          <div class="json-tt">
+            <div class="t">JSON Output</div>
+            <div class="s">Copy this output and paste it into the designated ORBAS UI.</div>
+          </div>
+        </div>
+        <button class="btn btn-slate" id="copyBtn" disabled onclick="copyJson()">Copy JSON</button>
+      </div>
+      <div class="summ" id="summary"></div>
+      <pre class="json-out" id="jsonOut">No extraction output yet.</pre>
+      <div class="copy-ok" id="copyOk">JSON successfully copied to clipboard.</div>
+    </div>
+  </div>
+</div>
+
+<!-- No internet overlay (hidden by default) -->
+<div class="overlay hidden" id="noInet">
+  <div class="overlay-box">
+    <div class="ic">&#9888;&#65039;</div>
+    <h2>No Internet Connection</h2>
+    <p>An active internet connection is required to verify your product license and use this application.<br><br>Please connect to the internet and restart the application.</p>
+  </div>
+</div>
+
+<script>
+let fileSelected = false;
+let licenseVerified = false;
+let extractedJson = '';
+let extracting = false;
+
+window.addEventListener('pywebviewready', () => {
+  pywebview.api.get_config().then(cfg => {
+    document.getElementById('verLabel').textContent = 'v' + cfg.version;
+
+    const jSel = document.getElementById('jurisdiction');
+    jSel.innerHTML = '<option value="auto">Auto Detect</option>';
+    cfg.jurisdictions.forEach(j => {
+      const o = document.createElement('option');
+      o.value = j.code;
+      o.textContent = j.code + ' - ' + j.name;
+      jSel.appendChild(o);
+    });
+
+    const dSel = document.getElementById('documentType');
+    dSel.innerHTML = '';
+    cfg.report_types.forEach(r => {
+      const o = document.createElement('option');
+      o.value = r.code;
+      o.textContent = r.name;
+      dSel.appendChild(o);
+    });
+
+    if (!cfg.has_internet) {
+      document.getElementById('noInet').classList.remove('hidden');
+    }
+  });
+});
+
+function selectFile() {
+  pywebview.api.select_file().then(f => {
+    if (!f) return;
+    fileSelected = true;
+    document.getElementById('fileName').textContent = f.name + ' (' + f.size + ')';
+    document.getElementById('fileInfo').style.display = 'block';
+    checkReady();
+  });
+}
+
+function verifyKey() {
+  const key = document.getElementById('licenseKey').value.trim();
+  if (!key) {
+    showMsg('licMsg', 'Please enter a product key.', 'err');
+    return;
+  }
+  const btn = document.getElementById('verifyBtn');
+  btn.disabled = true;
+  btn.textContent = 'Verifying...';
+
+  pywebview.api.verify_license(key).then(r => {
+    btn.disabled = false;
+    btn.textContent = 'Verify';
+    if (r.valid) {
+      licenseVerified = true;
+      showMsg('licMsg', r.message, 'ok');
+    } else {
+      licenseVerified = false;
+      showMsg('licMsg', r.message, 'err');
+    }
+    checkReady();
+  });
+}
+
+document.getElementById('licenseKey').addEventListener('input', () => {
+  licenseVerified = false;
+  hideMsg('licMsg');
+  checkReady();
+});
+
+document.getElementById('licenseKey').addEventListener('keydown', e => {
+  if (e.key === 'Enter') verifyKey();
+});
+
+function checkReady() {
+  document.getElementById('extractBtn').disabled = !(fileSelected && licenseVerified && !extracting);
+}
+
+function extractPdf() {
+  if (extracting) return;
+  extracting = true;
+  checkReady();
+
+  const jur = document.getElementById('jurisdiction').value;
+  const dt = document.getElementById('documentType').value;
+
+  document.getElementById('progressBox').style.display = 'block';
+  hideMsg('statusMsg');
+  document.getElementById('copyOk').style.display = 'none';
+  document.getElementById('summary').style.display = 'none';
+  document.getElementById('jsonOut').textContent = 'Extracting PDF data...';
+  document.getElementById('copyBtn').disabled = true;
+
+  pywebview.api.extract(jur, dt).then(r => {
+    extracting = false;
+    if (r.error) {
+      showMsg('statusMsg', 'Error: ' + r.error, 'err');
+      checkReady();
+      return;
+    }
+    extractedJson = r.json;
+    document.getElementById('jsonOut').textContent = r.json;
+    document.getElementById('copyBtn').disabled = false;
+
+    if (r.summary) {
+      const s = r.summary;
+      let txt = 'Jurisdiction Detected:  ' + s.jurisdiction + '\\n';
+      txt += 'Document Type Detected:  ' + s.document_type + '\\n';
+      txt += 'Pages Processed:  ' + s.pages + '\\n';
+      txt += 'Property Areas Detected:  ' + s.areas + '\\n';
+      txt += 'Condition Records Extracted:  ' + s.records + '\\n';
+      txt += 'Validation Status:  ' + s.validation;
+      if (s.missing && s.missing.length > 0) {
+        txt += '\\nMissing Data:  ' + s.missing.join(', ');
+      }
+      const el = document.getElementById('summary');
+      el.textContent = txt;
+      el.style.display = 'block';
+    }
+    showMsg('statusMsg', 'PDF extraction completed successfully.', 'ok');
+    checkReady();
+  });
+}
+
+function updateProgress(text, pct) {
+  document.getElementById('progText').textContent = text;
+  document.getElementById('progPct').textContent = pct + '%';
+  document.getElementById('progBar').style.width = pct + '%';
+}
+
+function copyJson() {
+  if (!extractedJson) return;
+  pywebview.api.copy_to_clipboard(extractedJson).then(ok => {
+    showCopyOk();
+  });
+}
+
+function showCopyOk() {
+  const el = document.getElementById('copyOk');
+  el.style.display = 'block';
+  setTimeout(() => { el.style.display = 'none'; }, 3000);
+}
+
+function showMsg(id, text, type) {
+  const el = document.getElementById(id);
+  el.textContent = text;
+  el.className = 'msg ' + (type === 'ok' ? 'msg-ok' : 'msg-err');
+  el.style.display = 'block';
+}
+
+function hideMsg(id) {
+  document.getElementById(id).style.display = 'none';
+}
+</script>
+</body>
+</html>"""
 
 
 def run_gui():
-    root = tk.Tk()
-    app = ExtractorApp(root)
-    root.mainloop()
+    api = Api()
+    window = webview.create_window(
+        f"{APP_NAME} Native PDF Extractor",
+        html=HTML,
+        js_api=api,
+        width=1200,
+        height=800,
+        min_size=(1000, 700),
+    )
+    api.window = window
+    webview.start()

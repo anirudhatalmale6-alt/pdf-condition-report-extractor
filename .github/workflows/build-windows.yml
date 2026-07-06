@@ -20,6 +20,7 @@ jobs:
       - name: Install dependencies
         run: |
           pip install PyMuPDF pdfplumber Pillow pytesseract requests pyinstaller
+          pip install pywebview pythonnet clr_loader bottle proxy_tools
 
       - name: Build EXE
         run: |
