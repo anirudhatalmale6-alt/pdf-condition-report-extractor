@@ -2,6 +2,7 @@ import os
 import json
 import time
 import socket
+import base64
 import webview
 
 from .config import APP_NAME, VERSION, JURISDICTIONS, REPORT_TYPES
@@ -27,19 +28,58 @@ class Api:
         self.extracted_json = ""
 
     def select_file(self):
-        result = self.window.create_file_dialog(
-            webview.OPEN_DIALOG,
-            file_types=("PDF Files (*.pdf)",),
-        )
-        if result and len(result) > 0:
-            path = result[0] if isinstance(result[0], str) else str(result[0])
-            self.pdf_path = path
-            size = os.path.getsize(path) / (1024 * 1024)
-            return {
-                "name": os.path.basename(path),
-                "size": f"{size:.2f} MB",
-            }
+        # Primary: tkinter file dialog (reliable on Windows from any thread)
+        try:
+            import tkinter as tk
+            from tkinter import filedialog
+            root = tk.Tk()
+            root.withdraw()
+            root.wm_attributes('-topmost', 1)
+            root.update()
+            path = filedialog.askopenfilename(
+                title="Select PDF File",
+                filetypes=[("PDF Files", "*.pdf"), ("All Files", "*.*")],
+                parent=root
+            )
+            root.destroy()
+            if path and os.path.isfile(path):
+                self.pdf_path = path
+                size = os.path.getsize(path) / (1024 * 1024)
+                return {"ok": True, "name": os.path.basename(path), "size": f"{size:.2f} MB"}
+            return None
+        except Exception:
+            pass
+
+        # Fallback: pywebview native dialog
+        try:
+            result = self.window.create_file_dialog(
+                webview.OPEN_DIALOG,
+                file_types=("PDF Files (*.pdf)",),
+            )
+            if result and len(result) > 0:
+                path = result[0] if isinstance(result[0], str) else str(result[0])
+                if os.path.isfile(path):
+                    self.pdf_path = path
+                    size = os.path.getsize(path) / (1024 * 1024)
+                    return {"ok": True, "name": os.path.basename(path), "size": f"{size:.2f} MB"}
+        except Exception:
+            pass
         return None
+
+    def receive_file(self, name, data_b64):
+        """Receive drag-and-dropped file as base64."""
+        try:
+            import tempfile
+            content = base64.b64decode(data_b64)
+            safe = "".join(c for c in name if c.isalnum() or c in '._- ')
+            path = os.path.join(tempfile.gettempdir(), f"orbas_{safe}")
+            with open(path, 'wb') as f:
+                f.write(content)
+            self.pdf_path = path
+            size = len(content) / (1024 * 1024)
+            return {"ok": True, "name": name, "size": f"{size:.2f} MB"}
+        except Exception as e:
+            return {"ok": False, "error": str(e)}
 
     def verify_license(self, key):
         if not key or not key.strip():
@@ -199,7 +239,7 @@ body{font-family:Verdana,Geneva,sans-serif;background:#f1f5f9;color:#0f172a;heig
 
 /* Drop zone */
 .dz{border:2px dashed #cbd5e1;border-radius:.65rem;padding:clamp(.5rem,1.2vh,.9rem) 1rem;text-align:center;background:#f8fafc;cursor:pointer;transition:.2s}
-.dz:hover{background:#eff6ff;border-color:#0453ed}
+.dz:hover,.dz-hover{background:#eff6ff!important;border-color:#0453ed!important}
 .dz .ico{font-size:clamp(1.2rem,2.5vh,1.8rem);margin-bottom:.15rem}
 .dz .main{font-weight:600;font-size:clamp(.7rem,1vw,.82rem)}
 .dz .hint{font-size:clamp(.6rem,.85vw,.72rem);color:#64748b;margin-top:.1rem}
@@ -272,11 +312,11 @@ select:focus,input[type=text]:focus{border-color:#0453ed;box-shadow:0 0 0 2px rg
       <!-- Step 1 -->
       <div class="card">
         <div class="card-h"><span class="circ c-blue">1</span><h2>Select PDF File</h2></div>
-        <div class="dz" id="dropZone" onclick="selectFile()">
+        <div class="dz" id="dropZone">
           <div class="ico">&#128196;</div>
-          <div class="main">Click to select your PDF file</div>
-          <div class="hint">Supported format: .pdf</div>
-          <button class="btn btn-dark" style="margin-top:.4rem" type="button" onclick="event.stopPropagation();selectFile()">Browse PDF</button>
+          <div class="main" id="dzText">Drag and drop your PDF here</div>
+          <div class="hint">or click to browse from your computer</div>
+          <button class="btn btn-dark" style="margin-top:.4rem" type="button" id="browseBtn">Browse PDF</button>
         </div>
         <div class="fi" id="fileInfo">
           <p class="l">Selected File</p>
@@ -305,7 +345,7 @@ select:focus,input[type=text]:focus{border-color:#0453ed;box-shadow:0 0 0 2px rg
         <label>Product / License Key</label>
         <div class="lic-row">
           <input type="text" id="licenseKey" placeholder="Example: ORBAS-DEMO-2026">
-          <button class="btn btn-green" id="verifyBtn" onclick="verifyKey()">Verify</button>
+          <button class="btn btn-green" id="verifyBtn">Verify</button>
         </div>
         <div class="msg" id="licMsg"></div>
       </div>
@@ -313,7 +353,7 @@ select:focus,input[type=text]:focus{border-color:#0453ed;box-shadow:0 0 0 2px rg
       <!-- Step 4 -->
       <div class="card">
         <div class="card-h"><span class="circ c-orange">4</span><h2>Extract PDF</h2></div>
-        <button class="btn btn-orange" id="extractBtn" disabled onclick="extractPdf()">Extract PDF</button>
+        <button class="btn btn-orange" id="extractBtn" disabled>Extract PDF</button>
         <div class="pbox" id="progressBox">
           <div class="ph">
             <span class="l" id="progText">Preparing...</span>
@@ -336,7 +376,7 @@ select:focus,input[type=text]:focus{border-color:#0453ed;box-shadow:0 0 0 2px rg
             <div class="s">Copy this output and paste it into the designated ORBAS UI.</div>
           </div>
         </div>
-        <button class="btn btn-slate" id="copyBtn" disabled onclick="copyJson()">Copy JSON</button>
+        <button class="btn btn-slate" id="copyBtn" disabled>Copy JSON</button>
       </div>
       <div class="summ" id="summary"></div>
       <pre class="json-out" id="jsonOut">No extraction output yet.</pre>
@@ -346,32 +386,120 @@ select:focus,input[type=text]:focus{border-color:#0453ed;box-shadow:0 0 0 2px rg
 </div>
 
 <script>
-let fileSelected = false;
-let licenseVerified = false;
-let extractedJson = '';
-let extracting = false;
+var fileSelected = false;
+var licenseVerified = false;
+var extractedJson = '';
+var extracting = false;
 
+/* --- Browse PDF (click) --- */
 function selectFile() {
-  pywebview.api.select_file().then(f => {
+  var dzt = document.getElementById('dzText');
+  dzt.textContent = 'Opening file dialog...';
+  pywebview.api.select_file().then(function(f) {
+    dzt.textContent = 'Drag and drop your PDF here';
     if (!f) return;
-    fileSelected = true;
-    document.getElementById('fileName').textContent = f.name + ' (' + f.size + ')';
-    document.getElementById('fileInfo').style.display = 'block';
-    checkReady();
+    onFileSelected(f.name, f.size);
+  }).catch(function(err) {
+    dzt.textContent = 'Drag and drop your PDF here';
+    showMsg('statusMsg', 'Could not open file dialog: ' + err, 'err');
   });
 }
 
+function onFileSelected(name, size) {
+  fileSelected = true;
+  document.getElementById('fileName').textContent = name + ' (' + size + ')';
+  document.getElementById('fileInfo').style.display = 'block';
+  checkReady();
+}
+
+document.getElementById('browseBtn').addEventListener('click', function(e) {
+  e.stopPropagation();
+  selectFile();
+});
+
+document.getElementById('dropZone').addEventListener('click', function(e) {
+  if (e.target.id === 'browseBtn') return;
+  selectFile();
+});
+
+/* --- Drag and Drop --- */
+document.addEventListener('dragover', function(e) { e.preventDefault(); });
+document.addEventListener('drop', function(e) { e.preventDefault(); });
+
+var dz = document.getElementById('dropZone');
+dz.addEventListener('dragenter', function(e) {
+  e.preventDefault();
+  dz.classList.add('dz-hover');
+});
+dz.addEventListener('dragover', function(e) {
+  e.preventDefault();
+  dz.classList.add('dz-hover');
+});
+dz.addEventListener('dragleave', function(e) {
+  dz.classList.remove('dz-hover');
+});
+dz.addEventListener('drop', function(e) {
+  e.preventDefault();
+  e.stopPropagation();
+  dz.classList.remove('dz-hover');
+
+  var file = e.dataTransfer.files[0];
+  if (!file) return;
+  if (!file.name.toLowerCase().endsWith('.pdf')) {
+    showMsg('statusMsg', 'Please drop a PDF file.', 'err');
+    return;
+  }
+  if (file.size > 50 * 1024 * 1024) {
+    showMsg('statusMsg', 'File too large for drag and drop (50 MB limit). Please use Browse PDF.', 'err');
+    return;
+  }
+
+  var dzt = document.getElementById('dzText');
+  dzt.textContent = 'Reading file...';
+
+  var reader = new FileReader();
+  reader.onload = function() {
+    var bytes = new Uint8Array(reader.result);
+    var binary = '';
+    for (var i = 0; i < bytes.length; i += 8192) {
+      binary += String.fromCharCode.apply(null, bytes.subarray(i, Math.min(i + 8192, bytes.length)));
+    }
+    var b64 = btoa(binary);
+    dzt.textContent = 'Processing...';
+
+    pywebview.api.receive_file(file.name, b64).then(function(f) {
+      dzt.textContent = 'Drag and drop your PDF here';
+      if (!f || !f.ok) {
+        showMsg('statusMsg', 'Error: ' + (f ? f.error : 'Failed to process file'), 'err');
+        return;
+      }
+      onFileSelected(f.name, f.size);
+    }).catch(function(err) {
+      dzt.textContent = 'Drag and drop your PDF here';
+      showMsg('statusMsg', 'Drop error: ' + err, 'err');
+    });
+  };
+  reader.onerror = function() {
+    dzt.textContent = 'Drag and drop your PDF here';
+    showMsg('statusMsg', 'Could not read the dropped file.', 'err');
+  };
+  reader.readAsArrayBuffer(file);
+});
+
+/* --- License verification --- */
+document.getElementById('verifyBtn').addEventListener('click', function() { verifyKey(); });
+
 function verifyKey() {
-  const key = document.getElementById('licenseKey').value.trim();
+  var key = document.getElementById('licenseKey').value.trim();
   if (!key) {
     showMsg('licMsg', 'Please enter a product key.', 'err');
     return;
   }
-  const btn = document.getElementById('verifyBtn');
+  var btn = document.getElementById('verifyBtn');
   btn.disabled = true;
   btn.textContent = 'Verifying...';
 
-  pywebview.api.verify_license(key).then(r => {
+  pywebview.api.verify_license(key).then(function(r) {
     btn.disabled = false;
     btn.textContent = 'Verify';
     if (r.valid) {
@@ -382,18 +510,25 @@ function verifyKey() {
       showMsg('licMsg', r.message, 'err');
     }
     checkReady();
+  }).catch(function(err) {
+    btn.disabled = false;
+    btn.textContent = 'Verify';
+    showMsg('licMsg', 'Verification error: ' + err, 'err');
   });
 }
 
-document.getElementById('licenseKey').addEventListener('input', () => {
+document.getElementById('licenseKey').addEventListener('input', function() {
   licenseVerified = false;
   hideMsg('licMsg');
   checkReady();
 });
 
-document.getElementById('licenseKey').addEventListener('keydown', e => {
+document.getElementById('licenseKey').addEventListener('keydown', function(e) {
   if (e.key === 'Enter') verifyKey();
 });
+
+/* --- Extract --- */
+document.getElementById('extractBtn').addEventListener('click', function() { extractPdf(); });
 
 function checkReady() {
   document.getElementById('extractBtn').disabled = !(fileSelected && licenseVerified && !extracting);
@@ -404,8 +539,8 @@ function extractPdf() {
   extracting = true;
   checkReady();
 
-  const jur = document.getElementById('jurisdiction').value;
-  const dt = document.getElementById('documentType').value;
+  var jur = document.getElementById('jurisdiction').value;
+  var dt = document.getElementById('documentType').value;
 
   document.getElementById('progressBox').style.display = 'block';
   hideMsg('statusMsg');
@@ -414,7 +549,7 @@ function extractPdf() {
   document.getElementById('jsonOut').textContent = 'Extracting PDF data...';
   document.getElementById('copyBtn').disabled = true;
 
-  pywebview.api.extract(jur, dt).then(r => {
+  pywebview.api.extract(jur, dt).then(function(r) {
     extracting = false;
     if (r.error) {
       showMsg('statusMsg', 'Error: ' + r.error, 'err');
@@ -426,8 +561,8 @@ function extractPdf() {
     document.getElementById('copyBtn').disabled = false;
 
     if (r.summary) {
-      const s = r.summary;
-      let txt = 'Jurisdiction Detected:  ' + s.jurisdiction + '\\n';
+      var s = r.summary;
+      var txt = 'Jurisdiction Detected:  ' + s.jurisdiction + '\\n';
       txt += 'Document Type Detected:  ' + s.document_type + '\\n';
       txt += 'Pages Processed:  ' + s.pages + '\\n';
       txt += 'Property Areas Detected:  ' + s.areas + '\\n';
@@ -436,11 +571,15 @@ function extractPdf() {
       if (s.missing && s.missing.length > 0) {
         txt += '\\nMissing Data:  ' + s.missing.join(', ');
       }
-      const el = document.getElementById('summary');
+      var el = document.getElementById('summary');
       el.textContent = txt;
       el.style.display = 'block';
     }
     showMsg('statusMsg', 'PDF extraction completed successfully.', 'ok');
+    checkReady();
+  }).catch(function(err) {
+    extracting = false;
+    showMsg('statusMsg', 'Extraction error: ' + err, 'err');
     checkReady();
   });
 }
@@ -451,21 +590,23 @@ function updateProgress(text, pct) {
   document.getElementById('progBar').style.width = pct + '%';
 }
 
+/* --- Copy JSON --- */
+document.getElementById('copyBtn').addEventListener('click', function() { copyJson(); });
+
 function copyJson() {
   if (!extractedJson) return;
-  pywebview.api.copy_to_clipboard(extractedJson).then(ok => {
-    showCopyOk();
+  pywebview.api.copy_to_clipboard(extractedJson).then(function(ok) {
+    var el = document.getElementById('copyOk');
+    el.style.display = 'block';
+    setTimeout(function() { el.style.display = 'none'; }, 3000);
+  }).catch(function(err) {
+    showMsg('statusMsg', 'Copy failed: ' + err, 'err');
   });
 }
 
-function showCopyOk() {
-  const el = document.getElementById('copyOk');
-  el.style.display = 'block';
-  setTimeout(() => { el.style.display = 'none'; }, 3000);
-}
-
+/* --- Helpers --- */
 function showMsg(id, text, type) {
-  const el = document.getElementById(id);
+  var el = document.getElementById(id);
   el.textContent = text;
   el.className = 'msg ' + (type === 'ok' ? 'msg-ok' : 'msg-err');
   el.style.display = 'block';
