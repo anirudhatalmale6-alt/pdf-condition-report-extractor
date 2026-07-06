@@ -32,41 +32,27 @@ class Api:
         self._temp_dirs = []
 
     def select_file(self):
+        # Use pywebview's native dialog. It is marshalled to the GUI thread by
+        # pywebview, so it stays responsive. (Do NOT use tkinter here: js_api
+        # calls run on a worker thread and tkinter is not thread-safe, which
+        # freezes the WebView2 UI -> "Not Responding".)
         try:
-            import tkinter as tk
-            from tkinter import filedialog
-            root = tk.Tk()
-            root.withdraw()
-            root.wm_attributes('-topmost', 1)
-            root.update()
-            path = filedialog.askopenfilename(
-                title="Select PDF File",
-                filetypes=[("PDF Files", "*.pdf"), ("All Files", "*.*")],
-                parent=root
+            result = self.window.create_file_dialog(
+                webview.OPEN_DIALOG,
+                allow_multiple=False,
+                file_types=("PDF Files (*.pdf)", "All files (*.*)"),
             )
-            root.destroy()
-            if path and os.path.isfile(path):
+            if not result:
+                return None
+            path = result[0] if isinstance(result, (list, tuple)) else result
+            path = str(path)
+            if os.path.isfile(path):
                 self.pdf_path = path
                 size = os.path.getsize(path) / (1024 * 1024)
                 return {"ok": True, "name": os.path.basename(path), "size": f"{size:.2f} MB"}
             return None
-        except Exception:
-            pass
-
-        try:
-            result = self.window.create_file_dialog(
-                webview.OPEN_DIALOG,
-                file_types=("PDF Files (*.pdf)",),
-            )
-            if result and len(result) > 0:
-                path = result[0] if isinstance(result[0], str) else str(result[0])
-                if os.path.isfile(path):
-                    self.pdf_path = path
-                    size = os.path.getsize(path) / (1024 * 1024)
-                    return {"ok": True, "name": os.path.basename(path), "size": f"{size:.2f} MB"}
-        except Exception:
-            pass
-        return None
+        except Exception as e:
+            return {"ok": False, "error": str(e)}
 
     def receive_file(self, name, data_b64):
         try:
@@ -414,6 +400,7 @@ function selectFile() {
   pywebview.api.select_file().then(function(f) {
     dzt.textContent = 'Drag and drop your PDF here';
     if (!f) return;
+    if (f.ok === false) { showMsg('statusMsg', 'Could not open file: ' + (f.error || 'unknown'), 'err'); return; }
     onFileSelected(f.name, f.size);
   }).catch(function(err) {
     dzt.textContent = 'Drag and drop your PDF here';
