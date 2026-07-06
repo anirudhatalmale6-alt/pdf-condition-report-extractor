@@ -82,18 +82,18 @@ class ExtractorApp:
 
     def _card(self, parent, **kw):
         f = tk.Frame(parent, bg=self.CARD_BG, relief=tk.SOLID, bd=1,
-                     padx=16, pady=14)
+                     padx=12, pady=8)
         f.pack(fill=kw.get("fill", tk.X),
                expand=kw.get("expand", False),
-               pady=kw.get("pady", (0, 8)),
+               pady=kw.get("pady", (0, 5)),
                padx=kw.get("padx", 0))
         return f
 
     def _card_hdr(self, card, step, text, color):
         row = tk.Frame(card, bg=self.CARD_BG)
-        row.pack(fill=tk.X, pady=(0, 10))
-        self._circle(row, step, color).pack(side=tk.LEFT, padx=(0, 10))
-        tk.Label(row, text=text, font=("Verdana", 12, "bold"),
+        row.pack(fill=tk.X, pady=(0, 6))
+        self._circle(row, step, color).pack(side=tk.LEFT, padx=(0, 8))
+        tk.Label(row, text=text, font=("Verdana", 11, "bold"),
                  bg=self.CARD_BG).pack(side=tk.LEFT)
         return row
 
@@ -110,11 +110,11 @@ class ExtractorApp:
     # ── Layout ───────────────────────────────────────────────────
 
     def _build_ui(self):
-        main = tk.Frame(self.root, bg=self.BG, padx=20, pady=15)
+        main = tk.Frame(self.root, bg=self.BG, padx=16, pady=10)
         main.pack(fill=tk.BOTH, expand=True)
 
         hdr = tk.Frame(main, bg=self.BG)
-        hdr.pack(fill=tk.X, pady=(0, 12))
+        hdr.pack(fill=tk.X, pady=(0, 8))
         lh = tk.Frame(hdr, bg=self.BG)
         lh.pack(side=tk.LEFT)
         tk.Label(lh, text=f"{APP_NAME} Native PDF Extractor",
@@ -152,17 +152,17 @@ class ExtractorApp:
         self._card_hdr(card, 1, "Select PDF File", self.BLUE)
 
         zone = tk.Frame(card, bg="#f8fafc", bd=1, relief=tk.SOLID,
-                        padx=20, pady=18)
+                        padx=14, pady=10)
         zone.pack(fill=tk.X)
-        tk.Label(zone, text="\U0001F4C4", font=("Segoe UI", 24),
+        tk.Label(zone, text="\U0001F4C4", font=("Segoe UI", 16),
                  bg="#f8fafc").pack()
         tk.Label(zone, text="Click Browse to select your PDF file",
-                 font=("Verdana", 10, "bold"), bg="#f8fafc").pack(pady=(4, 1))
+                 font=("Verdana", 9, "bold"), bg="#f8fafc").pack(pady=(2, 0))
         tk.Label(zone, text="Supported format: .pdf",
                  font=("Verdana", 8), fg=self.SLATE_500,
                  bg="#f8fafc").pack()
         self._btn(zone, "Browse PDF", self._browse_pdf, self.DARK,
-                  abg="#1e293b").pack(pady=(8, 0))
+                  abg="#1e293b").pack(pady=(5, 0))
 
         self._fi = tk.Frame(card, bg=self.OK_BG, padx=10, pady=8)
         self._fi_lbl = tk.Label(self._fi, font=("Verdana", 9),
@@ -207,7 +207,7 @@ class ExtractorApp:
 
         tk.Label(card, text="Product / License Key",
                  font=("Verdana", 9, "bold"),
-                 bg=self.CARD_BG).pack(anchor=tk.W, pady=(0, 4))
+                 bg=self.CARD_BG).pack(anchor=tk.W, pady=(0, 3))
 
         row = tk.Frame(card, bg=self.CARD_BG)
         row.pack(fill=tk.X)
@@ -234,7 +234,7 @@ class ExtractorApp:
         self.ebtn = tk.Button(
             card, text="Extract PDF", command=self._extract,
             bg=self.SLATE_300, fg="white",
-            font=("Verdana", 11, "bold"), relief=tk.FLAT, pady=10,
+            font=("Verdana", 10, "bold"), relief=tk.FLAT, pady=7,
             state=tk.DISABLED, cursor="arrow",
             disabledforeground="white")
         self.ebtn.pack(fill=tk.X)
