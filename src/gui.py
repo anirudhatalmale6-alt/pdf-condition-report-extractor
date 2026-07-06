@@ -22,32 +22,6 @@ def check_internet():
         return False
 
 
-def _win_clipboard(text):
-    """Copy text to clipboard using Windows API (ctypes). Works from any thread."""
-    import ctypes
-    CF_UNICODETEXT = 13
-    GMEM_MOVEABLE = 0x0002
-
-    user32 = ctypes.windll.user32
-    kernel32 = ctypes.windll.kernel32
-
-    data = text.encode('utf-16-le') + b'\x00\x00'
-
-    if not user32.OpenClipboard(0):
-        time.sleep(0.1)
-        if not user32.OpenClipboard(0):
-            return False
-
-    user32.EmptyClipboard()
-    h = kernel32.GlobalAlloc(GMEM_MOVEABLE, len(data))
-    ptr = kernel32.GlobalLock(h)
-    ctypes.memmove(ptr, data, len(data))
-    kernel32.GlobalUnlock(h)
-    user32.SetClipboardData(CF_UNICODETEXT, h)
-    user32.CloseClipboard()
-    return True
-
-
 class Api:
     def __init__(self):
         self.window = None
@@ -57,7 +31,6 @@ class Api:
         self._temp_dirs = []
 
     def select_file(self):
-        # Primary: tkinter file dialog (reliable on Windows from any thread)
         try:
             import tkinter as tk
             from tkinter import filedialog
@@ -79,7 +52,6 @@ class Api:
         except Exception:
             pass
 
-        # Fallback: pywebview native dialog
         try:
             result = self.window.create_file_dialog(
                 webview.OPEN_DIALOG,
@@ -96,7 +68,6 @@ class Api:
         return None
 
     def receive_file(self, name, data_b64):
-        """Receive drag-and-dropped file as base64."""
         try:
             content = base64.b64decode(data_b64)
             safe = "".join(c for c in name if c.isalnum() or c in '._- ')
@@ -143,10 +114,7 @@ class Api:
         if not self.license_verified:
             return {"error": "License not verified."}
 
-        # Clean up any previous temp directories
         self._cleanup_temp()
-
-        # Use a temp directory for extracted images (auto-purged)
         temp_dir = tempfile.mkdtemp(prefix="orbas_extract_")
         self._temp_dirs.append(temp_dir)
 
@@ -184,9 +152,7 @@ class Api:
             self.extracted_json = json.dumps(result, indent=2, ensure_ascii=False)
             time.sleep(0.15)
 
-            # Clean up temp dir now that JSON is built
             self._cleanup_temp()
-
             self._prog("Extraction Complete", 100)
 
             areas = result.get("areas", [])
@@ -230,26 +196,6 @@ class Api:
             safe = text.replace("\\", "\\\\").replace("'", "\\'")
             self.window.evaluate_js(f"updateProgress('{safe}', {pct})")
 
-    def copy_to_clipboard(self, text):
-        # Primary: Windows API via ctypes
-        try:
-            if _win_clipboard(text):
-                return True
-        except Exception:
-            pass
-
-        # Fallback: subprocess clip.exe
-        try:
-            import subprocess
-            p = subprocess.Popen(['clip'], stdin=subprocess.PIPE, shell=True)
-            p.communicate(text.encode('utf-8'))
-            if p.returncode == 0:
-                return True
-        except Exception:
-            pass
-
-        return False
-
 
 def _build_html():
     jur_options = '<option value="auto">Auto Detect</option>'
@@ -270,20 +216,17 @@ def _build_html():
 body{font-family:Verdana,Geneva,sans-serif;background:#f1f5f9;color:#0f172a;height:100vh;overflow:hidden}
 .app{display:flex;flex-direction:column;height:100vh;padding:1.2vh 1.2vw}
 
-/* Header */
 .hdr{display:flex;align-items:center;justify-content:space-between;margin-bottom:1vh;flex-shrink:0}
 .hdr h1{font-size:clamp(1rem,1.8vw,1.4rem);font-weight:700;color:#0453ed}
 .hdr .sub{font-size:clamp(.65rem,1vw,.8rem);color:#475569;margin-top:.1rem}
 .hdr .ver{font-size:clamp(.7rem,1vw,.85rem);font-weight:600;text-align:right}
 .hdr .ver-sub{font-size:clamp(.6rem,.8vw,.72rem);color:#64748b}
 
-/* Grid */
 .grid{flex:1;display:grid;grid-template-columns:1fr 1fr;gap:clamp(.6rem,1.2vw,1.2rem);min-height:0;overflow:hidden}
 .left{display:flex;flex-direction:column;gap:clamp(.4rem,.8vh,.7rem);overflow-y:auto;padding-right:4px}
 .left::-webkit-scrollbar{width:4px}
 .left::-webkit-scrollbar-thumb{background:#cbd5e1;border-radius:4px}
 
-/* Card */
 .card{background:#fff;border-radius:.65rem;border:1px solid #e2e8f0;box-shadow:0 1px 2px rgba(0,0,0,.05);padding:clamp(.5rem,1.2vh,.9rem) clamp(.6rem,1vw,1rem);flex-shrink:0}
 .card-h{display:flex;align-items:center;gap:.5rem;margin-bottom:clamp(.3rem,.7vh,.6rem)}
 .circ{width:clamp(1.2rem,2.2vh,1.6rem);height:clamp(1.2rem,2.2vh,1.6rem);border-radius:50%;color:#fff;display:flex;align-items:center;justify-content:center;font-size:clamp(.6rem,.9vh,.75rem);font-weight:700;flex-shrink:0}
@@ -292,14 +235,12 @@ body{font-family:Verdana,Geneva,sans-serif;background:#f1f5f9;color:#0f172a;heig
 .c-orange{background:#fd6207}
 .card-h h2{font-size:clamp(.78rem,1.3vw,.95rem);font-weight:700}
 
-/* Drop zone */
 .dz{border:2px dashed #cbd5e1;border-radius:.65rem;padding:clamp(.5rem,1.2vh,.9rem) 1rem;text-align:center;background:#f8fafc;cursor:pointer;transition:.2s}
 .dz:hover,.dz-hover{background:#eff6ff!important;border-color:#0453ed!important}
 .dz .ico{font-size:clamp(1.2rem,2.5vh,1.8rem);margin-bottom:.15rem}
 .dz .main{font-weight:600;font-size:clamp(.7rem,1vw,.82rem)}
 .dz .hint{font-size:clamp(.6rem,.85vw,.72rem);color:#64748b;margin-top:.1rem}
 
-/* Buttons */
 .btn{border:none;border-radius:.45rem;font-weight:600;cursor:pointer;font-family:inherit;transition:.15s;font-size:clamp(.68rem,.95vw,.78rem);padding:clamp(.25rem,.5vh,.38rem) clamp(.5rem,.8vw,.85rem)}
 .btn-dark{background:#0f172a;color:#fff}.btn-dark:hover{background:#1e293b}
 .btn-green{background:#096e4d;color:#fff}.btn-green:hover{background:#065f46}
@@ -308,12 +249,10 @@ body{font-family:Verdana,Geneva,sans-serif;background:#f1f5f9;color:#0f172a;heig
 .btn-slate{background:#0f172a;color:#fff}.btn-slate:hover{background:#1e293b}
 .btn:disabled{background:#cbd5e1!important;cursor:not-allowed!important;color:#fff}
 
-/* File info */
 .fi{margin-top:.4rem;padding:clamp(.3rem,.5vh,.45rem) .6rem;border-radius:.4rem;background:#f0fdf4;border:1px solid #bbf7d0;display:none}
 .fi p{font-size:clamp(.65rem,.9vw,.76rem);color:#166534}
 .fi .l{font-weight:600}
 
-/* Form */
 label{display:block;font-size:clamp(.65rem,.9vw,.76rem);font-weight:600;margin-bottom:.2rem}
 select,input[type=text]{width:100%;border:1px solid #e2e8f0;border-radius:.4rem;padding:clamp(.2rem,.45vh,.35rem) .5rem;font-size:clamp(.65rem,.9vw,.76rem);font-family:inherit;outline:none;background:#fff}
 select:focus,input[type=text]:focus{border-color:#0453ed;box-shadow:0 0 0 2px rgba(4,83,237,.1)}
@@ -321,30 +260,25 @@ select:focus,input[type=text]:focus{border-color:#0453ed;box-shadow:0 0 0 2px rg
 .lic-row{display:flex;gap:.5rem}
 .lic-row input{flex:1;font-family:Consolas,'Courier New',monospace}
 
-/* Messages */
 .msg{margin-top:.4rem;padding:clamp(.25rem,.45vh,.4rem) .55rem;border-radius:.4rem;font-size:clamp(.65rem,.9vw,.76rem);display:none}
 .msg-ok{background:#f0fdf4;border:1px solid #bbf7d0;color:#166534}
 .msg-err{background:#fef2f2;border:1px solid #fecaca;color:#991b1b}
 
-/* Progress */
 .pbox{margin-top:.5rem;display:none}
 .ph{display:flex;justify-content:space-between;font-size:clamp(.65rem,.9vw,.76rem);margin-bottom:.2rem}
 .ph .l{font-weight:600}
 .ptrack{width:100%;background:#e2e8f0;border-radius:99px;height:clamp(.35rem,.6vh,.5rem);overflow:hidden}
 .pbar{background:#096e4d;height:100%;border-radius:99px;transition:width .3s;width:0%}
 
-/* JSON panel */
 .json-card{display:flex;flex-direction:column;min-height:0;overflow:hidden}
 .json-hdr{display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:.4rem;flex-shrink:0}
 .json-left{display:flex;align-items:center;gap:.5rem}
 .json-tt .t{font-size:clamp(.78rem,1.3vw,.95rem);font-weight:700}
 .json-tt .s{font-size:clamp(.58rem,.75vw,.68rem);color:#64748b;margin-top:.05rem}
-.json-out{flex:1;background:#020617;color:#86efac;border-radius:.65rem;padding:clamp(.5rem,.8vh,.7rem);font-family:Consolas,'Courier New',monospace;font-size:clamp(.58rem,.8vw,.68rem);line-height:1.35;overflow:auto;border:1px solid #1e293b;white-space:pre;min-height:0}
+.json-out{flex:1;background:#020617;color:#86efac;border-radius:.65rem;padding:clamp(.5rem,.8vh,.7rem);font-family:Consolas,'Courier New',monospace;font-size:clamp(.58rem,.8vw,.68rem);line-height:1.35;overflow:auto;border:1px solid #1e293b;white-space:pre;min-height:0;user-select:text;-webkit-user-select:text;cursor:text}
 
-/* Summary */
 .summ{padding:clamp(.3rem,.5vh,.45rem) .6rem;border-radius:.4rem;background:#f0f9ff;border:1px solid #bfdbfe;font-size:clamp(.58rem,.8vw,.7rem);color:#1e40af;margin-bottom:.35rem;line-height:1.35;display:none;flex-shrink:0}
 
-/* Copy ok */
 .copy-ok{margin-top:.35rem;padding:.35rem .55rem;border-radius:.4rem;background:#f0fdf4;border:1px solid #bbf7d0;color:#166534;font-size:clamp(.65rem,.9vw,.76rem);font-weight:600;display:none;flex-shrink:0}
 </style>
 </head>
@@ -364,7 +298,6 @@ select:focus,input[type=text]:focus{border-color:#0453ed;box-shadow:0 0 0 2px rg
   <div class="grid">
     <div class="left">
 
-      <!-- Step 1 -->
       <div class="card">
         <div class="card-h"><span class="circ c-blue">1</span><h2>Select PDF File</h2></div>
         <div class="dz" id="dropZone">
@@ -379,7 +312,6 @@ select:focus,input[type=text]:focus{border-color:#0453ed;box-shadow:0 0 0 2px rg
         </div>
       </div>
 
-      <!-- Step 2 -->
       <div class="card">
         <div class="card-h"><span class="circ c-blue">2</span><h2>Jurisdiction & Document Type</h2></div>
         <div class="form-row">
@@ -394,7 +326,6 @@ select:focus,input[type=text]:focus{border-color:#0453ed;box-shadow:0 0 0 2px rg
         </div>
       </div>
 
-      <!-- Step 3 -->
       <div class="card">
         <div class="card-h"><span class="circ c-green">3</span><h2>Product Key Verification</h2></div>
         <label>Product / License Key</label>
@@ -405,7 +336,6 @@ select:focus,input[type=text]:focus{border-color:#0453ed;box-shadow:0 0 0 2px rg
         <div class="msg" id="licMsg"></div>
       </div>
 
-      <!-- Step 4 -->
       <div class="card">
         <div class="card-h"><span class="circ c-orange">4</span><h2>Extract PDF</h2></div>
         <button class="btn btn-orange" id="extractBtn" disabled>Extract PDF</button>
@@ -421,7 +351,6 @@ select:focus,input[type=text]:focus{border-color:#0453ed;box-shadow:0 0 0 2px rg
 
     </div>
 
-    <!-- Step 5 - JSON Output -->
     <div class="card json-card">
       <div class="json-hdr">
         <div class="json-left">
@@ -446,7 +375,6 @@ var licenseVerified = false;
 var extractedJson = '';
 var extracting = false;
 
-/* --- Browse PDF (click) --- */
 function selectFile() {
   var dzt = document.getElementById('dzText');
   dzt.textContent = 'Opening file dialog...';
@@ -477,27 +405,18 @@ document.getElementById('dropZone').addEventListener('click', function(e) {
   selectFile();
 });
 
-/* --- Drag and Drop --- */
+/* Drag and Drop */
 document.addEventListener('dragover', function(e) { e.preventDefault(); });
 document.addEventListener('drop', function(e) { e.preventDefault(); });
 
 var dz = document.getElementById('dropZone');
-dz.addEventListener('dragenter', function(e) {
-  e.preventDefault();
-  dz.classList.add('dz-hover');
-});
-dz.addEventListener('dragover', function(e) {
-  e.preventDefault();
-  dz.classList.add('dz-hover');
-});
-dz.addEventListener('dragleave', function(e) {
-  dz.classList.remove('dz-hover');
-});
+dz.addEventListener('dragenter', function(e) { e.preventDefault(); dz.classList.add('dz-hover'); });
+dz.addEventListener('dragover', function(e) { e.preventDefault(); dz.classList.add('dz-hover'); });
+dz.addEventListener('dragleave', function(e) { dz.classList.remove('dz-hover'); });
 dz.addEventListener('drop', function(e) {
   e.preventDefault();
   e.stopPropagation();
   dz.classList.remove('dz-hover');
-
   var file = e.dataTransfer.files[0];
   if (!file) return;
   if (!file.name.toLowerCase().endsWith('.pdf')) {
@@ -505,13 +424,11 @@ dz.addEventListener('drop', function(e) {
     return;
   }
   if (file.size > 50 * 1024 * 1024) {
-    showMsg('statusMsg', 'File too large for drag and drop (50 MB limit). Please use Browse PDF.', 'err');
+    showMsg('statusMsg', 'File too large for drag and drop. Please use Browse PDF.', 'err');
     return;
   }
-
   var dzt = document.getElementById('dzText');
   dzt.textContent = 'Reading file...';
-
   var reader = new FileReader();
   reader.onload = function() {
     var bytes = new Uint8Array(reader.result);
@@ -519,70 +436,50 @@ dz.addEventListener('drop', function(e) {
     for (var i = 0; i < bytes.length; i += 8192) {
       binary += String.fromCharCode.apply(null, bytes.subarray(i, Math.min(i + 8192, bytes.length)));
     }
-    var b64 = btoa(binary);
     dzt.textContent = 'Processing...';
-
-    pywebview.api.receive_file(file.name, b64).then(function(f) {
+    pywebview.api.receive_file(file.name, btoa(binary)).then(function(f) {
       dzt.textContent = 'Drag and drop your PDF here';
-      if (!f || !f.ok) {
-        showMsg('statusMsg', 'Error: ' + (f ? f.error : 'Failed to process file'), 'err');
-        return;
-      }
+      if (!f || !f.ok) { showMsg('statusMsg', 'Error: ' + (f ? f.error : 'unknown'), 'err'); return; }
       onFileSelected(f.name, f.size);
     }).catch(function(err) {
       dzt.textContent = 'Drag and drop your PDF here';
       showMsg('statusMsg', 'Drop error: ' + err, 'err');
     });
   };
-  reader.onerror = function() {
-    dzt.textContent = 'Drag and drop your PDF here';
-    showMsg('statusMsg', 'Could not read the dropped file.', 'err');
-  };
+  reader.onerror = function() { dzt.textContent = 'Drag and drop your PDF here'; };
   reader.readAsArrayBuffer(file);
 });
 
-/* --- License verification --- */
+/* License */
 document.getElementById('verifyBtn').addEventListener('click', function() { verifyKey(); });
 
 function verifyKey() {
   var key = document.getElementById('licenseKey').value.trim();
-  if (!key) {
-    showMsg('licMsg', 'Please enter a product key.', 'err');
-    return;
-  }
+  if (!key) { showMsg('licMsg', 'Please enter a product key.', 'err'); return; }
   var btn = document.getElementById('verifyBtn');
   btn.disabled = true;
   btn.textContent = 'Verifying...';
-
   pywebview.api.verify_license(key).then(function(r) {
     btn.disabled = false;
     btn.textContent = 'Verify';
-    if (r.valid) {
-      licenseVerified = true;
-      showMsg('licMsg', r.message, 'ok');
-    } else {
-      licenseVerified = false;
-      showMsg('licMsg', r.message, 'err');
-    }
+    licenseVerified = !!r.valid;
+    showMsg('licMsg', r.message, r.valid ? 'ok' : 'err');
     checkReady();
   }).catch(function(err) {
     btn.disabled = false;
     btn.textContent = 'Verify';
-    showMsg('licMsg', 'Verification error: ' + err, 'err');
+    showMsg('licMsg', 'Error: ' + err, 'err');
   });
 }
 
 document.getElementById('licenseKey').addEventListener('input', function() {
-  licenseVerified = false;
-  hideMsg('licMsg');
-  checkReady();
+  licenseVerified = false; hideMsg('licMsg'); checkReady();
 });
-
 document.getElementById('licenseKey').addEventListener('keydown', function(e) {
   if (e.key === 'Enter') verifyKey();
 });
 
-/* --- Extract --- */
+/* Extract */
 document.getElementById('extractBtn').addEventListener('click', function() { extractPdf(); });
 
 function checkReady() {
@@ -593,10 +490,8 @@ function extractPdf() {
   if (extracting) return;
   extracting = true;
   checkReady();
-
   var jur = document.getElementById('jurisdiction').value;
   var dt = document.getElementById('documentType').value;
-
   document.getElementById('progressBox').style.display = 'block';
   hideMsg('statusMsg');
   document.getElementById('copyOk').style.display = 'none';
@@ -606,26 +501,15 @@ function extractPdf() {
 
   pywebview.api.extract(jur, dt).then(function(r) {
     extracting = false;
-    if (r.error) {
-      showMsg('statusMsg', 'Error: ' + r.error, 'err');
-      checkReady();
-      return;
-    }
+    if (r.error) { showMsg('statusMsg', 'Error: ' + r.error, 'err'); checkReady(); return; }
     extractedJson = r.json;
     document.getElementById('jsonOut').textContent = r.json;
     document.getElementById('copyBtn').disabled = false;
-
     if (r.summary) {
       var s = r.summary;
-      var txt = 'Jurisdiction Detected:  ' + s.jurisdiction + '\\n';
-      txt += 'Document Type Detected:  ' + s.document_type + '\\n';
-      txt += 'Pages Processed:  ' + s.pages + '\\n';
-      txt += 'Property Areas Detected:  ' + s.areas + '\\n';
-      txt += 'Condition Records Extracted:  ' + s.records + '\\n';
-      txt += 'Validation Status:  ' + s.validation;
-      if (s.missing && s.missing.length > 0) {
-        txt += '\\nMissing Data:  ' + s.missing.join(', ');
-      }
+      var txt = 'Jurisdiction: ' + s.jurisdiction + '  |  Type: ' + s.document_type + '  |  Pages: ' + s.pages;
+      txt += '\\nAreas: ' + s.areas + '  |  Records: ' + s.records + '  |  Validation: ' + s.validation;
+      if (s.missing && s.missing.length > 0) txt += '\\nMissing: ' + s.missing.join(', ');
       var el = document.getElementById('summary');
       el.textContent = txt;
       el.style.display = 'block';
@@ -645,26 +529,57 @@ function updateProgress(text, pct) {
   document.getElementById('progBar').style.width = pct + '%';
 }
 
-/* --- Copy JSON --- */
+/* Copy JSON - uses JavaScript clipboard API (works natively in WebView2) */
 document.getElementById('copyBtn').addEventListener('click', function() { copyJson(); });
 
 function copyJson() {
   if (!extractedJson) return;
-  pywebview.api.copy_to_clipboard(extractedJson).then(function(ok) {
-    if (ok) {
-      var el = document.getElementById('copyOk');
-      el.textContent = 'JSON successfully copied to clipboard.';
-      el.style.display = 'block';
-      setTimeout(function() { el.style.display = 'none'; }, 3000);
-    } else {
-      showMsg('statusMsg', 'Could not copy to clipboard. Please select the JSON text manually and use Ctrl+C.', 'err');
-    }
-  }).catch(function(err) {
-    showMsg('statusMsg', 'Copy failed: ' + err, 'err');
-  });
+
+  /* Method 1: Modern Clipboard API */
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(extractedJson).then(function() {
+      showCopyOk();
+    }).catch(function() {
+      fallbackCopy();
+    });
+    return;
+  }
+  fallbackCopy();
 }
 
-/* --- Helpers --- */
+function fallbackCopy() {
+  /* Method 2: execCommand with hidden textarea */
+  var ta = document.createElement('textarea');
+  ta.value = extractedJson;
+  ta.style.position = 'fixed';
+  ta.style.left = '-9999px';
+  ta.style.top = '0';
+  ta.style.opacity = '0';
+  document.body.appendChild(ta);
+  ta.focus();
+  ta.select();
+  try {
+    var ok = document.execCommand('copy');
+    if (ok) { showCopyOk(); }
+    else { showCopyFail(); }
+  } catch(e) {
+    showCopyFail();
+  }
+  document.body.removeChild(ta);
+}
+
+function showCopyOk() {
+  var el = document.getElementById('copyOk');
+  el.textContent = 'JSON successfully copied to clipboard.';
+  el.style.display = 'block';
+  setTimeout(function() { el.style.display = 'none'; }, 4000);
+}
+
+function showCopyFail() {
+  showMsg('statusMsg', 'Auto-copy failed. Please click inside the JSON panel, press Ctrl+A to select all, then Ctrl+C to copy.', 'err');
+}
+
+/* Helpers */
 function showMsg(id, text, type) {
   var el = document.getElementById(id);
   el.textContent = text;
@@ -692,4 +607,4 @@ def run_gui():
         min_size=(900, 600),
     )
     api.window = window
-    webview.start()
+    webview.start(private_mode=False)
