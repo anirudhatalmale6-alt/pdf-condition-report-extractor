@@ -3,6 +3,8 @@ import json
 import time
 import socket
 import base64
+import tempfile
+import shutil
 import webview
 
 from .config import APP_NAME, VERSION, JURISDICTIONS, REPORT_TYPES
@@ -20,12 +22,39 @@ def check_internet():
         return False
 
 
+def _win_clipboard(text):
+    """Copy text to clipboard using Windows API (ctypes). Works from any thread."""
+    import ctypes
+    CF_UNICODETEXT = 13
+    GMEM_MOVEABLE = 0x0002
+
+    user32 = ctypes.windll.user32
+    kernel32 = ctypes.windll.kernel32
+
+    data = text.encode('utf-16-le') + b'\x00\x00'
+
+    if not user32.OpenClipboard(0):
+        time.sleep(0.1)
+        if not user32.OpenClipboard(0):
+            return False
+
+    user32.EmptyClipboard()
+    h = kernel32.GlobalAlloc(GMEM_MOVEABLE, len(data))
+    ptr = kernel32.GlobalLock(h)
+    ctypes.memmove(ptr, data, len(data))
+    kernel32.GlobalUnlock(h)
+    user32.SetClipboardData(CF_UNICODETEXT, h)
+    user32.CloseClipboard()
+    return True
+
+
 class Api:
     def __init__(self):
         self.window = None
         self.pdf_path = None
         self.license_verified = False
         self.extracted_json = ""
+        self._temp_dirs = []
 
     def select_file(self):
         # Primary: tkinter file dialog (reliable on Windows from any thread)
@@ -69,7 +98,6 @@ class Api:
     def receive_file(self, name, data_b64):
         """Receive drag-and-dropped file as base64."""
         try:
-            import tempfile
             content = base64.b64decode(data_b64)
             safe = "".join(c for c in name if c.isalnum() or c in '._- ')
             path = os.path.join(tempfile.gettempdir(), f"orbas_{safe}")
@@ -115,6 +143,13 @@ class Api:
         if not self.license_verified:
             return {"error": "License not verified."}
 
+        # Clean up any previous temp directories
+        self._cleanup_temp()
+
+        # Use a temp directory for extracted images (auto-purged)
+        temp_dir = tempfile.mkdtemp(prefix="orbas_extract_")
+        self._temp_dirs.append(temp_dir)
+
         try:
             self._prog("Reading PDF file...", 10)
             time.sleep(0.3)
@@ -138,8 +173,8 @@ class Api:
                 self.pdf_path,
                 jurisdiction=detected_jur,
                 report_type=doc_type if doc_type != "auto" else "auto",
-                output_dir=os.path.dirname(self.pdf_path),
-                save_images=True,
+                output_dir=temp_dir,
+                save_images=False,
             )
 
             self._prog("Validating Extracted Data...", 80)
@@ -148,6 +183,9 @@ class Api:
             self._prog("Building JSON...", 92)
             self.extracted_json = json.dumps(result, indent=2, ensure_ascii=False)
             time.sleep(0.15)
+
+            # Clean up temp dir now that JSON is built
+            self._cleanup_temp()
 
             self._prog("Extraction Complete", 100)
 
@@ -174,8 +212,18 @@ class Api:
             return {"json": self.extracted_json, "summary": summary}
 
         except Exception as e:
+            self._cleanup_temp()
             self._prog("Extraction Failed", 0)
             return {"error": str(e)}
+
+    def _cleanup_temp(self):
+        for d in self._temp_dirs:
+            try:
+                if os.path.isdir(d):
+                    shutil.rmtree(d, ignore_errors=True)
+            except Exception:
+                pass
+        self._temp_dirs.clear()
 
     def _prog(self, text, pct):
         if self.window:
@@ -183,17 +231,24 @@ class Api:
             self.window.evaluate_js(f"updateProgress('{safe}', {pct})")
 
     def copy_to_clipboard(self, text):
+        # Primary: Windows API via ctypes
         try:
-            import tkinter as tk
-            r = tk.Tk()
-            r.withdraw()
-            r.clipboard_clear()
-            r.clipboard_append(text)
-            r.update()
-            r.destroy()
-            return True
+            if _win_clipboard(text):
+                return True
         except Exception:
-            return False
+            pass
+
+        # Fallback: subprocess clip.exe
+        try:
+            import subprocess
+            p = subprocess.Popen(['clip'], stdin=subprocess.PIPE, shell=True)
+            p.communicate(text.encode('utf-8'))
+            if p.returncode == 0:
+                return True
+        except Exception:
+            pass
+
+        return False
 
 
 def _build_html():
@@ -596,9 +651,14 @@ document.getElementById('copyBtn').addEventListener('click', function() { copyJs
 function copyJson() {
   if (!extractedJson) return;
   pywebview.api.copy_to_clipboard(extractedJson).then(function(ok) {
-    var el = document.getElementById('copyOk');
-    el.style.display = 'block';
-    setTimeout(function() { el.style.display = 'none'; }, 3000);
+    if (ok) {
+      var el = document.getElementById('copyOk');
+      el.textContent = 'JSON successfully copied to clipboard.';
+      el.style.display = 'block';
+      setTimeout(function() { el.style.display = 'none'; }, 3000);
+    } else {
+      showMsg('statusMsg', 'Could not copy to clipboard. Please select the JSON text manually and use Ctrl+C.', 'err');
+    }
   }).catch(function(err) {
     showMsg('statusMsg', 'Copy failed: ' + err, 'err');
   });
