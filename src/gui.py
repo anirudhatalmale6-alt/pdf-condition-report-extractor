@@ -307,7 +307,8 @@ select:focus,input[type=text]:focus{border-color:#0453ed;box-shadow:0 0 0 2px rg
 .json-left{display:flex;align-items:center;gap:.5rem}
 .json-tt .t{font-size:clamp(.78rem,1.3vw,.95rem);font-weight:700}
 .json-tt .s{font-size:clamp(.58rem,.75vw,.68rem);color:#64748b;margin-top:.05rem}
-.json-out{flex:1;background:#020617;color:#86efac;border-radius:.65rem;padding:clamp(.5rem,.8vh,.7rem);font-family:Consolas,'Courier New',monospace;font-size:clamp(.58rem,.8vw,.68rem);line-height:1.35;overflow:auto;border:1px solid #1e293b;white-space:pre;min-height:0;user-select:text;-webkit-user-select:text;cursor:text}
+.json-out{flex:1;background:#020617;color:#86efac;border-radius:.65rem;padding:clamp(.5rem,.8vh,.7rem);font-family:Consolas,'Courier New',monospace;font-size:clamp(.58rem,.8vw,.68rem);line-height:1.35;overflow:auto;border:1px solid #1e293b;white-space:pre;min-height:0;user-select:text;-webkit-user-select:text;cursor:text;outline:none}
+.json-out:focus{border-color:#0453ed;box-shadow:0 0 0 2px rgba(4,83,237,.25)}
 
 .summ{padding:clamp(.3rem,.5vh,.45rem) .6rem;border-radius:.4rem;background:#f0f9ff;border:1px solid #bfdbfe;font-size:clamp(.58rem,.8vw,.7rem);color:#1e40af;margin-bottom:.35rem;line-height:1.35;display:none;flex-shrink:0}
 
@@ -389,13 +390,13 @@ select:focus,input[type=text]:focus{border-color:#0453ed;box-shadow:0 0 0 2px rg
           <span class="circ c-green">5</span>
           <div class="json-tt">
             <div class="t">JSON Output</div>
-            <div class="s">Copy this output and paste it into the designated ORBAS UI.</div>
+            <div class="s">Click the panel, then Ctrl+A to select all and Ctrl+C to copy. Or use the Copy JSON button.</div>
           </div>
         </div>
         <button class="btn btn-slate" id="copyBtn" disabled>Copy JSON</button>
       </div>
       <div class="summ" id="summary"></div>
-      <pre class="json-out" id="jsonOut">No extraction output yet.</pre>
+      <pre class="json-out" id="jsonOut" tabindex="0">No extraction output yet.</pre>
       <div class="copy-ok" id="copyOk">JSON successfully copied to clipboard.</div>
     </div>
   </div>
@@ -537,6 +538,7 @@ function extractPdf() {
     extractedJson = r.json;
     document.getElementById('jsonOut').textContent = r.json;
     document.getElementById('copyBtn').disabled = false;
+    document.getElementById('jsonOut').focus();
     if (r.summary) {
       var s = r.summary;
       var txt = 'Jurisdiction: ' + s.jurisdiction + '  |  Type: ' + s.document_type + '  |  Pages: ' + s.pages;
@@ -587,6 +589,45 @@ function copyJson() {
     showMsg('statusMsg', 'Copy error. Please select the JSON text manually and press Ctrl+C.', 'err');
   });
 }
+
+/* Keyboard shortcuts on the JSON panel: Ctrl+A select all, Ctrl+C copy */
+var jsonPanel = document.getElementById('jsonOut');
+
+function jsonPanelFocused() {
+  return document.activeElement === jsonPanel || jsonPanel.contains(document.activeElement);
+}
+
+function selectAllJson() {
+  var range = document.createRange();
+  range.selectNodeContents(jsonPanel);
+  var sel = window.getSelection();
+  sel.removeAllRanges();
+  sel.addRange(range);
+}
+
+function showCopiedToast() {
+  var el = document.getElementById('copyOk');
+  el.textContent = 'JSON copied to clipboard. You can now paste with Ctrl+V.';
+  el.style.display = 'block';
+  setTimeout(function() { el.style.display = 'none'; }, 4000);
+}
+
+jsonPanel.addEventListener('keydown', function(e) {
+  if (!(e.ctrlKey || e.metaKey)) return;
+  var k = e.key.toLowerCase();
+  if (k === 'a') {
+    e.preventDefault();
+    selectAllJson();
+  } else if (k === 'c') {
+    if (!extractedJson) return;
+    var sel = window.getSelection().toString();
+    var text = (sel && sel.length) ? sel : extractedJson;
+    e.preventDefault();
+    pywebview.api.copy_to_clipboard(text).then(function(ok) {
+      if (ok) showCopiedToast();
+    });
+  }
+});
 
 /* Helpers */
 function showMsg(id, text, type) {

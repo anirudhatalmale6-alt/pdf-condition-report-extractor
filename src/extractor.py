@@ -42,6 +42,7 @@ class ConditionReportExtractor:
                 }
                 for item in room.get("items", []):
                     component = {
+                        "area_name": room["room_name"],
                         "component_name": item["item_name"],
                         "start_of_tenancy": item.get("start_of_tenancy", {}),
                         "end_of_tenancy": item.get("end_of_tenancy", {}),
