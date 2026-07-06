@@ -5,6 +5,7 @@ import socket
 import base64
 import tempfile
 import shutil
+import subprocess
 import webview
 
 from .config import APP_NAME, VERSION, JURISDICTIONS, REPORT_TYPES
@@ -190,6 +191,32 @@ class Api:
             except Exception:
                 pass
         self._temp_dirs.clear()
+
+    def copy_to_clipboard(self, text):
+        """Copy text to clipboard using PowerShell Set-Clipboard (reliable on Windows)."""
+        try:
+            # Write to temp file first (avoids stdin encoding issues with large text)
+            tmp = os.path.join(tempfile.gettempdir(), "orbas_clip.txt")
+            with open(tmp, "w", encoding="utf-8") as f:
+                f.write(text)
+            si = subprocess.STARTUPINFO()
+            si.dwFlags |= subprocess.STARTF_USESHOWWINDOW
+            si.wShowWindow = 0
+            p = subprocess.run(
+                ["powershell", "-NoProfile", "-Command",
+                 f"Get-Content -Path '{tmp}' -Raw | Set-Clipboard"],
+                startupinfo=si,
+                capture_output=True,
+                timeout=10,
+            )
+            try:
+                os.remove(tmp)
+            except Exception:
+                pass
+            return p.returncode == 0
+        except Exception:
+            pass
+        return False
 
     def _prog(self, text, pct):
         if self.window:
@@ -529,54 +556,31 @@ function updateProgress(text, pct) {
   document.getElementById('progBar').style.width = pct + '%';
 }
 
-/* Copy JSON - uses JavaScript clipboard API (works natively in WebView2) */
+/* Copy JSON - uses Python PowerShell Set-Clipboard (reliable on Windows) */
 document.getElementById('copyBtn').addEventListener('click', function() { copyJson(); });
 
 function copyJson() {
   if (!extractedJson) return;
+  var btn = document.getElementById('copyBtn');
+  btn.disabled = true;
+  btn.textContent = 'Copying...';
 
-  /* Method 1: Modern Clipboard API */
-  if (navigator.clipboard && navigator.clipboard.writeText) {
-    navigator.clipboard.writeText(extractedJson).then(function() {
-      showCopyOk();
-    }).catch(function() {
-      fallbackCopy();
-    });
-    return;
-  }
-  fallbackCopy();
-}
-
-function fallbackCopy() {
-  /* Method 2: execCommand with hidden textarea */
-  var ta = document.createElement('textarea');
-  ta.value = extractedJson;
-  ta.style.position = 'fixed';
-  ta.style.left = '-9999px';
-  ta.style.top = '0';
-  ta.style.opacity = '0';
-  document.body.appendChild(ta);
-  ta.focus();
-  ta.select();
-  try {
-    var ok = document.execCommand('copy');
-    if (ok) { showCopyOk(); }
-    else { showCopyFail(); }
-  } catch(e) {
-    showCopyFail();
-  }
-  document.body.removeChild(ta);
-}
-
-function showCopyOk() {
-  var el = document.getElementById('copyOk');
-  el.textContent = 'JSON successfully copied to clipboard.';
-  el.style.display = 'block';
-  setTimeout(function() { el.style.display = 'none'; }, 4000);
-}
-
-function showCopyFail() {
-  showMsg('statusMsg', 'Auto-copy failed. Please click inside the JSON panel, press Ctrl+A to select all, then Ctrl+C to copy.', 'err');
+  pywebview.api.copy_to_clipboard(extractedJson).then(function(ok) {
+    btn.disabled = false;
+    btn.textContent = 'Copy JSON';
+    if (ok) {
+      var el = document.getElementById('copyOk');
+      el.textContent = 'JSON successfully copied to clipboard. You can now paste with Ctrl+V.';
+      el.style.display = 'block';
+      setTimeout(function() { el.style.display = 'none'; }, 5000);
+    } else {
+      showMsg('statusMsg', 'Copy failed. Please click inside the JSON panel, press Ctrl+A then Ctrl+C to copy manually.', 'err');
+    }
+  }).catch(function(err) {
+    btn.disabled = false;
+    btn.textContent = 'Copy JSON';
+    showMsg('statusMsg', 'Copy error. Please select the JSON text manually and press Ctrl+C.', 'err');
+  });
 }
 
 /* Helpers */
@@ -607,4 +611,4 @@ def run_gui():
         min_size=(900, 600),
     )
     api.window = window
-    webview.start(private_mode=False)
+    webview.start(private_mode=False, http_server=True)
