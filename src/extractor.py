@@ -74,7 +74,11 @@ class ConditionReportExtractor:
             return s
         # A slash-separated compound (e.g. "YTEFAS/YTIRUCES") reverses both the
         # whole string and each segment - a plain full reverse restores it.
-        return s[::-1] if cls._looks_reversed(s) else s
+        if cls._looks_reversed(s):
+            s = s[::-1]
+        # Expand the abbreviated bedroom label some forms print ("BED 3").
+        s = re.sub(r"^\s*BED\s+(\d+)\s*$", r"BEDROOM \1", s, flags=re.IGNORECASE)
+        return s
 
     def __init__(self, pdf_path, jurisdiction="NSW", report_type="auto"):
         self.pdf_path = pdf_path
