@@ -111,13 +111,20 @@ class ConditionReportExtractor:
         }
 
     def _extract_address(self):
-        for page in self.fitz_doc[:3]:
-            text = page.get_text()
-            match = re.search(r"Address of premises[:\s]*([^\n]+)", text, re.IGNORECASE)
-            if match:
-                addr = match.group(1).strip()
-                if addr and not re.match(r'^[YN\s/|]+$', addr) and len(addr) > 3:
-                    return addr
+        # These forms put the label and value on separate lines, e.g.
+        #   "Address of rental premises:" \n "19 Van Kleef Circuit, Manly 2095"
+        labels = [
+            "address of rental premises",
+            "address of the premises",
+            "address of premises",
+            "premises address",
+            "rental premises",
+            "property address",
+            "address",
+        ]
+        val = self._value_for_labels(labels, pages=3)
+        if val and len(val) > 3 and not re.match(r'^[YN\s/|]+$', val):
+            return val
         return None
 
     def _extract_postcode(self):
@@ -126,6 +133,12 @@ class ConditionReportExtractor:
             match = re.search(r"[Pp]ostcode[:\s]*(\d{4})", text)
             if match:
                 return match.group(1)
+        # Fall back to a 4-digit postcode at the end of the address line.
+        addr = self._extract_address()
+        if addr:
+            m = re.search(r'(\d{4})\b\s*$', addr)
+            if m:
+                return m.group(1)
         return None
 
     def _extract_report_number(self):
@@ -142,39 +155,110 @@ class ConditionReportExtractor:
                         return val
         return None
 
-    def _extract_field_value(self, field_names):
-        for page in self.fitz_doc[:5]:
+    SKIP_VALUE_WORDS = [
+        "must", "should", "indicate", "landlord or", "the tenant",
+        "record contact", "before", "after", "sign", "agrees",
+        "comments", "condition", "premises", "report",
+        "/agent", "trading", "initial", "initials", "name:", "date:",
+        "postcode", "occupant", "grantor", "commencement", "names",
+        "renter", "lessor",
+    ]
+
+    def _valid_field_value(self, val):
+        if not val:
+            return False
+        val = val.strip()
+        if len(val) < 2 or len(val) > 80:
+            return False
+        if re.match(r'^[YN\s/|:.\-]+$', val):
+            return False
+        # A list marker like "1." / "2)" is not a value.
+        if re.match(r'^\d+[.)]?$', val):
+            return False
+        # Values don't contain colons and don't start with punctuation - those
+        # are leftover labels ("/Occupant Names:", "Note: ...").
+        if ":" in val or not val[0].isalnum():
+            return False
+        # Names / addresses start with a capital letter or a digit; a leading
+        # lowercase word is almost always leaked instruction text ("within 3...").
+        if val[0].isalpha() and not val[0].isupper():
+            return False
+        low = val.lower()
+        # URLs / emails are never a name or address value.
+        if any(tok in low for tok in ("www.", "http", "@", ".org", ".gov", ".com.au", ".com")):
+            return False
+        # A bare form label / condition word is not a value.
+        if low in ("initial", "initials", "name", "date", "n/a", "na",
+                   "clean", "undamaged", "working", "commencement", "note"):
+            return False
+        if any(sw in low for sw in self.SKIP_VALUE_WORDS):
+            return False
+        return True
+
+    def _is_label_like(self, line, label):
+        """True if `line` is a dedicated field label (so the value is on the
+        next line), not a sentence that merely happens to contain `label`."""
+        stripped = line.rstrip()
+        if stripped.endswith(":"):
+            return True
+        # e.g. "Tenants Name" / "Name of Landlord" - short, label plus a word.
+        return len(stripped) <= len(label) + 10
+
+    def _value_for_labels(self, labels, pages=5):
+        """Return the value for a labelled field. Handles both inline values
+        ("Label: value") and the common case where the value sits on the next
+        line ("Label:" then "value")."""
+        for page in self.fitz_doc[:pages]:
             text = page.get_text()
-            text_upper = text.upper()
-            if "HOW TO COMPLETE" in text_upper or "EXAMPLE" in text_upper:
+            tu = text.upper()
+            if "HOW TO COMPLETE" in tu or "EXAMPLE" in tu:
                 continue
-            for field in field_names:
-                pattern = rf"(?:{re.escape(field)})\s*[:\s]+([^\n]+)"
-                match = re.search(pattern, text, re.IGNORECASE)
-                if match:
-                    val = match.group(1).strip()
-                    if val and len(val) > 1 and not re.match(r'^[YN\s/|]+$', val):
-                        if len(val) > 100:
+            lines = [ln.strip() for ln in text.split("\n")]
+            for i, line in enumerate(lines):
+                low = line.lower()
+                for label in labels:
+                    if label not in low:
+                        continue
+                    # Inline value after the label (and optional colon).
+                    m = re.search(re.escape(label) + r"[^\S\n]*:?[^\S\n]*(.*)$",
+                                  line, re.IGNORECASE)
+                    inline = m.group(1).strip() if m else ""
+                    if self._valid_field_value(inline):
+                        return inline
+                    # Otherwise take the next non-empty line - but only if this
+                    # line is a real field label, not a sentence containing the word.
+                    if not self._is_label_like(line, label):
+                        continue
+                    for nxt in lines[i + 1:i + 3]:
+                        if not nxt:
                             continue
-                        skip_words = ["must", "should", "indicate", "landlord or", "the tenant",
-                                      "record contact", "before", "after", "sign", "agrees",
-                                      "comments", "condition", "premises", "report",
-                                      "/agent", "trading"]
-                        if any(sw in val.lower() for sw in skip_words):
-                            continue
-                        return val
+                        if self._valid_field_value(nxt):
+                            return nxt
+                        break
         return None
+
+    def _extract_field_value(self, field_names):
+        return self._value_for_labels(field_names, pages=5)
+
+    # A date as dd/mm/yyyy OR "29 Aug 2023" / "29 August 2023".
+    _DATE_RX = (r"(\d{1,2}\s*/\s*\d{1,2}\s*/\s*\d{2,4}"
+                r"|\d{1,2}\s+(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)"
+                r"[a-z]*\.?\s+\d{2,4})")
 
     def _extract_tenancy_date(self, which="start"):
         keywords = {
-            "start": ["start of tenancy", "commencement", "lease start", "move in date", "ingoing date"],
-            "end": ["end of tenancy", "termination", "lease end", "move out date", "vacating date"],
+            "start": ["commencement date", "commencement", "lease start",
+                      "move in date", "ingoing date", "start of tenancy"],
+            "end": ["end of tenancy", "termination", "lease end",
+                    "move out date", "vacating date"],
         }
         for page in self.fitz_doc[:3]:
             text = page.get_text()
             for kw in keywords.get(which, []):
+                # Bounded gap so we only pick a date that sits right next to the
+                # label (not an unrelated date elsewhere on the page).
                 match = re.search(
-                    rf"{re.escape(kw)}.*?(\d{{1,2}}\s*/\s*\d{{1,2}}\s*/\s*\d{{2,4}})",
+                    rf"{re.escape(kw)}.{{0,40}}?{self._DATE_RX}",
                     text, re.IGNORECASE | re.DOTALL
                 )
                 if match:
