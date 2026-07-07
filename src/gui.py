@@ -197,17 +197,21 @@ class OrbasApp:
                       highlightcolor="#cbd5e1", highlightthickness=2, bd=0)
         dz.pack(fill="x", padx=14, pady=(0, 12))
         self.dropzone = dz
-        self.dz_icon = tk.Label(dz, text="\U0001F4C4", bg=self.dz_bg,
-                                font=(self.font_ui[0], 30))
-        self.dz_icon.pack(pady=(18, 4))
-        self.dz_main = tk.Label(dz, text="Drag & drop your PDF here", bg=self.dz_bg,
-                                fg=DARK, font=self.font_bold)
-        self.dz_main.pack()
-        self.dz_hint = tk.Label(dz, text="or click Browse to choose from your computer",
-                                bg=self.dz_bg, fg=MUTED, font=self.font_small)
-        self.dz_hint.pack(pady=(1, 0))
-        self.browse_btn = self._accent_button(dz, "Browse PDF", DARK, self.on_browse)
-        self.browse_btn.pack(pady=14)
+        inner = tk.Frame(dz, bg=self.dz_bg)
+        inner.pack(pady=10)
+        self.dz_icon = tk.Label(inner, text="\U0001F4C4", bg=self.dz_bg,
+                                fg="#94a3b8", font=(self.font_ui[0], 20))
+        self.dz_icon.pack(side="left", padx=(0, 12))
+        txt = tk.Frame(inner, bg=self.dz_bg)
+        txt.pack(side="left")
+        self.dz_main = tk.Label(txt, text="Drag & drop your PDF here", bg=self.dz_bg,
+                                fg=DARK, font=self.font_bold, anchor="w")
+        self.dz_main.pack(anchor="w")
+        self.dz_hint = tk.Label(txt, text="or use the Browse button",
+                                bg=self.dz_bg, fg=MUTED, font=self.font_small, anchor="w")
+        self.dz_hint.pack(anchor="w")
+        self.browse_btn = self._accent_button(txt, "Browse PDF", DARK, self.on_browse)
+        self.browse_btn.pack(anchor="w", pady=(8, 0))
         self.file_label = tk.Label(c1, text="No file selected.", bg=CARD, fg=MUTED,
                                    font=self.font_small, anchor="w", justify="left")
         self.file_label.pack(fill="x", padx=14, pady=(0, 14))
@@ -292,9 +296,9 @@ class OrbasApp:
         self.copy_btn.configure(state="disabled", bg="#cbd5e1")
         self.copy_btn.pack(side="right")
 
-        self.summary_label = tk.Label(c, text="", bg="#f0f9ff", fg="#1e40af",
-                                      font=self.font_small, anchor="w", justify="left",
-                                      wraplength=520)
+        # Metadata panel (stat tiles) - populated after extraction.
+        self.meta_card = tk.Frame(c, bg=BORDER)
+        self.json_card_body = c
 
         self.json_text = scrolledtext.ScrolledText(
             c, bg=JSON_BG, fg=JSON_FG, insertbackground=JSON_FG,
@@ -351,17 +355,26 @@ class OrbasApp:
         except Exception:
             pass
 
+    def _recolor_dropzone(self, bg):
+        def walk(w):
+            for child in w.winfo_children():
+                if isinstance(child, tk.Frame) or isinstance(child, tk.Label):
+                    try:
+                        child.configure(bg=bg)
+                    except tk.TclError:
+                        pass
+                walk(child)
+        self.dropzone.configure(bg=bg)
+        walk(self.dropzone)
+
     def _on_drop_enter(self, event):
-        self.dropzone.configure(highlightbackground=BLUE, highlightcolor=BLUE, bg="#eff6ff")
-        for w in (self.dz_icon, self.dz_main, self.dz_hint):
-            w.configure(bg="#eff6ff")
+        self.dropzone.configure(highlightbackground=BLUE, highlightcolor=BLUE)
+        self._recolor_dropzone("#eff6ff")
         return event.action
 
     def _on_drop_leave(self, event):
-        self.dropzone.configure(highlightbackground="#cbd5e1", highlightcolor="#cbd5e1",
-                                bg=self.dz_bg)
-        for w in (self.dz_icon, self.dz_main, self.dz_hint):
-            w.configure(bg=self.dz_bg)
+        self.dropzone.configure(highlightbackground="#cbd5e1", highlightcolor="#cbd5e1")
+        self._recolor_dropzone(self.dz_bg)
         return event.action
 
     def _on_drop(self, event):
@@ -444,7 +457,7 @@ class OrbasApp:
         self._check_ready()
         self.copy_btn.configure(state="disabled", bg="#cbd5e1")
         self.copy_ok.pack_forget()
-        self.summary_label.pack_forget()
+        self.meta_card.pack_forget()
         self._set_status(self.status_label, "Extracting condition report data...", "muted")
         self.progress.pack(fill="x", padx=14, pady=(0, 4))
         self.progress.start(12)
@@ -539,7 +552,18 @@ class OrbasApp:
             size /= 1024
         return f"{size:.1f} MB"
 
+    def _stat_tile(self, parent, col, label, value, value_fg=DARK):
+        cell = tk.Frame(parent, bg="white")
+        cell.grid(row=0, column=col, sticky="nsew", padx=2)
+        tk.Label(cell, text=str(value), bg="white", fg=value_fg,
+                 font=(self.font_ui[0], 14, "bold")).pack()
+        tk.Label(cell, text=label.upper(), bg="white", fg="#94a3b8",
+                 font=(self.font_ui[0], 8, "bold")).pack(pady=(1, 0))
+
     def _show_summary(self, result):
+        for ch in self.meta_card.winfo_children():
+            ch.destroy()
+
         areas = result.get("areas", [])
         comps = sum(len(a.get("components", [])) for a in areas)
         meta = result.get("report_metadata", {})
@@ -550,24 +574,61 @@ class OrbasApp:
             missing.append("Tenant Name")
         if not meta.get("landlord_name"):
             missing.append("Landlord Name")
+        passed = not missing
 
-        # File metadata line (client asked to show file size here).
         fname = meta.get("source_file") or (
             os.path.basename(self.pdf_path) if self.pdf_path else "N/A")
         pdf_size = f"{self.pdf_size_mb:.2f} MB" if self.pdf_size_mb is not None else "N/A"
         json_size = self._human_size(len(self.extracted_json.encode("utf-8")))
 
-        txt = (f"File: {fname}   |   PDF size: {pdf_size}   |   "
-               f"JSON size: {json_size}\n"
-               f"Jurisdiction: {result.get('jurisdiction', 'N/A')}   |   "
-               f"Type: {result.get('document_type', 'N/A')}   |   "
-               f"Pages: {meta.get('total_pages', 0)}\n"
-               f"Areas: {len(areas)}   |   Records: {comps}   |   "
-               f"Validation: {'Passed' if not missing else 'Review Required'}")
+        inner = tk.Frame(self.meta_card, bg="white")
+        inner.pack(fill="x", padx=1, pady=1)
+
+        # Header: source file (left) + validation badge (right)
+        hdr = tk.Frame(inner, bg="white")
+        hdr.pack(fill="x", padx=14, pady=(11, 8))
+        fl = tk.Frame(hdr, bg="white")
+        fl.pack(side="left", fill="x", expand=True)
+        tk.Label(fl, text="SOURCE FILE", bg="white", fg="#94a3b8",
+                 font=(self.font_ui[0], 8, "bold")).pack(anchor="w")
+        tk.Label(fl, text=fname, bg="white", fg=DARK, font=self.font_bold,
+                 anchor="w").pack(anchor="w")
+        badge_bg = "#dcfce7" if passed else "#fef3c7"
+        badge_fg = "#15803d" if passed else "#b45309"
+        tk.Label(hdr, text=("VALIDATION  PASSED" if passed else "VALIDATION  REVIEW"),
+                 bg=badge_bg, fg=badge_fg, font=(self.font_ui[0], 9, "bold"),
+                 padx=12, pady=6).pack(side="right", anchor="n")
+
+        tk.Frame(inner, bg="#eef2f7", height=1).pack(fill="x", padx=14)
+
+        # Stat tiles
+        tiles = tk.Frame(inner, bg="white")
+        tiles.pack(fill="x", padx=12, pady=(10, 12))
+        stats = [
+            ("Jurisdiction", result.get("jurisdiction", "N/A")),
+            ("Doc Type", result.get("document_type", "N/A")),
+            ("Pages", meta.get("total_pages", 0)),
+            ("Areas", len(areas)),
+            ("Records", comps),
+            ("PDF Size", pdf_size),
+            ("JSON Size", json_size),
+        ]
+        col = 0
+        for i, (label, value) in enumerate(stats):
+            tiles.columnconfigure(col, weight=1, uniform="tile")
+            self._stat_tile(tiles, col, label, value)
+            col += 1
+            if i < len(stats) - 1:
+                div = tk.Frame(tiles, bg="#eef2f7", width=1)
+                div.grid(row=0, column=col, sticky="ns", pady=2)
+                col += 1
+
         if missing:
-            txt += f"\nMissing: {', '.join(missing)}"
-        self.summary_label.configure(text=txt)
-        self.summary_label.pack(fill="x", padx=14, pady=(0, 4), before=self.json_text)
+            tk.Label(inner, text="Not found in this PDF: " + ", ".join(missing),
+                     bg="white", fg="#b45309", font=self.font_small, anchor="w").pack(
+                     fill="x", padx=14, pady=(0, 10))
+
+        self.meta_card.pack(fill="x", padx=14, pady=(2, 8), before=self.json_text)
 
 
 def run_gui():
