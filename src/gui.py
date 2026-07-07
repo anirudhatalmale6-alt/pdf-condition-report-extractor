@@ -10,6 +10,7 @@ No artificial progress delays. The extraction engine (extractor.py) is unchanged
 """
 
 import os
+import re
 import sys
 import json
 import queue
@@ -17,6 +18,13 @@ import threading
 
 import tkinter as tk
 from tkinter import ttk, filedialog, scrolledtext
+
+try:
+    # Optional: enables OS-level drag-and-drop of a PDF onto the drop zone.
+    from tkinterdnd2 import DND_FILES, TkinterDnD
+    _DND_AVAILABLE = True
+except Exception:
+    _DND_AVAILABLE = False
 
 from .config import APP_NAME, VERSION, JURISDICTIONS, REPORT_TYPES
 from .extractor import extract_pdf, detect_jurisdiction
@@ -59,18 +67,20 @@ class OrbasApp:
     def __init__(self, root):
         self.root = root
         self.pdf_path = None
+        self.pdf_size_mb = None
         self.license_verified = False
         self.extracted_json = ""
         self.extracting = False
         self._queue = queue.Queue()
 
         root.title(f"{APP_NAME} Native PDF Extractor")
-        root.geometry("1120x760")
-        root.minsize(940, 640)
+        root.geometry("1180x800")
+        root.minsize(980, 680)
         root.configure(bg=BG)
 
         self._init_style()
         self._build_ui()
+        self._setup_dnd()
         self._poll_queue()
 
     # ---- styling -------------------------------------------------------
@@ -82,12 +92,12 @@ class OrbasApp:
             pass
 
         ui = "Segoe UI" if sys.platform == "win32" else "DejaVu Sans"
-        self.font_ui = (ui, 10)
-        self.font_bold = (ui, 10, "bold")
-        self.font_h1 = (ui, 18, "bold")
-        self.font_h2 = (ui, 11, "bold")
-        self.font_small = (ui, 9)
-        self.font_mono = ("Consolas" if sys.platform == "win32" else "DejaVu Sans Mono", 9)
+        self.font_ui = (ui, 11)
+        self.font_bold = (ui, 11, "bold")
+        self.font_h1 = (ui, 19, "bold")
+        self.font_h2 = (ui, 12, "bold")
+        self.font_small = (ui, 10)
+        self.font_mono = ("Consolas" if sys.platform == "win32" else "DejaVu Sans Mono", 10)
 
         style.configure("Card.TFrame", background=CARD)
         style.configure("Bg.TFrame", background=BG)
@@ -95,8 +105,30 @@ class OrbasApp:
         style.configure("Bg.TLabel", background=BG, foreground=DARK, font=self.font_ui)
         style.configure("Muted.TLabel", background=CARD, foreground=MUTED, font=self.font_small)
         style.configure("H2.TLabel", background=CARD, foreground=DARK, font=self.font_h2)
-        style.configure("TCombobox", font=self.font_ui)
-        style.configure("Orbas.Horizontal.TProgressbar", background=GREEN, troughcolor=BORDER)
+
+        # Taller, roomier dropdowns (client asked for more height / better look).
+        style.configure(
+            "Orbas.TCombobox",
+            font=self.font_ui,
+            padding=(10, 8),
+            arrowsize=16,
+            relief="flat",
+            fieldbackground="white",
+            background="white",
+            bordercolor="#cbd5e1",
+            lightcolor="#cbd5e1",
+            darkcolor="#cbd5e1",
+        )
+        style.map(
+            "Orbas.TCombobox",
+            fieldbackground=[("readonly", "white")],
+            bordercolor=[("focus", BLUE)],
+        )
+        self.root.option_add("*TCombobox*Listbox.font", self.font_ui)
+        self.root.option_add("*TCombobox*Listbox.background", "white")
+        self.root.option_add("*TCombobox*Listbox.selectBackground", BLUE)
+        style.configure("Orbas.Horizontal.TProgressbar", background=GREEN,
+                        troughcolor=BORDER, thickness=8)
 
     def _accent_button(self, parent, text, color, command, big=False):
         """A flat coloured button (tk.Button gives us full colour control)."""
@@ -160,17 +192,25 @@ class OrbasApp:
         c1o, c1 = self._card(parent)
         c1o.pack(fill="x", pady=(0, 10))
         self._step_header(c1, 1, "Select PDF File", BLUE)
-        dz = tk.Frame(c1, bg="#f8fafc", highlightbackground="#cbd5e1",
-                      highlightthickness=1, bd=0)
+        self.dz_bg = "#f8fafc"
+        dz = tk.Frame(c1, bg=self.dz_bg, highlightbackground="#cbd5e1",
+                      highlightcolor="#cbd5e1", highlightthickness=2, bd=0)
         dz.pack(fill="x", padx=14, pady=(0, 12))
-        tk.Label(dz, text="\U0001F4C4", bg="#f8fafc", font=(self.font_ui[0], 22)).pack(pady=(12, 2))
-        tk.Label(dz, text="Choose a PDF from your computer", bg="#f8fafc", fg=DARK,
-                 font=self.font_ui).pack()
+        self.dropzone = dz
+        self.dz_icon = tk.Label(dz, text="\U0001F4C4", bg=self.dz_bg,
+                                font=(self.font_ui[0], 30))
+        self.dz_icon.pack(pady=(18, 4))
+        self.dz_main = tk.Label(dz, text="Drag & drop your PDF here", bg=self.dz_bg,
+                                fg=DARK, font=self.font_bold)
+        self.dz_main.pack()
+        self.dz_hint = tk.Label(dz, text="or click Browse to choose from your computer",
+                                bg=self.dz_bg, fg=MUTED, font=self.font_small)
+        self.dz_hint.pack(pady=(1, 0))
         self.browse_btn = self._accent_button(dz, "Browse PDF", DARK, self.on_browse)
-        self.browse_btn.pack(pady=10)
+        self.browse_btn.pack(pady=14)
         self.file_label = tk.Label(c1, text="No file selected.", bg=CARD, fg=MUTED,
                                    font=self.font_small, anchor="w", justify="left")
-        self.file_label.pack(fill="x", padx=14, pady=(0, 12))
+        self.file_label.pack(fill="x", padx=14, pady=(0, 14))
 
         # Step 2 - Jurisdiction & Doc type
         c2o, c2 = self._card(parent)
@@ -187,15 +227,17 @@ class OrbasApp:
         self.jur_var = tk.StringVar()
         jur_values = ["Auto Detect"] + [f"{code} - {name}" for code, name in JURISDICTIONS]
         self.jur_box = ttk.Combobox(row, textvariable=self.jur_var, values=jur_values,
-                                    state="readonly", font=self.font_ui)
+                                    state="readonly", style="Orbas.TCombobox",
+                                    font=self.font_ui, height=12)
         self.jur_box.current(0)
-        self.jur_box.grid(row=1, column=0, sticky="ew", pady=(2, 0))
+        self.jur_box.grid(row=1, column=0, sticky="ew", pady=(4, 0), ipady=3)
         self.doc_var = tk.StringVar()
         doc_values = [name for _, name in REPORT_TYPES]
         self.doc_box = ttk.Combobox(row, textvariable=self.doc_var, values=doc_values,
-                                    state="readonly", font=self.font_ui)
+                                    state="readonly", style="Orbas.TCombobox",
+                                    font=self.font_ui, height=12)
         self.doc_box.current(0)
-        self.doc_box.grid(row=1, column=1, sticky="ew", padx=(8, 0), pady=(2, 0))
+        self.doc_box.grid(row=1, column=1, sticky="ew", padx=(8, 0), pady=(4, 0), ipady=3)
 
         # Step 3 - License
         c3o, c3 = self._card(parent)
@@ -204,10 +246,11 @@ class OrbasApp:
         lrow = tk.Frame(c3, bg=CARD)
         lrow.pack(fill="x", padx=14, pady=(0, 4))
         self.key_var = tk.StringVar()
-        self.key_entry = tk.Entry(lrow, textvariable=self.key_var, font=self.font_mono,
-                                  relief="solid", bd=1)
-        self.key_entry.insert(0, "")
-        self.key_entry.pack(side="left", fill="x", expand=True, ipady=4)
+        key_wrap = tk.Frame(lrow, bg="#cbd5e1")
+        key_wrap.pack(side="left", fill="x", expand=True)
+        self.key_entry = tk.Entry(key_wrap, textvariable=self.key_var, font=self.font_mono,
+                                  relief="flat", bd=0, highlightthickness=0)
+        self.key_entry.pack(fill="x", expand=True, padx=1, pady=1, ipady=8, ipadx=6)
         self.key_entry.bind("<Return>", lambda e: self.on_verify())
         self.key_entry.bind("<KeyRelease>", self._on_key_typed)
         self.verify_btn = self._accent_button(lrow, "Verify", GREEN, self.on_verify)
@@ -293,21 +336,71 @@ class OrbasApp:
                 return code
         return "auto"
 
+    # ---- drag and drop -------------------------------------------------
+    def _setup_dnd(self):
+        if not _DND_AVAILABLE:
+            # No DnD library bundled - the drop zone still works as a Browse click.
+            self.dz_main.configure(text="Choose a PDF from your computer")
+            self.dz_hint.configure(text="click Browse to select a file")
+            return
+        try:
+            self.dropzone.drop_target_register(DND_FILES)
+            self.dropzone.dnd_bind("<<Drop>>", self._on_drop)
+            self.dropzone.dnd_bind("<<DropEnter>>", self._on_drop_enter)
+            self.dropzone.dnd_bind("<<DropLeave>>", self._on_drop_leave)
+        except Exception:
+            pass
+
+    def _on_drop_enter(self, event):
+        self.dropzone.configure(highlightbackground=BLUE, highlightcolor=BLUE, bg="#eff6ff")
+        for w in (self.dz_icon, self.dz_main, self.dz_hint):
+            w.configure(bg="#eff6ff")
+        return event.action
+
+    def _on_drop_leave(self, event):
+        self.dropzone.configure(highlightbackground="#cbd5e1", highlightcolor="#cbd5e1",
+                                bg=self.dz_bg)
+        for w in (self.dz_icon, self.dz_main, self.dz_hint):
+            w.configure(bg=self.dz_bg)
+        return event.action
+
+    def _on_drop(self, event):
+        self._on_drop_leave(event)
+        path = self._parse_dnd_path(event.data)
+        if not path:
+            return
+        if not path.lower().endswith(".pdf") or not os.path.isfile(path):
+            self.file_label.configure(text="Please drop a single PDF file.", fg=ERR_FG)
+            return
+        self._set_pdf(path)
+
+    @staticmethod
+    def _parse_dnd_path(data):
+        # tkdnd may return "{C:\path with spaces\a.pdf}" or several space-joined paths.
+        if not data:
+            return None
+        data = data.strip()
+        braced = re.findall(r"\{([^}]*)\}", data)
+        if braced:
+            return braced[0]
+        return data.split()[0]
+
     # ---- actions -------------------------------------------------------
+    def _set_pdf(self, path):
+        self.pdf_path = path
+        self.pdf_size_mb = os.path.getsize(path) / (1024 * 1024)
+        self.file_label.configure(
+            text=f"Selected: {os.path.basename(path)}  ({self.pdf_size_mb:.2f} MB)", fg=OK_FG)
+        self._check_ready()
+
     def on_browse(self):
         path = filedialog.askopenfilename(
             title="Select condition report PDF",
             filetypes=[("PDF files", "*.pdf"), ("All files", "*.*")],
         )
-        if not path:
+        if not path or not os.path.isfile(path):
             return
-        if not os.path.isfile(path):
-            return
-        self.pdf_path = path
-        size = os.path.getsize(path) / (1024 * 1024)
-        self.file_label.configure(
-            text=f"Selected: {os.path.basename(path)}  ({size:.2f} MB)", fg=OK_FG)
-        self._check_ready()
+        self._set_pdf(path)
 
     def _on_key_typed(self, event=None):
         if event and event.keysym in ("Return", "KP_Enter"):
@@ -437,6 +530,15 @@ class OrbasApp:
             self._set_status(self.status_label, f"Error: {msg[1]}", "err")
             self._check_ready()
 
+    @staticmethod
+    def _human_size(num_bytes):
+        size = float(num_bytes)
+        for unit in ("B", "KB", "MB"):
+            if size < 1024 or unit == "MB":
+                return f"{size:.0f} {unit}" if unit == "B" else f"{size:.1f} {unit}"
+            size /= 1024
+        return f"{size:.1f} MB"
+
     def _show_summary(self, result):
         areas = result.get("areas", [])
         comps = sum(len(a.get("components", [])) for a in areas)
@@ -448,7 +550,16 @@ class OrbasApp:
             missing.append("Tenant Name")
         if not meta.get("landlord_name"):
             missing.append("Landlord Name")
-        txt = (f"Jurisdiction: {result.get('jurisdiction', 'N/A')}   |   "
+
+        # File metadata line (client asked to show file size here).
+        fname = meta.get("source_file") or (
+            os.path.basename(self.pdf_path) if self.pdf_path else "N/A")
+        pdf_size = f"{self.pdf_size_mb:.2f} MB" if self.pdf_size_mb is not None else "N/A"
+        json_size = self._human_size(len(self.extracted_json.encode("utf-8")))
+
+        txt = (f"File: {fname}   |   PDF size: {pdf_size}   |   "
+               f"JSON size: {json_size}\n"
+               f"Jurisdiction: {result.get('jurisdiction', 'N/A')}   |   "
                f"Type: {result.get('document_type', 'N/A')}   |   "
                f"Pages: {meta.get('total_pages', 0)}\n"
                f"Areas: {len(areas)}   |   Records: {comps}   |   "
@@ -461,6 +572,13 @@ class OrbasApp:
 
 def run_gui():
     _enable_dpi_awareness()
-    root = tk.Tk()
+    # TkinterDnD.Tk() is a drop-in Tk root that also enables file drag-and-drop.
+    if _DND_AVAILABLE:
+        try:
+            root = TkinterDnD.Tk()
+        except Exception:
+            root = tk.Tk()
+    else:
+        root = tk.Tk()
     OrbasApp(root)
     root.mainloop()

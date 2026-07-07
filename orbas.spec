@@ -5,11 +5,18 @@
 #     whereas a lone unsigned one-file .exe is the classic false-positive target.
 # UPX is disabled on purpose - UPX-packed binaries trip AV heuristics.
 
+# Bundle tkinterdnd2 (drag-and-drop) incl. its native tkdnd binaries.
+try:
+    from PyInstaller.utils.hooks import collect_all
+    _dnd_datas, _dnd_binaries, _dnd_hidden = collect_all('tkinterdnd2')
+except Exception:
+    _dnd_datas, _dnd_binaries, _dnd_hidden = [], [], []
+
 a = Analysis(
     ['main.py'],
     pathex=[],
-    binaries=[],
-    datas=[('schemas', 'schemas')],
+    binaries=_dnd_binaries,
+    datas=[('schemas', 'schemas')] + _dnd_datas,
     hiddenimports=[
         'pdfplumber',
         'pdfminer',
@@ -21,6 +28,7 @@ a = Analysis(
         'requests',
         'fitz',
         'tkinter',
+        'tkinterdnd2',
         'src',
         'src.config',
         'src.extractor',
@@ -28,7 +36,7 @@ a = Analysis(
         'src.license',
         'src.gui',
         'src.cli',
-    ],
+    ] + _dnd_hidden,
     hookspath=[],
     hooksconfig={},
     runtime_hooks=[],

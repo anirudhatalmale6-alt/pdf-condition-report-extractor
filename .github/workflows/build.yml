@@ -19,7 +19,7 @@ jobs:
 
       - name: Install dependencies
         run: |
-          pip install PyMuPDF pdfplumber Pillow requests pyinstaller
+          pip install PyMuPDF pdfplumber Pillow requests tkinterdnd2 pyinstaller
 
       - name: Build (one-folder)
         run: |
