@@ -16,7 +16,7 @@ a = Analysis(
     ['main.py'],
     pathex=[],
     binaries=_dnd_binaries,
-    datas=[('schemas', 'schemas')] + _dnd_datas,
+    datas=[('schemas', 'schemas'), ('assets', 'assets')] + _dnd_datas,
     hiddenimports=[
         'pdfplumber',
         'pdfminer',
@@ -71,6 +71,7 @@ exe = EXE(
     target_arch=None,
     codesign_identity=None,
     entitlements_file=None,
+    icon='assets/orbas.ico',
 )
 
 coll = COLLECT(

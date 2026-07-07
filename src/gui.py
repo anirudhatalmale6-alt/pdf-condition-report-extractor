@@ -1,5 +1,5 @@
 """
-ORBAS Native PDF Extractor - GUI.
+ORBAS PDF Extractor - GUI.
 
 Native Tkinter interface. Chosen for reliability and speed:
   * Instant startup, tiny footprint (no embedded browser / WebView2, no HTTP server).
@@ -32,10 +32,15 @@ from .license import validate_license
 
 DEMO_KEYS = {"ORBAS-DEMO-2026", "ORBAS-TRIAL-2026", "ORBAS-NSW-VALID"}
 
-# Brand palette
-BLUE = "#0453ed"
-GREEN = "#096e4d"
-ORANGE = "#fd6207"
+# Brand palette (ORBAS: green #0a704e + yellow #fecf07)
+BRAND_GREEN = "#0a704e"
+BRAND_GREEN_DK = "#085a3e"
+BRAND_YELLOW = "#fecf07"
+BRAND_YELLOW_DK = "#e6b800"
+# Primary UI accents map onto the brand colours.
+BLUE = BRAND_GREEN      # headings / step badges
+GREEN = BRAND_GREEN     # license / progress
+ORANGE = BRAND_GREEN    # primary extract action
 DARK = "#0f172a"
 BG = "#f1f5f9"
 CARD = "#ffffff"
@@ -47,6 +52,21 @@ OK_BG = "#f0fdf4"
 OK_FG = "#166534"
 ERR_BG = "#fef2f2"
 ERR_FG = "#991b1b"
+
+
+def _asset_path(name):
+    """Resolve a bundled asset, both in dev and inside a PyInstaller build."""
+    base = getattr(sys, "_MEIPASS", None)
+    candidates = []
+    if base:
+        candidates.append(os.path.join(base, "assets", name))
+    here = os.path.dirname(os.path.abspath(__file__))
+    candidates.append(os.path.join(here, "..", "assets", name))
+    candidates.append(os.path.join(here, "assets", name))
+    for c in candidates:
+        if os.path.isfile(c):
+            return c
+    return None
 
 
 def _enable_dpi_awareness():
@@ -73,15 +93,29 @@ class OrbasApp:
         self.extracting = False
         self._queue = queue.Queue()
 
-        root.title(f"{APP_NAME} Native PDF Extractor")
+        root.title(f"{APP_NAME} PDF Extractor")
         root.geometry("1180x800")
         root.minsize(980, 680)
         root.configure(bg=BG)
+        self._set_window_icon()
 
         self._init_style()
         self._build_ui()
         self._setup_dnd()
         self._poll_queue()
+
+    def _set_window_icon(self):
+        """App icon in the title bar / taskbar."""
+        try:
+            ico = _asset_path("orbas.ico")
+            if ico and sys.platform == "win32":
+                self.root.iconbitmap(ico)
+            png = _asset_path("orbas_icon.png")
+            if png:
+                self._icon_img = tk.PhotoImage(file=png)
+                self.root.iconphoto(True, self._icon_img)
+        except Exception:
+            pass
 
     # ---- styling -------------------------------------------------------
     def _init_style(self):
@@ -162,15 +196,35 @@ class OrbasApp:
         header.pack(fill="x", padx=18, pady=(14, 6))
         left = tk.Frame(header, bg=BG)
         left.pack(side="left")
-        tk.Label(left, text=f"{APP_NAME} Native PDF Extractor", bg=BG, fg=BLUE,
-                 font=self.font_h1).pack(anchor="w")
+        logo_path = _asset_path("orbas_logo.png")
+        self._logo_img = None
+        if logo_path:
+            try:
+                self._logo_img = tk.PhotoImage(file=logo_path)
+            except Exception:
+                self._logo_img = None
+        if self._logo_img is not None:
+            tk.Label(left, image=self._logo_img, bg=BG).pack(anchor="w")
+        else:
+            tk.Label(left, text=APP_NAME, bg=BG, fg=BRAND_GREEN,
+                     font=self.font_h1).pack(anchor="w")
         tk.Label(left, text="Extract rental condition report PDF data into structured JSON.",
-                 bg=BG, fg=MUTED, font=self.font_small).pack(anchor="w")
+                 bg=BG, fg=MUTED, font=self.font_small).pack(anchor="w", pady=(3, 0))
+
         rt = tk.Frame(header, bg=BG)
         rt.pack(side="right")
-        tk.Label(rt, text=f"v{VERSION}", bg=BG, fg=DARK, font=self.font_bold).pack(anchor="e")
-        tk.Label(rt, text="Local PDF Extraction", bg=BG, fg=MUTED,
-                 font=self.font_small).pack(anchor="e")
+        self.refresh_btn = tk.Button(
+            rt, text="↻  Refresh", command=self.on_refresh,
+            bg=BRAND_YELLOW, fg=DARK, activebackground=BRAND_YELLOW_DK,
+            activeforeground=DARK, relief="flat", bd=0, cursor="hand2",
+            font=self.font_bold, padx=14, pady=7,
+        )
+        self.refresh_btn.pack(side="top", anchor="e")
+        vrow = tk.Frame(rt, bg=BG)
+        vrow.pack(side="top", anchor="e", pady=(6, 0))
+        tk.Label(vrow, text=f"v{VERSION}", bg=BG, fg=DARK, font=self.font_bold).pack(side="right")
+        tk.Label(vrow, text="Local PDF Extraction  ", bg=BG, fg=MUTED,
+                 font=self.font_small).pack(side="right")
 
         # Body: two columns
         body = tk.Frame(self.root, bg=BG)
@@ -295,6 +349,8 @@ class OrbasApp:
         self.copy_btn = self._accent_button(top, "Copy JSON", DARK, self.on_copy)
         self.copy_btn.configure(state="disabled", bg="#cbd5e1")
         self.copy_btn.pack(side="right")
+        # Inline copy confirmation, sits just left of the Copy button.
+        self.copy_ok = tk.Label(top, text="", bg=CARD, fg=OK_FG, font=self.font_bold)
 
         # Metadata panel (stat tiles) - populated after extraction.
         self.meta_card = tk.Frame(c, bg=BORDER)
@@ -311,9 +367,6 @@ class OrbasApp:
         # Native copy / select-all shortcuts
         self.json_text.bind("<Control-a>", self._select_all_json)
         self.json_text.bind("<Control-A>", self._select_all_json)
-
-        self.copy_ok = tk.Label(c, text="", bg=CARD, fg=OK_FG, font=self.font_small,
-                                anchor="w")
 
     # ---- helpers -------------------------------------------------------
     def _set_status(self, widget, text, kind="muted"):
@@ -487,7 +540,7 @@ class OrbasApp:
         self.root.clipboard_clear()
         self.root.clipboard_append(self.extracted_json)
         self.root.update_idletasks()
-        self._show_copied("JSON copied to clipboard. You can now paste with Ctrl+V.")
+        self._show_copied("Copied to clipboard!")
 
     def _select_all_json(self, event=None):
         self.json_text.tag_add("sel", "1.0", "end-1c")
@@ -496,9 +549,49 @@ class OrbasApp:
         return "break"
 
     def _show_copied(self, text):
-        self.copy_ok.configure(text=text)
-        self.copy_ok.pack(fill="x", padx=14, pady=(0, 10))
-        self.root.after(4000, self.copy_ok.pack_forget)
+        # Inline green confirmation next to the button.
+        self.copy_ok.configure(text="✓  " + text)
+        self.copy_ok.pack(side="right", padx=(0, 10))
+        # Flash the Copy button green so the action is unmistakable.
+        self.copy_btn.configure(text="✓ Copied", bg=BRAND_GREEN)
+        if getattr(self, "_copy_reset_job", None):
+            self.root.after_cancel(self._copy_reset_job)
+        self._copy_reset_job = self.root.after(2500, self._reset_copy_ui)
+
+    def _reset_copy_ui(self):
+        self._copy_reset_job = None
+        self.copy_ok.pack_forget()
+        if self.extracted_json:
+            self.copy_btn.configure(text="Copy JSON", bg=DARK)
+
+    def on_refresh(self):
+        """Clear the canvas and cached result - ready for a fresh upload."""
+        if self.extracting:
+            return
+        self.pdf_path = None
+        self.pdf_size_mb = None
+        self.extracted_json = ""
+        # File selection
+        self.file_label.configure(text="No file selected.", fg=MUTED)
+        # Reset choices to Auto Detect
+        try:
+            self.jur_box.current(0)
+            self.doc_box.current(0)
+        except Exception:
+            pass
+        # JSON output + metadata
+        self.meta_card.pack_forget()
+        self._set_json("No extraction output yet.")
+        self.copy_ok.pack_forget()
+        self.copy_btn.configure(state="disabled", bg="#cbd5e1", text="Copy JSON")
+        # Progress / status
+        try:
+            self.progress.stop()
+            self.progress.pack_forget()
+        except Exception:
+            pass
+        self._set_status(self.status_label, "", "muted")
+        self._check_ready()
 
     def _set_json(self, text):
         self.json_text.configure(state="normal")
@@ -531,7 +624,7 @@ class OrbasApp:
             self.extracting = False
             self.extracted_json = json.dumps(result, indent=2, ensure_ascii=False)
             self._set_json(self.extracted_json)
-            self.copy_btn.configure(state="normal", bg=DARK)
+            self.copy_btn.configure(state="normal", bg=DARK, text="Copy JSON")
             self._set_status(self.status_label, "Extraction completed successfully.", "ok")
             self._show_summary(result)
             self._check_ready()
