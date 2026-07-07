@@ -20,7 +20,7 @@ class ConditionReportExtractor:
         self.fitz_doc = None
         self.plumber_pdf = None
 
-    def extract(self, output_dir=None, save_images=True):
+    def extract(self, output_dir=None, save_images=True, embed_images=False):
         self.fitz_doc = fitz.open(self.pdf_path)
         self.plumber_pdf = pdfplumber.open(self.pdf_path)
 
@@ -65,7 +65,7 @@ class ConditionReportExtractor:
                     "landlord_promise": self._extract_landlord_promise(full_text),
                     "signatures": self._extract_signatures(full_text),
                 },
-                "images": self._extract_images(output_dir, save_images),
+                "images": self._extract_images(output_dir, save_images, embed_images),
             }
 
             return result
@@ -717,7 +717,12 @@ class ConditionReportExtractor:
             },
         }
 
-    def _extract_images(self, output_dir=None, save_images=True):
+    def _extract_images(self, output_dir=None, save_images=True, embed_data=False):
+        # By default we record only lightweight image metadata (page, size, count).
+        # Embedding full base64 image bytes here previously bloated the JSON to
+        # 100+ MB on a photo-heavy report, which made the app slow to render and
+        # painful to copy. The condition-report converter does not need the raw
+        # image bytes, so embed_data stays False unless explicitly requested.
         images = []
         for page_idx, page in enumerate(self.fitz_doc):
             image_list = page.get_images(full=True)
@@ -751,8 +756,9 @@ class ConditionReportExtractor:
                         with open(img_path, "wb") as f:
                             f.write(img_bytes)
                         img_data["file_path"] = img_filename
-                    else:
+                    elif embed_data:
                         img_data["data_base64"] = base64.b64encode(img_bytes).decode("utf-8")
+                    # else: metadata only - keep data_base64 = None (small JSON)
 
                     images.append(img_data)
                     pix = None
@@ -857,6 +863,8 @@ def detect_report_type_standalone(pdf_path):
         doc.close()
 
 
-def extract_pdf(pdf_path, jurisdiction="NSW", report_type="auto", output_dir=None, save_images=True):
+def extract_pdf(pdf_path, jurisdiction="NSW", report_type="auto", output_dir=None,
+                save_images=True, embed_images=False):
     extractor = ConditionReportExtractor(pdf_path, jurisdiction, report_type)
-    return extractor.extract(output_dir=output_dir, save_images=save_images)
+    return extractor.extract(output_dir=output_dir, save_images=save_images,
+                             embed_images=embed_images)

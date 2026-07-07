@@ -19,15 +19,19 @@ jobs:
 
       - name: Install dependencies
         run: |
-          pip install PyMuPDF pdfplumber Pillow pytesseract requests pyinstaller
-          pip install pywebview pythonnet clr_loader bottle proxy_tools
+          pip install PyMuPDF pdfplumber Pillow requests pyinstaller
 
-      - name: Build EXE
+      - name: Build (one-folder)
         run: |
-          pyinstaller orbas.spec --clean
+          pyinstaller orbas.spec --clean --noconfirm
+
+      - name: Zip the app folder
+        shell: pwsh
+        run: |
+          Compress-Archive -Path dist/ORBAS/* -DestinationPath ORBAS-Windows.zip -Force
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
           name: ORBAS-Windows
-          path: dist/ORBAS.exe
+          path: ORBAS-Windows.zip

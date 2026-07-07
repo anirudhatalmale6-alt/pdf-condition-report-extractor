@@ -1,23 +1,15 @@
 # -*- mode: python ; coding: utf-8 -*-
-import os
-import importlib
-
-extra_datas = [('schemas', 'schemas')]
-
-try:
-    wv = importlib.import_module('webview')
-    wv_path = os.path.dirname(wv.__file__)
-    wv_lib = os.path.join(wv_path, 'lib')
-    if os.path.isdir(wv_lib):
-        extra_datas.append((wv_lib, 'webview/lib'))
-except ImportError:
-    pass
+# One-folder (onedir) build. Chosen over one-file because:
+#   * It starts instantly (no self-extraction to a temp folder on every launch).
+#   * Windows Defender / SmartScreen rarely quarantines a folder-based app,
+#     whereas a lone unsigned one-file .exe is the classic false-positive target.
+# UPX is disabled on purpose - UPX-packed binaries trip AV heuristics.
 
 a = Analysis(
     ['main.py'],
     pathex=[],
     binaries=[],
-    datas=extra_datas,
+    datas=[('schemas', 'schemas')],
     hiddenimports=[
         'pdfplumber',
         'pdfminer',
@@ -26,9 +18,9 @@ a = Analysis(
         'pdfminer.pdfpage',
         'PIL',
         'PIL.Image',
-        'pytesseract',
         'requests',
         'fitz',
+        'tkinter',
         'src',
         'src.config',
         'src.extractor',
@@ -36,26 +28,20 @@ a = Analysis(
         'src.license',
         'src.gui',
         'src.cli',
-        'webview',
-        'webview.platforms',
-        'webview.platforms.edgechromium',
-        'webview.platforms.winforms',
-        'webview.platforms.mshtml',
-        'webview.http_server',
-        'bottle',
-        'clr',
-        'clr_loader',
-        'clr_loader.ffi',
-        'clr_loader.ffi.coreclr',
-        'clr_loader.ffi.mono',
-        'clr_loader.ffi.netfx',
-        'proxy_tools',
-        'pythonnet',
     ],
     hookspath=[],
     hooksconfig={},
     runtime_hooks=[],
-    excludes=[],
+    excludes=[
+        'webview',
+        'pywebview',
+        'pythonnet',
+        'clr',
+        'clr_loader',
+        'bottle',
+        'proxy_tools',
+        'pytesseract',
+    ],
     noarchive=False,
 )
 
@@ -64,20 +50,27 @@ pyz = PYZ(a.pure)
 exe = EXE(
     pyz,
     a.scripts,
-    a.binaries,
-    a.datas,
     [],
+    exclude_binaries=True,
     name='ORBAS',
     debug=False,
     bootloader_ignore_signals=False,
     strip=False,
-    upx=True,
-    upx_exclude=[],
-    runtime_tmpdir=None,
+    upx=False,
     console=False,
     disable_windowed_traceback=False,
     argv_emulation=False,
     target_arch=None,
     codesign_identity=None,
     entitlements_file=None,
+)
+
+coll = COLLECT(
+    exe,
+    a.binaries,
+    a.datas,
+    strip=False,
+    upx=False,
+    upx_exclude=[],
+    name='ORBAS',
 )
