@@ -11,7 +11,71 @@ from io import BytesIO
 from .config import VERSION, ROOM_CONFIGS, REPORT_TYPE_KEYWORDS
 
 
+# Vocabulary of words that appear in area / component labels. Used to detect
+# text that a PDF has stored in reversed character order (rotated/vertical
+# labels such as "LOUNGE ROOM" printed sideways come out as "MOOR EGNUOL").
+_LABEL_VOCAB = {
+    # areas / rooms
+    "ENTRANCE", "HALL", "LOUNGE", "LIVING", "DINING", "KITCHEN", "BEDROOM",
+    "BED", "BATHROOM", "ENSUITE", "LAUNDRY", "GARAGE", "CARPORT", "GENERAL",
+    "SECURITY", "SAFETY", "ROOM", "STUDY", "FAMILY", "MEALS", "RUMPUS",
+    "PANTRY", "BALCONY", "PORCH", "DECK", "GARDEN", "GARDENS", "YARD",
+    "EXTERIOR", "ENTRY", "STAIRS", "STAIRCASE", "HALLWAY", "STORE",
+    "STOREROOM", "TOILET", "WC", "PASSAGE", "FOYER",
+    # components / items
+    "DOOR", "DOORS", "DOORWAY", "SCREEN", "WINDOW", "WINDOWS", "WALL", "WALLS",
+    "CEILING", "FLOOR", "FLOORS", "FLOORING", "COVERINGS", "LIGHT", "LIGHTS",
+    "LIGHTING", "FITTINGS", "POWER", "POINTS", "POINT", "SWITCHES", "CURTAINS",
+    "BLINDS", "SKIRTING", "BOARDS", "CUPBOARD", "CUPBOARDS", "DRAWERS", "BENCH",
+    "TOPS", "TILING", "TILES", "SINK", "TAPS", "STOVE", "HOTPLATES", "OVEN",
+    "GRILLER", "EXHAUST", "FAN", "RANGE", "HOOD", "DISHWASHER", "WARDROBE",
+    "SHELVES", "BATH", "SHOWER", "BASIN", "MIRROR", "CABINET", "VANITY",
+    "TOWEL", "RAILS", "CISTERN", "SEAT", "HOLDER", "HEATING", "VENT",
+    "WASHING", "MACHINE", "DRYER", "TUB", "LOCKS", "KEYS", "ALARM", "ALARMS",
+    "SMOKE", "SWITCH", "DEVICES", "PICTURE", "HOOKS", "BELL", "FRAMES",
+    "BUILT", "AIR", "CONDITIONING", "ANTENNA", "POOL", "FENCE", "GATE",
+    "GATES", "FENCES", "GROUNDS", "HOSE", "WATERING", "LAWNS", "EDGES",
+    "LETTER", "BOX", "STREET", "NUMBER", "TANKS", "SEPTIC", "GARBAGE", "BINS",
+    "PAVING", "DRIVEWAY", "DRIVEWAYS", "CLOTHESLINE", "SHED", "HOT", "WATER",
+    "SYSTEM", "GUTTERS", "DOWNPIPE", "FRONT", "OTHER", "BRICKS", "GRASS",
+    "OUTSIDE",
+}
+
+
 class ConditionReportExtractor:
+    # Expose the vocab on the instance side for helper methods.
+    _VOCAB = _LABEL_VOCAB
+
+    @classmethod
+    def _looks_reversed(cls, s):
+        """True when `s` reads as reversed text (more label words appear when
+        the character order is flipped than as-is). Conservative: only flags a
+        string when the reversed form is a *strict* improvement."""
+        if not s or len(s) < 3:
+            return False
+        up = s.upper()
+        rev = s[::-1].upper()
+
+        def hits(txt):
+            return sum(1 for w in cls._VOCAB if w in txt)
+
+        h_orig, h_rev = hits(up), hits(rev)
+        if h_rev > h_orig:
+            return True
+        # Single-word labels with no space: compare exact token membership.
+        if h_orig == 0 and h_rev == 0 and " " not in s and "/" not in s:
+            return s[::-1].upper() in cls._VOCAB and up not in cls._VOCAB
+        return False
+
+    @classmethod
+    def _normalize_text(cls, s):
+        """Correct reversed (rotated) label text to normal reading order."""
+        if not s:
+            return s
+        # A slash-separated compound (e.g. "YTEFAS/YTIRUCES") reverses both the
+        # whole string and each segment - a plain full reverse restores it.
+        return s[::-1] if cls._looks_reversed(s) else s
+
     def __init__(self, pdf_path, jurisdiction="NSW", report_type="auto"):
         self.pdf_path = pdf_path
         self.jurisdiction = jurisdiction.upper()
@@ -35,15 +99,17 @@ class ConditionReportExtractor:
             areas_raw = self._extract_rooms()
             areas = []
             for room in areas_raw:
+                # Correct reversed (rotated) label text before it reaches the JSON.
+                room_name = self._normalize_text(room["room_name"])
                 area = {
-                    "area_name": room["room_name"],
+                    "area_name": room_name,
                     "page_number": room.get("page_number"),
                     "components": [],
                 }
                 for item in room.get("items", []):
                     component = {
-                        "area_name": room["room_name"],
-                        "component_name": item["item_name"],
+                        "area_name": room_name,
+                        "component_name": self._normalize_text(item["item_name"]),
                         "start_of_tenancy": item.get("start_of_tenancy", {}),
                         "end_of_tenancy": item.get("end_of_tenancy", {}),
                     }
