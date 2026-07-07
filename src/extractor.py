@@ -122,10 +122,8 @@ class ConditionReportExtractor:
                 "detected_document_type": self.detected_type if self.report_type == "auto" else None,
                 "report_metadata": self._build_metadata(),
                 "areas": areas,
+                "statutory": self._extract_statutory(full_text),
                 "other_sections": {
-                    "compliance": self._extract_compliance(full_text),
-                    "utilities": self._extract_utilities(full_text),
-                    "water_efficiency": self._extract_water_efficiency(full_text),
                     "additional_comments": self._extract_additional_comments(full_text),
                     "maintenance_dates": self._extract_maintenance_dates(full_text),
                     "landlord_promise": self._extract_landlord_promise(full_text),
@@ -797,6 +795,32 @@ class ConditionReportExtractor:
                 "tenant_agrees": None,
                 "tenant_disagreement_details": None,
             },
+        }
+
+    def _extract_statutory(self, text):
+        """Dedicated Statutory section - the legislated questions, kept separate
+        from the room-by-room condition areas. Same six sub-sections for every
+        jurisdiction (fields that don't exist on a given form stay null)."""
+        compliance = self._extract_compliance(text)
+        utilities = self._extract_utilities(text)
+        water = self._extract_water_efficiency(text)
+
+        minimum = dict(compliance.get("minimum_standards", {}))
+        minimum["utilities"] = {
+            "electricity_supplied": utilities.get("electricity"),
+            "gas_supplied": utilities.get("gas"),
+            "water_supplied": utilities.get("water_supply"),
+        }
+        return {
+            "minimum_standards": minimum,
+            "health_issues": compliance.get("health_issues", {}),
+            "smoke_alarms": compliance.get("smoke_alarms", {}),
+            "other_safety_issues": compliance.get("safety_issues", {}),
+            "communication_facilities": {
+                "telephone_connected": utilities.get("telephone"),
+                "internet_connected": utilities.get("internet"),
+            },
+            "water_usage_and_efficiency": water,
         }
 
     def _extract_utilities(self, text):
