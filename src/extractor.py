@@ -116,6 +116,8 @@ class ConditionReportExtractor:
                     area["components"].append(component)
                 areas.append(area)
 
+            areas = self._postprocess_areas(areas)
+
             result = {
                 "jurisdiction": self.jurisdiction,
                 "document_type": self.detected_type,
@@ -339,6 +341,69 @@ class ConditionReportExtractor:
             if match:
                 return match.group(1).strip()
         return None
+
+    # Tokens that mark a row as metadata / signature noise rather than a real
+    # condition area. Used only to strip EMPTY misread rows - never to reject a
+    # populated area, so genuine (even unusually named) areas always pass.
+    _META_AREA_TOKENS = {
+        "date", "signature", "signatures", "meter", "reading", "commencement",
+        "inspector", "completed", "witness", "page", "vacate",
+    }
+
+    # Words that are always inspection *items*, never area headers. When a row
+    # with these names has no Y/N marks (an unfilled item) it must not be
+    # mistaken for a new area. Deliberately excludes words that can be real
+    # areas somewhere (toilet, ensuite, garage, laundry, balcony, shed).
+    _COMPONENT_ONLY = {
+        "door", "doors", "doorway", "doorways", "window", "windows", "wall",
+        "walls", "ceiling", "ceilings", "floor", "floors", "flooring", "blind",
+        "blinds", "curtain", "curtains", "skirting", "light", "lights",
+        "lighting", "powerpoint", "powerpoints", "point", "points", "switch",
+        "switches", "tap", "taps", "sink", "oven", "stove", "hotplate",
+        "hotplates", "griller", "rangehood", "dishwasher", "shower", "basin",
+        "mirror", "vanity", "cupboard", "cupboards", "drawer", "drawers",
+        "bench", "benchtop", "benchtops", "screen", "screens", "architrave",
+        "architraves", "bricks", "driveway", "paving",
+    }
+
+    @classmethod
+    def _is_component_word(cls, name):
+        n = re.sub(r"[^a-z ]", "", (name or "").lower())
+        return n.replace(" ", "") in cls._COMPONENT_ONLY
+
+    @staticmethod
+    def _area_name_is_junk(name):
+        """A name with no letters (e.g. '/ /', '- -', '   ') is not an area."""
+        s = (name or "").strip()
+        return len(s) < 2 or not re.search(r"[A-Za-z]", s)
+
+    def _postprocess_areas(self, areas):
+        """Flexible clean-up of the detected areas. Removes obvious noise only -
+        it never enforces a fixed schema, so real-world reports with unexpected
+        area names still come through:
+          * drop junk names (punctuation / blank),
+          * collapse duplicate area headers (keep the populated instance),
+          * drop empty rows whose name is clearly metadata/signature text.
+        """
+        kept = [a for a in areas if not self._area_name_is_junk(a.get("area_name", ""))]
+
+        best, order = {}, []
+        for a in kept:
+            key = re.sub(r"\s+", " ", a["area_name"].strip().lower())
+            if key not in best:
+                best[key] = a
+                order.append(key)
+            elif len(a.get("components", [])) > len(best[key].get("components", [])):
+                best[key] = a
+        deduped = [best[k] for k in order]
+
+        def is_meta_noise(a):
+            if a.get("components"):
+                return False
+            toks = set(re.findall(r"[a-z]+", a["area_name"].lower()))
+            return bool(toks & self._META_AREA_TOKENS)
+
+        return [a for a in deduped if not is_meta_noise(a)]
 
     def _extract_rooms(self):
         room_config = ROOM_CONFIGS.get(self.jurisdiction, {})
@@ -709,6 +774,10 @@ class ConditionReportExtractor:
                 continue
 
             for table in tables:
+                # Skip narrow key/value tables (metadata like "Vacate Date | ...").
+                # Condition grids are wide (Clean/Undamaged/Working/comment cols).
+                if not table or max((len(r) for r in table), default=0) < 4:
+                    continue
                 for row in table:
                     if not row or not row[0]:
                         continue
@@ -728,6 +797,12 @@ class ConditionReportExtractor:
                     )
 
                     if not has_yn and len(first_cell) > 2:
+                        # An unfilled component row (e.g. "Door" with no Y/N) is
+                        # an item without a recorded condition - not a new area.
+                        if self._is_component_word(first_cell) and rooms:
+                            rooms[-1]["items"].append(
+                                self._parse_table_row_for_item(first_cell, row))
+                            continue
                         current_room = first_cell
                         rooms.append({
                             "room_name": current_room,
