@@ -3,6 +3,8 @@ APP_NAME = "ORBAS"
 
 CLOUD_SYNC_URL = "https://app.orbas.com.au/api/sync"
 LICENSE_VALIDATE_URL = "https://app.orbas.com.au/api/license/validate"
+# Fixed product identifier expected by the ORBAS licence-activation endpoint.
+PRODUCT_CODE = "ORBAS_EXTRACTOR"
 
 JURISDICTIONS = [
     ("NSW", "New South Wales"),

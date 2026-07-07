@@ -1057,7 +1057,10 @@ def detect_jurisdiction(pdf_path):
         text = ""
         for i in range(min(4, len(doc))):
             text += doc[i].get_text() + "\n"
-        text_lower = text.lower()
+        # Normalise punctuation/whitespace to single spaces. Some PDFs extract
+        # with apostrophes or asterisks between words (e.g. "Northern'Territory"),
+        # which would otherwise defeat multi-word marker matching.
+        text_lower = re.sub(r"[^a-z0-9]+", " ", text.lower())
 
         markers = {
             "NSW": ["new south wales", "nsw fair trading", "nsw government",
@@ -1074,13 +1077,16 @@ def detect_jurisdiction(pdf_path):
                      "rental deposit authority"],
             "ACT": ["australian capital territory", "tenantsact.org.au",
                      "revenue.act.gov.au"],
-            "NT": ["northern territory", "darwin nt", "nt – entry",
-                    "nt – exit", "nt - entry", "nt - exit"],
+            "NT": ["northern territory", "darwin nt", "nt entry", "nt exit",
+                    "residential tenancies act 2013"],
         }
+
+        def _norm(s):
+            return re.sub(r"[^a-z0-9]+", " ", s.lower()).strip()
 
         scores = {}
         for jur, keywords in markers.items():
-            score = sum(1 for kw in keywords if kw in text_lower)
+            score = sum(1 for kw in keywords if _norm(kw) in text_lower)
             if score > 0:
                 scores[jur] = score
 

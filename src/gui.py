@@ -301,8 +301,24 @@ class OrbasApp:
         c3o, c3 = self._card(parent)
         c3o.pack(fill="x", pady=(0, 10))
         self._step_header(c3, 3, "Product Key Verification", GREEN)
+
+        # Email address (used for licence activation)
+        tk.Label(c3, text="Email address", bg=CARD, fg=DARK,
+                 font=self.font_small).pack(anchor="w", padx=14)
+        self.email_var = tk.StringVar()
+        email_wrap = tk.Frame(c3, bg="#cbd5e1")
+        email_wrap.pack(fill="x", padx=14, pady=(4, 0))
+        self.email_entry = tk.Entry(email_wrap, textvariable=self.email_var,
+                                    font=self.font_ui, relief="flat", bd=0,
+                                    highlightthickness=0)
+        self.email_entry.pack(fill="x", expand=True, padx=1, pady=1, ipady=7, ipadx=6)
+        self.email_entry.bind("<KeyRelease>", self._on_key_typed)
+
+        # Product key + Verify
+        tk.Label(c3, text="Product key", bg=CARD, fg=DARK,
+                 font=self.font_small).pack(anchor="w", padx=14, pady=(8, 0))
         lrow = tk.Frame(c3, bg=CARD)
-        lrow.pack(fill="x", padx=14, pady=(0, 4))
+        lrow.pack(fill="x", padx=14, pady=(4, 4))
         self.key_var = tk.StringVar()
         key_wrap = tk.Frame(lrow, bg="#cbd5e1")
         key_wrap.pack(side="left", fill="x", expand=True)
@@ -313,7 +329,7 @@ class OrbasApp:
         self.key_entry.bind("<KeyRelease>", self._on_key_typed)
         self.verify_btn = self._accent_button(lrow, "Verify", GREEN, self.on_verify)
         self.verify_btn.pack(side="left", padx=(8, 0))
-        self.lic_label = tk.Label(c3, text="Enter your product key (e.g. ORBAS-DEMO-2026).",
+        self.lic_label = tk.Label(c3, text="Enter your email and product key (e.g. ORBAS-DEMO-2026).",
                                   bg=CARD, fg=MUTED, font=self.font_small, anchor="w",
                                   justify="left", wraplength=460)
         self.lic_label.pack(fill="x", padx=14, pady=(0, 12))
@@ -476,6 +492,7 @@ class OrbasApp:
 
     def on_verify(self):
         key = self.key_var.get().strip()
+        email = self.email_var.get().strip()
         if not key:
             self._set_status(self.lic_label, "Please enter a product key.", "err")
             return
@@ -493,7 +510,7 @@ class OrbasApp:
 
         def worker():
             try:
-                result = validate_license(key)
+                result = validate_license(key, email=email)
                 ok = bool(result.get("valid"))
                 msg = ("Product key verified. PDF extraction is now enabled." if ok
                        else result.get("error") or "Invalid product key.")
