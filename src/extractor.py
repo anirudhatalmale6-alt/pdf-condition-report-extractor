@@ -271,6 +271,12 @@ class ConditionReportExtractor:
             return False
         if any(sw in low for sw in self.SKIP_VALUE_WORDS):
             return False
+        # A blank field caption (e.g. the VIC form prints "Full name 1",
+        # "Full name of renter 2", "Agent's company name" as empty-field labels)
+        # is not a value - a real entry would be an actual name.
+        if re.match(r"^(full name|first name|last name|given name|surname"
+                    r"|name of (renter|tenant|landlord)|agent.?s)\b", low):
+            return False
         return True
 
     def _is_label_like(self, line, label):
