@@ -141,10 +141,10 @@ class ConditionReportExtractor:
             # The NT form's final page (Communication Facilities, Other
             # Miscellaneous, work-done dates, Landlord's Guarantee, and the
             # Ingoing/Outgoing Condition Verified signature blocks) is not a
-            # condition grid, so it needs its own field set.
+            # condition grid - it is the form's statutory section. Surface it
+            # under "statutory" so it renders in the Statutory Q&A view.
             if self.jurisdiction == "NT" and self._is_nt_rotated_grid():
-                result["other_sections"]["nt_final_page"] = \
-                    self._extract_nt_final_page()
+                result["statutory"] = self._extract_nt_final_page()
 
             return result
         finally:
