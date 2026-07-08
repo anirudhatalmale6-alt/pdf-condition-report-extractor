@@ -259,13 +259,18 @@ Notes:
 - `src/license.py` validates the product key. Demo/offline keys verify instantly
   (no network round-trip); other keys are validated against the ORBAS API
   endpoint `https://app.orbas.com.au/api/license/validate`.
-- **Activation payload** (`POST`, JSON): `license_key`, `email`, `product_code`
-  (`ORBAS_EXTRACTOR`), `device_id` (auto — SHA-256 of MAC + host/OS, non-reversible),
-  `device_name` (auto-detected), `app_version`. The user only types their email and
-  key; device fields are generated on the machine.
-- **Response** (`HTTP 200`, JSON): `{ success, valid, reason, message }`. The app
-  treats `valid` (falling back to `active`/`success`) as the verdict and shows the
-  server `message` on failure.
+- **Activation payload** (`POST`, JSON): `license_key`, `email`, `device_id`
+  (auto — SHA-256 of MAC + host/OS, non-reversible), `device_name` (auto-detected),
+  `app_version`. The user only types their email and key; device fields are
+  generated on the machine. The licence **type** (Trial / Subscription) is a
+  property of the key, resolved server-side and returned in the response — the app
+  does not send it.
+- **Response** (`HTTP 200`, JSON): `{ success, valid, reason, message, license_type }`.
+  The app treats `valid` (falling back to `active`/`success`) as the verdict, shows
+  the server `message` on failure, and displays the returned `license_type`
+  (e.g. "Licence verified (Subscription)") on success. Known `reason` codes include
+  `INVALID_LICENSE`, `MISSING_REQUIRED_FIELDS`, and `DEVICE_ALREADY_REGISTERED`
+  (the one-device / one-subscription binding).
 - The endpoint sits behind a WAF that rejects the default `python-requests`
   User-Agent with `403`, so requests send a named `User-Agent: ORBAS-Extractor/<version>`.
 - **Silent re-validation on every launch:** after a successful activation the

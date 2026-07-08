@@ -8,7 +8,7 @@ import uuid
 
 import requests
 
-from .config import APP_NAME, LICENSE_VALIDATE_URL, PRODUCT_CODE, VERSION
+from .config import APP_NAME, LICENSE_VALIDATE_URL, VERSION
 
 logger = logging.getLogger(__name__)
 
@@ -113,13 +113,13 @@ class LicenseValidator:
         self.timeout = timeout
 
     def build_payload(self, license_key, email=None):
-        """The activation payload sent to the ORBAS endpoint. Field names mirror
-        the licence-activation form (License Key, Email, Product Code, Device ID,
-        Device Name, Application Version)."""
+        """The activation payload sent to the ORBAS endpoint: License Key, Email,
+        Device ID, Device Name, Application Version. The licence type (Trial /
+        Subscription) is determined server-side from the key and returned in the
+        response - the app does not send it."""
         return {
             "license_key": (license_key or "").strip(),
             "email": (email or "").strip(),
-            "product_code": PRODUCT_CODE,
             "device_id": get_device_id(),
             "device_name": get_device_name(),
             "app_version": VERSION,
@@ -155,8 +155,17 @@ class LicenseValidator:
                 valid = bool(
                     data.get("valid", data.get("active", data.get("success", False)))
                 )
+                # Licence type (Trial / Subscription) is returned by the server.
+                license_type = (
+                    data.get("license_type")
+                    or data.get("licence_type")
+                    or data.get("type")
+                    or ""
+                )
                 return {
                     "valid": valid,
+                    "license_type": license_type,
+                    "reason": data.get("reason", ""),
                     "message": data.get("message", ""),
                     "error": None if valid else (data.get("message") or data.get("error") or "Invalid product key."),
                 }

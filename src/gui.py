@@ -578,7 +578,9 @@ class OrbasApp:
                 result = validate_license(key, email=email)
                 ok = bool(result.get("valid"))
                 if ok:
-                    msg = "Licence active. PDF extraction is enabled."
+                    ltype = (result.get("license_type") or "").strip()
+                    suffix = " ({})".format(ltype.title()) if ltype else ""
+                    msg = "Licence active{}. PDF extraction is enabled.".format(suffix)
                 else:
                     clear_activation()
                     msg = (result.get("error")
@@ -615,7 +617,9 @@ class OrbasApp:
                     # Remember this activation so we can silently re-check it on
                     # every future launch (device + subscription binding).
                     save_activation(key, email)
-                    msg = "Product key verified. PDF extraction is now enabled."
+                    ltype = (result.get("license_type") or "").strip()
+                    suffix = " ({})".format(ltype.title()) if ltype else ""
+                    msg = "Licence verified{}. PDF extraction is now enabled.".format(suffix)
                 else:
                     clear_activation()
                     msg = result.get("error") or "Invalid product key."
