@@ -129,20 +129,48 @@ def is_subscription(license_type):
     return str(license_type or "").strip().lower() in ("subscription", "sub", "paid", "premium")
 
 
-def subscription_is_active(data):
-    """Best-effort read of subscription-active status from a validation response.
+_ACTIVE_SUB_VALUES = {"active", "current", "valid", "trialing"}
+_INACTIVE_SUB_VALUES = {
+    "inactive", "expired", "cancelled", "canceled", "past_due",
+    "suspended", "none", "lapsed", "unpaid",
+}
 
+
+def subscription_is_active(data):
+    """Best-effort read of subscription-plan status from a validation response.
+
+    The ORBAS server reports a subscription plan status of "Active" / "Inactive".
     Returns True/False when the server states it, or None when the response says
     nothing about subscription status (in which case we defer to the server's
     overall `valid` verdict).
     """
+    # Explicit boolean flags.
     for k in ("subscription_active", "subscriptionActive",
               "is_subscription_active", "active_subscription"):
-        if k in data:
-            return bool(data[k])
-    status = str(data.get("subscription_status") or data.get("subscription") or "").strip().lower()
-    if status:
-        return status in ("active", "current", "valid", "trialing")
+        if k in data and isinstance(data[k], bool):
+            return data[k]
+
+    # Named string status fields (values like "Active" / "Inactive").
+    for k in ("subscription_status", "subscription_plan_status", "plan_status",
+              "subscriptionStatus", "subscriptionPlanStatus", "subscription", "status"):
+        v = data.get(k)
+        if isinstance(v, str) and v.strip():
+            s = v.strip().lower()
+            if s in _ACTIVE_SUB_VALUES:
+                return True
+            if s in _INACTIVE_SUB_VALUES:
+                return False
+
+    # Fallback: any key that mentions subscription/plan + status.
+    for k, v in data.items():
+        kl = str(k).lower()
+        if isinstance(v, str) and "status" in kl and ("subscription" in kl or "plan" in kl):
+            s = v.strip().lower()
+            if s in _ACTIVE_SUB_VALUES:
+                return True
+            if s in _INACTIVE_SUB_VALUES:
+                return False
+
     reason = str(data.get("reason") or "").strip().upper()
     if reason in _INACTIVE_SUB_REASONS:
         return False
