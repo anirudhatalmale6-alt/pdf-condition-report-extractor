@@ -231,16 +231,24 @@ class LicenseValidator:
                 valid = bool(
                     data.get("valid", data.get("active", data.get("success", False)))
                 )
+                # The success response nests licence details under a "license"
+                # object (license_type, status, subscription_status, expires_at,
+                # max_devices). Flatten it so field lookups work either way.
+                lic = data.get("license") if isinstance(data.get("license"), dict) else {}
+                fields = {**lic, **{k: v for k, v in data.items() if k != "license"}}
                 # Licence type (Trial / Subscription) is returned by the server.
                 license_type = (
-                    data.get("license_type")
-                    or data.get("licence_type")
-                    or data.get("type")
+                    fields.get("license_type")
+                    or fields.get("licence_type")
+                    or fields.get("type")
                     or ""
                 )
                 result = {
                     "valid": valid,
                     "license_type": license_type,
+                    "status": fields.get("status", ""),
+                    "subscription_status": fields.get("subscription_status", ""),
+                    "expires_at": fields.get("expires_at", ""),
                     "reason": data.get("reason", ""),
                     "message": data.get("message", ""),
                     "error": None if valid else (data.get("message") or data.get("error") or "Invalid product key."),
@@ -251,7 +259,7 @@ class LicenseValidator:
                 # Key is valid. For a SUBSCRIPTION licence, additionally require an
                 # active subscription - a valid key is not enough. TRIAL is exempt.
                 if is_subscription(license_type):
-                    active = subscription_is_active(data)
+                    active = subscription_is_active(fields)
                     if active is False:
                         result["valid"] = False
                         result["error"] = (
