@@ -240,6 +240,11 @@ class ConditionReportExtractor:
         val = val.strip()
         if len(val) < 2 or len(val) > 80:
             return False
+        # A "!" is a grid space-artifact from a rotated form (e.g. the NT form's
+        # embedded font decodes spaces as "!"), never part of a genuine name or
+        # address value - so a grid header like "LANDLORD!" is not a value.
+        if "!" in val:
+            return False
         if re.match(r'^[YN\s/|:.\-]+$', val):
             return False
         # A list marker like "1." / "2)" is not a value.
@@ -259,7 +264,10 @@ class ConditionReportExtractor:
             return False
         # A bare form label / condition word is not a value.
         if low in ("initial", "initials", "name", "date", "n/a", "na",
-                   "clean", "undamaged", "working", "commencement", "note"):
+                   "clean", "undamaged", "working", "commencement", "note",
+                   "landlord", "tenant", "tenants", "agrees", "ingoing",
+                   "outgoing", "comments", "tenant agrees", "landlord comments",
+                   "tenant comments"):
             return False
         if any(sw in low for sw in self.SKIP_VALUE_WORDS):
             return False
@@ -409,7 +417,64 @@ class ConditionReportExtractor:
 
         return [a for a in deduped if not is_meta_noise(a)]
 
+    @staticmethod
+    def _nt_normalize(s):
+        """The NT form's embedded font decodes the space glyph as !, ' or *
+        (and sometimes . on the last page). Collapse those back to spaces so
+        the text reads normally."""
+        if not s:
+            return s
+        return re.sub(r"[!'*]+", " ", s)
+
+    def _extract_rooms_nt(self):
+        """Northern Territory ("Condition Report - Northern Territory",
+        Residential Tenancies Act 2013).
+
+        The NT form is a single rotated (landscape) grid - the condition
+        columns (Clean / Undamaged / Working / Tenant agrees / Landlord &
+        Tenant comments) run sideways, so pdfplumber reads the grid transposed
+        and the generic table logic does not apply. We locate each area from
+        the (clean, well-ordered) text stream and list its items from the known
+        NT template so the full structure comes through for every area.
+        """
+        room_config = ROOM_CONFIGS["NT"]
+
+        page_norm = {}
+        for i, page in enumerate(self.fitz_doc):
+            page_norm[i] = self._nt_normalize(page.get_text()).upper()
+
+        rooms = []
+        for room_name, items in room_config.items():
+            page_idx = None
+            for i in sorted(page_norm):
+                if room_name in page_norm[i]:
+                    page_idx = i
+                    break
+            rooms.append({
+                "room_name": room_name,
+                "page_number": (page_idx + 1) if page_idx is not None else None,
+                "items": [self._build_empty_item(it) for it in items],
+            })
+        return rooms
+
+    def _is_nt_rotated_grid(self):
+        """True for the official "Condition Report - Northern Territory"
+        (Residential Tenancies Act 2013) form - a single rotated grid whose
+        embedded font decodes spaces as "!". Other NT layouts (e.g. software-
+        generated PIM reports with a normal top-to-bottom table) are handled by
+        the generic parser instead."""
+        raw = self._get_full_text()
+        if raw.count("!") >= 15:
+            return True
+        norm = self._nt_normalize(raw).upper()
+        return "INGOING CONDITION REPORT" in norm and "INSERT Y" in norm
+
     def _extract_rooms(self):
+        if self.jurisdiction == "NT":
+            if self._is_nt_rotated_grid():
+                return self._extract_rooms_nt()
+            return self._extract_rooms_generic()
+
         room_config = ROOM_CONFIGS.get(self.jurisdiction, {})
         if not room_config:
             return self._extract_rooms_generic()

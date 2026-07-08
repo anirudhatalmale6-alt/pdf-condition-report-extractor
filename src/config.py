@@ -1,4 +1,4 @@
-VERSION = "3.5.7"
+VERSION = "3.6.0"
 APP_NAME = "ORBAS"
 
 CLOUD_SYNC_URL = "https://app.orbas.com.au/api/sync"
@@ -702,6 +702,141 @@ WA_ROOMS = {
     ],
 }
 
+# Northern Territory - "Condition Report - Northern Territory" (Residential
+# Tenancies Act 2013). The NT form is a single rotated (landscape) grid where
+# the condition columns (Clean / Undamaged / Working / Tenant agrees / comments)
+# run sideways, so it needs its own parser (see extractor._extract_rooms_nt).
+_NT_BEDROOM = [
+    "walls/picture hooks",
+    "built-in wardrobe/shelves",
+    "doors/doorway frames",
+    "windows/screens",
+    "ceiling/light fittings",
+    "blinds/curtains",
+    "lights/power points",
+    "skirting boards",
+    "floor coverings",
+    "other",
+]
+_NT_WET_AREA = [
+    "walls/tiles",
+    "floor tiles/floor coverings",
+    "doors/doorway frame",
+    "windows/screens",
+    "ceiling/light fittings",
+    "blinds/curtains",
+    "lights/power points",
+    "baths/taps",
+    "shower/screen/taps",
+    "wash basin/taps",
+    "mirror/cabinet/vanity",
+    "towel rails",
+    "toilet/cistern/seat",
+    "toilet roll holder",
+    "heating/exhaust fan/vent",
+    "other",
+]
+NT_ROOMS = {
+    "ENTRANCE/HALL": [
+        "front door/screen door/security door",
+        "walls/picture hooks",
+        "doorway frames",
+        "windows/screens",
+        "ceilings/light fittings",
+        "blinds/curtains",
+        "lights/power points",
+        "skirting boards",
+        "floor coverings",
+        "other",
+    ],
+    "LOUNGE ROOM": [
+        "walls/picture hooks",
+        "doors/doorway frames",
+        "windows/screens",
+        "ceiling/light fittings",
+        "blinds/curtains",
+        "lights/power points",
+        "skirting boards",
+        "floor coverings",
+        "other",
+    ],
+    "DINING ROOM": [
+        "walls/picture hooks",
+        "doors/doorway frames",
+        "windows/screens",
+        "ceiling/light fittings",
+        "blinds/curtains",
+        "lights/power points",
+        "skirting boards",
+        "floor coverings",
+        "other",
+    ],
+    "KITCHEN": [
+        "walls/picture hooks",
+        "doors/doorway frames",
+        "windows/screens",
+        "ceiling/light fittings",
+        "blinds/curtains",
+        "lights/power points",
+        "skirting boards",
+        "floor coverings",
+        "cupboards/drawers",
+        "bench tops/tiling",
+        "sinks/taps",
+        "stove tops/hot plates",
+        "oven/griller",
+        "exhaust fan/range hood",
+        "dishwasher",
+        "other",
+    ],
+    "BEDROOM 1": list(_NT_BEDROOM),
+    "ENSUITE": list(_NT_WET_AREA),
+    "BEDROOM 2": list(_NT_BEDROOM),
+    "BEDROOM 3": list(_NT_BEDROOM),
+    "BATHROOM": list(_NT_WET_AREA),
+    "LAUNDRY": [
+        "walls/tiles",
+        "floor tiles/floor coverings",
+        "doors/doorway frame",
+        "windows/screens",
+        "ceiling/light fittings",
+        "blinds/curtains",
+        "lights/power points",
+        "washing machine taps",
+        "exhaust fan/vent",
+        "washing tub",
+        "dryer",
+        "other",
+    ],
+    "SECURITY/SAFETY": [
+        "external door locks",
+        "window locks",
+        "keys/other security devices",
+        "smoke alarms",
+        "residual current device (rcd)",
+        "other",
+    ],
+    "GENERAL": [
+        "heating/air conditioning",
+        "staircase/handrails",
+        "external tv antenna/tv points",
+        "balcony/porch/deck",
+        "hot water system",
+        "gates/fences",
+        "garden beds",
+        "lawns/edges",
+        "letter box/street number",
+        "water tanks/septic tanks",
+        "garbage bins",
+        "paving/driveways",
+        "clothesline",
+        "garage/carport/storeroom",
+        "garden shed",
+        "garage/roller doors",
+        "gutters/down pipe",
+    ],
+}
+
 ROOM_CONFIGS = {
     "NSW": NSW_ROOMS,
     "ACT": ACT_ROOMS,
@@ -710,6 +845,7 @@ ROOM_CONFIGS = {
     "TAS": TAS_ROOMS,
     "SA": SA_ROOMS,
     "WA": WA_ROOMS,
+    "NT": NT_ROOMS,
 }
 
 REPORT_TYPE_KEYWORDS = {
