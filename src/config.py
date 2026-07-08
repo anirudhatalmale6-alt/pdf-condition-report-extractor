@@ -1,4 +1,4 @@
-VERSION = "3.6.1"
+VERSION = "3.6.2"
 APP_NAME = "ORBAS"
 
 CLOUD_SYNC_URL = "https://app.orbas.com.au/api/sync"
@@ -835,6 +835,9 @@ NT_ROOMS = {
         "garage/roller doors",
         "gutters/down pipe",
     ],
+    # Free-entry section - the tenant/landlord add their own goods & fixtures
+    # (e.g. garden plants, additional rooms, outbuildings). No preset items.
+    "ANY GOODS OR FIXTURES LET WITH RENTAL PREMISES": [],
 }
 
 ROOM_CONFIGS = {

@@ -138,6 +138,14 @@ class ConditionReportExtractor:
                 "images": self._extract_images(output_dir, save_images, embed_images),
             }
 
+            # The NT form's final page (Communication Facilities, Other
+            # Miscellaneous, work-done dates, Landlord's Guarantee, and the
+            # Ingoing/Outgoing Condition Verified signature blocks) is not a
+            # condition grid, so it needs its own field set.
+            if self.jurisdiction == "NT" and self._is_nt_rotated_grid():
+                result["other_sections"]["nt_final_page"] = \
+                    self._extract_nt_final_page()
+
             return result
         finally:
             self.fitz_doc.close()
@@ -462,6 +470,83 @@ class ConditionReportExtractor:
                 "items": [self._build_empty_item(it) for it in items],
             })
         return rooms
+
+    def _extract_nt_final_page(self):
+        """Fields from the NT form's final (non-grid) page.
+
+        This is the statutory / verification page - Communication Facilities,
+        Other Miscellaneous, "approximate dates when work was last done", the
+        Landlord's Guarantee to Undertake Work, and the Ingoing / Outgoing
+        Condition Verified signature blocks (Landlord + up to four tenants,
+        each with signature / date / print name). On a blank template every
+        value is null; the structure lets ORBAS build the fill-in form.
+
+        Values are read best-effort from the page text - the NT font decodes
+        spaces as "$" or ")", so we normalise before searching. Anything not
+        present stays null.
+        """
+        # Locate and normalise the final-page text.
+        page_text = ""
+        for i in range(len(self.fitz_doc) - 1, -1, -1):
+            t = self.fitz_doc[i].get_text()
+            if "COMMUNICATION" in t.upper() and "VERIFIED" in t.upper():
+                page_text = t
+                break
+        norm = re.sub(r"[!'$)(*]+", " ", page_text)
+        norm = re.sub(r"[ \t]+", " ", norm)
+
+        def _dotted(label):
+            """Return text after `label` up to the fill line, or None if the
+            field is blank (only dots / underscores / whitespace follow)."""
+            m = re.search(re.escape(label) + r"\s*:?\s*(.*)", norm, re.IGNORECASE)
+            if not m:
+                return None
+            val = m.group(1).strip()
+            val = re.sub(r"[._…\-@/]+", "", val).strip()
+            return val or None
+
+        def _sig_block():
+            return {"signature": None, "date": None, "print_name": None}
+
+        def _verified():
+            return {
+                "landlord": _sig_block(),
+                "tenant_1": _sig_block(),
+                "tenant_2": _sig_block(),
+                "tenant_3": _sig_block(),
+                "tenant_4": _sig_block(),
+            }
+
+        return {
+            "communication_facilities": {
+                "telephone_line_connected": None,   # Yes / No
+                "internet_line_connected": None,    # Yes / No
+            },
+            "other_miscellaneous": {
+                "water_meter_reading": _dotted("Water meter reading"),
+                "water_tank_level": _dotted("Water Tank level"),
+                "gas_bottle_heating_oil_tank_levels":
+                    _dotted("Gas Bottle/heating oil tank levels"),
+                "furniture": None,                  # see attached list
+            },
+            "approximate_dates_work_last_done": {
+                "approximate_age_of_carpets": _dotted("Approximate age of carpets"),
+                "date_carpets_professionally_cleaned":
+                    _dotted("Date carpets professionally cleaned"),
+                "approximate_age_of_window_coverings":
+                    _dotted("Approximate age of window coverings"),
+                "painting_of_premises_external": None,
+                "painting_of_premises_internal": None,
+            },
+            "landlord_guarantee_to_undertake_work": {
+                "work_to_undertake": None,
+                "complete_work_by": None,
+                "landlord_signature": None,
+                "landlord_date": None,
+            },
+            "ingoing_condition_verified": _verified(),
+            "outgoing_condition_verified": _verified(),
+        }
 
     def _is_nt_rotated_grid(self):
         """True for the official "Condition Report - Northern Territory"
