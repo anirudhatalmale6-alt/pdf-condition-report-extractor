@@ -248,7 +248,53 @@ class OrbasApp:
         self._build_left(left_col)
         self._build_right(right_col)
 
-    def _build_left(self, parent):
+    def _build_left(self, outer):
+        # Wrap the steps in a scrollable area so every step - including the
+        # Extract button in step 4 - is always reachable, even on shorter
+        # screens / smaller windows where the column would otherwise be clipped.
+        canvas = tk.Canvas(outer, bg=BG, highlightthickness=0, bd=0)
+        vsb = tk.Scrollbar(outer, orient="vertical", command=canvas.yview)
+        canvas.configure(yscrollcommand=vsb.set)
+        canvas.pack(side="left", fill="both", expand=True)
+        vsb.pack(side="right", fill="y")
+        self._left_canvas = canvas
+        self._left_vsb = vsb
+
+        inner = tk.Frame(canvas, bg=BG)
+        win = canvas.create_window((0, 0), window=inner, anchor="nw")
+
+        def _sync_scrollregion(_=None):
+            bbox = canvas.bbox("all")
+            if not bbox:
+                return
+            canvas.configure(scrollregion=bbox)
+            # Show the scrollbar only when the steps don't all fit; use the live
+            # rendered content height (bbox) rather than the requested height,
+            # which can be stale during resize.
+            content_h = bbox[3] - bbox[1]
+            need = content_h > canvas.winfo_height() + 2
+            if need and not vsb.winfo_ismapped():
+                vsb.pack(side="right", fill="y")
+            elif not need and vsb.winfo_ismapped():
+                vsb.pack_forget()
+
+        def _on_configure(_=None):
+            self.root.after_idle(_sync_scrollregion)
+
+        inner.bind("<Configure>", _on_configure)
+        canvas.bind("<Configure>", lambda e: (canvas.itemconfigure(win, width=e.width),
+                                              _on_configure()))
+
+        def _wheel(e):
+            if e.num == 5 or getattr(e, "delta", 0) < 0:
+                canvas.yview_scroll(1, "units")
+            elif e.num == 4 or getattr(e, "delta", 0) > 0:
+                canvas.yview_scroll(-1, "units")
+            return "break"
+        self._left_wheel = _wheel
+
+        parent = inner  # all steps below pack into the scrollable frame
+
         # Step 1 - Select PDF
         c1o, c1 = self._card(parent)
         c1o.pack(fill="x", pady=(0, 10))
@@ -353,6 +399,17 @@ class OrbasApp:
         self.status_label = tk.Label(c4, text="", bg=CARD, fg=MUTED, font=self.font_small,
                                      anchor="w", justify="left", wraplength=460)
         self.status_label.pack(fill="x", padx=14, pady=(0, 12))
+
+        # Route the mouse wheel to the left scroll area whenever the pointer is
+        # over any of the steps (the right-hand JSON box keeps its own wheel).
+        self._bind_wheel_recursive(parent)
+        self.root.after(0, self._left_canvas.event_generate, "<Configure>")
+
+    def _bind_wheel_recursive(self, widget):
+        for seq in ("<MouseWheel>", "<Button-4>", "<Button-5>"):
+            widget.bind(seq, self._left_wheel, add="+")
+        for child in widget.winfo_children():
+            self._bind_wheel_recursive(child)
 
     def _build_right(self, parent):
         co, c = self._card(parent)
