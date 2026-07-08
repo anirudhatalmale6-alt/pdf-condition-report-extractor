@@ -60,11 +60,20 @@ class LicenseValidator:
 
         payload = self.build_payload(license_key, email)
 
+        # A named User-Agent is required: the ORBAS endpoint sits behind a WAF
+        # that blocks the default python-requests UA with a 403, so every
+        # activation must identify itself explicitly.
+        headers = {
+            "Content-Type": "application/json",
+            "Accept": "application/json",
+            "User-Agent": "ORBAS-Extractor/{}".format(VERSION),
+        }
+
         try:
             response = requests.post(
                 self.endpoint_url,
                 json=payload,
-                headers={"Content-Type": "application/json"},
+                headers=headers,
                 timeout=self.timeout,
             )
 

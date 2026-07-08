@@ -258,7 +258,16 @@ Notes:
 
 - `src/license.py` validates the product key. Demo/offline keys verify instantly
   (no network round-trip); other keys are validated against the ORBAS API
-  endpoint.
+  endpoint `https://app.orbas.com.au/api/license/validate`.
+- **Activation payload** (`POST`, JSON): `license_key`, `email`, `product_code`
+  (`ORBAS_EXTRACTOR`), `device_id` (auto — SHA-256 of MAC + host/OS, non-reversible),
+  `device_name` (auto-detected), `app_version`. The user only types their email and
+  key; device fields are generated on the machine.
+- **Response** (`HTTP 200`, JSON): `{ success, valid, reason, message }`. The app
+  treats `valid` (falling back to `active`/`success`) as the verdict and shows the
+  server `message` on failure.
+- The endpoint sits behind a WAF that rejects the default `python-requests`
+  User-Agent with `403`, so requests send a named `User-Agent: ORBAS-Extractor/<version>`.
 - The verification runs on a background thread so the UI stays responsive.
 - Extraction is disabled until a key is verified.
 
