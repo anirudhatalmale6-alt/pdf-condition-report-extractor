@@ -1,4 +1,5 @@
 import os
+import re
 import json
 import logging
 import hashlib
@@ -150,12 +151,17 @@ def subscription_is_active(data):
         if k in data and isinstance(data[k], bool):
             return data[k]
 
-    # Named string status fields (values like "Active" / "Inactive").
+    # Named string status fields (values like "Active" / "Inactive" / "in-active").
+    # Normalise by stripping non-letters so "in-active", "in_active", "in active"
+    # all collapse to "inactive".
+    def _norm(v):
+        return re.sub(r"[^a-z]", "", str(v).lower())
+
     for k in ("subscription_status", "subscription_plan_status", "plan_status",
               "subscriptionStatus", "subscriptionPlanStatus", "subscription", "status"):
         v = data.get(k)
         if isinstance(v, str) and v.strip():
-            s = v.strip().lower()
+            s = _norm(v)
             if s in _ACTIVE_SUB_VALUES:
                 return True
             if s in _INACTIVE_SUB_VALUES:
@@ -165,7 +171,7 @@ def subscription_is_active(data):
     for k, v in data.items():
         kl = str(k).lower()
         if isinstance(v, str) and "status" in kl and ("subscription" in kl or "plan" in kl):
-            s = v.strip().lower()
+            s = _norm(v)
             if s in _ACTIVE_SUB_VALUES:
                 return True
             if s in _INACTIVE_SUB_VALUES:
