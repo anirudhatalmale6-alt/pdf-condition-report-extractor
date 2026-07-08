@@ -505,38 +505,38 @@ class ConditionReportExtractor:
             val = re.sub(r"[._…\-@/]+", "", val).strip()
             return val or None
 
-        def _sig_block():
-            return {"signature": None, "date": None, "print_name": None}
+        def _sig_block(tenant_no=None):
+            b = {"signature": None, "print_name": None, "date": None}
+            if tenant_no is not None:
+                return {"tenant_no": tenant_no, **b}
+            return b
 
         def _verified():
             return {
                 "landlord": _sig_block(),
-                "tenant_1": _sig_block(),
-                "tenant_2": _sig_block(),
-                "tenant_3": _sig_block(),
-                "tenant_4": _sig_block(),
+                "tenants": [_sig_block(n) for n in (1, 2, 3, 4)],
             }
 
         return {
             "communication_facilities": {
-                "telephone_line_connected": None,   # Yes / No
-                "internet_line_connected": None,    # Yes / No
+                "telephone_connected": None,   # Yes / No
+                "internet_connected": None,    # Yes / No
             },
             "other_miscellaneous": {
                 "water_meter_reading": _dotted("Water meter reading"),
                 "water_tank_level": _dotted("Water Tank level"),
                 "gas_bottle_heating_oil_tank_levels":
                     _dotted("Gas Bottle/heating oil tank levels"),
-                "furniture": None,                  # see attached list
+                "furniture_reference": None,   # see attached list
             },
-            "approximate_dates_work_last_done": {
-                "approximate_age_of_carpets": _dotted("Approximate age of carpets"),
-                "date_carpets_professionally_cleaned":
+            "approximate_work_dates": {
+                "carpets_age": _dotted("Approximate age of carpets"),
+                "carpets_professionally_cleaned":
                     _dotted("Date carpets professionally cleaned"),
-                "approximate_age_of_window_coverings":
+                "window_coverings_age":
                     _dotted("Approximate age of window coverings"),
-                "painting_of_premises_external": None,
-                "painting_of_premises_internal": None,
+                "painting_external": None,
+                "painting_internal": None,
             },
             "landlord_guarantee_to_undertake_work": {
                 "work_to_undertake": None,
