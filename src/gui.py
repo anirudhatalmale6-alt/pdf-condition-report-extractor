@@ -28,7 +28,12 @@ except Exception:
 
 from .config import APP_NAME, VERSION, JURISDICTIONS, REPORT_TYPES
 from .extractor import extract_pdf, detect_jurisdiction
-from .license import validate_license
+from .license import (
+    validate_license,
+    save_activation,
+    load_activation,
+    clear_activation,
+)
 
 DEMO_KEYS = {"ORBAS-DEMO-2026", "ORBAS-TRIAL-2026", "ORBAS-NSW-VALID"}
 
@@ -103,6 +108,8 @@ class OrbasApp:
         self._build_ui()
         self._setup_dnd()
         self._poll_queue()
+        # Re-validate a previously activated licence silently on every launch.
+        self._start_silent_revalidation()
 
     def _set_window_icon(self):
         """App icon in the title bar / taskbar."""
@@ -490,6 +497,41 @@ class OrbasApp:
         self.license_verified = False
         self._check_ready()
 
+    def _start_silent_revalidation(self):
+        """On startup, silently re-validate a saved licence against the server.
+
+        The licence is bound to this device and to one active subscription, so
+        we check it live every launch. If it no longer validates (subscription
+        inactive, device changed, key revoked) the stored activation is cleared
+        and the user is asked to re-enter their key.
+        """
+        saved = load_activation()
+        if not saved:
+            return
+        key = saved.get("license_key", "")
+        email = saved.get("email", "")
+        # Show the user what we're re-checking, but keep the UI usable.
+        self.key_var.set(key)
+        self.email_var.set(email)
+        self.verify_btn.configure(state="disabled", text="Checking...")
+        self._set_status(self.lic_label, "Checking your licence...", "muted")
+
+        def worker():
+            try:
+                result = validate_license(key, email=email)
+                ok = bool(result.get("valid"))
+                if ok:
+                    msg = "Licence active. PDF extraction is enabled."
+                else:
+                    clear_activation()
+                    msg = (result.get("error")
+                           or "Your licence is no longer active. Please re-enter your product key.")
+            except Exception as e:
+                ok, msg = False, "Could not verify licence: {}".format(e)
+            self._queue.put(("license", ok, msg))
+
+        threading.Thread(target=worker, daemon=True).start()
+
     def on_verify(self):
         key = self.key_var.get().strip()
         email = self.email_var.get().strip()
@@ -512,8 +554,14 @@ class OrbasApp:
             try:
                 result = validate_license(key, email=email)
                 ok = bool(result.get("valid"))
-                msg = ("Product key verified. PDF extraction is now enabled." if ok
-                       else result.get("error") or "Invalid product key.")
+                if ok:
+                    # Remember this activation so we can silently re-check it on
+                    # every future launch (device + subscription binding).
+                    save_activation(key, email)
+                    msg = "Product key verified. PDF extraction is now enabled."
+                else:
+                    clear_activation()
+                    msg = result.get("error") or "Invalid product key."
             except Exception as e:
                 ok, msg = False, f"Verification error: {e}"
             self._queue.put(("license", ok, msg))

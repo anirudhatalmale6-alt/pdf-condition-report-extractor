@@ -268,6 +268,15 @@ Notes:
   server `message` on failure.
 - The endpoint sits behind a WAF that rejects the default `python-requests`
   User-Agent with `403`, so requests send a named `User-Agent: ORBAS-Extractor/<version>`.
+- **Silent re-validation on every launch:** after a successful activation the
+  key + email are saved to a per-user file (`%APPDATA%/ORBAS/activation.json` on
+  Windows). On each startup the app re-validates that key live against the server
+  in the background. Because the request always carries the auto-generated
+  `device_id`, the server enforces **one unit per device, bound to one active
+  subscription** — if the subscription is inactive, the key is used on another
+  device, or the key is revoked, validation fails, the stored activation is
+  cleared, and the user is asked to re-enter a key. No "valid" flag is ever cached
+  locally, so a machine can never self-authorise offline.
 - The verification runs on a background thread so the UI stays responsive.
 - Extraction is disabled until a key is verified.
 
