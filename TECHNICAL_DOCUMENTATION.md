@@ -273,6 +273,12 @@ Notes:
   (the one-device / one-subscription binding).
 - The endpoint sits behind a WAF that rejects the default `python-requests`
   User-Agent with `403`, so requests send a named `User-Agent: ORBAS-Extractor/<version>`.
+- **Subscription enforcement:** for a **Subscription** licence the app requires an
+  active subscription to enable extraction — a valid key alone is not enough; if the
+  subscription is inactive/expired (server `subscription_active: false`,
+  `subscription_status` of expired/inactive/cancelled, or a `SUBSCRIPTION_*` inactive
+  `reason`) the app blocks with a renew message. A **Trial** licence is exempt from
+  this check (governed by its own trial validity).
 - **Silent re-validation on every launch:** after a successful activation the
   key + email are saved to a per-user file (`%APPDATA%/ORBAS/activation.json` on
   Windows). On each startup the app re-validates that key live against the server

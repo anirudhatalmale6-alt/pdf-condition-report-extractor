@@ -107,6 +107,48 @@ def get_device_name():
         return "Unknown-PC"
 
 
+# ---------------------------------------------------------------------------
+# Subscription enforcement
+# ---------------------------------------------------------------------------
+# Rule (from client): a SUBSCRIPTION licence may only be used while the
+# subscription is active - a valid key alone is NOT enough. A TRIAL licence is
+# exempt from this check (it is governed by its own trial validity, not by an
+# active subscription).
+
+_INACTIVE_SUB_REASONS = {
+    "SUBSCRIPTION_INACTIVE", "SUBSCRIPTION_EXPIRED", "INACTIVE_SUBSCRIPTION",
+    "NO_ACTIVE_SUBSCRIPTION", "SUBSCRIPTION_NOT_ACTIVE", "SUBSCRIPTION_CANCELLED",
+}
+
+
+def is_trial(license_type):
+    return str(license_type or "").strip().lower() in ("trial", "trialing", "free_trial")
+
+
+def is_subscription(license_type):
+    return str(license_type or "").strip().lower() in ("subscription", "sub", "paid", "premium")
+
+
+def subscription_is_active(data):
+    """Best-effort read of subscription-active status from a validation response.
+
+    Returns True/False when the server states it, or None when the response says
+    nothing about subscription status (in which case we defer to the server's
+    overall `valid` verdict).
+    """
+    for k in ("subscription_active", "subscriptionActive",
+              "is_subscription_active", "active_subscription"):
+        if k in data:
+            return bool(data[k])
+    status = str(data.get("subscription_status") or data.get("subscription") or "").strip().lower()
+    if status:
+        return status in ("active", "current", "valid", "trialing")
+    reason = str(data.get("reason") or "").strip().upper()
+    if reason in _INACTIVE_SUB_REASONS:
+        return False
+    return None
+
+
 class LicenseValidator:
     def __init__(self, endpoint_url=None, timeout=DEFAULT_TIMEOUT):
         self.endpoint_url = endpoint_url or LICENSE_VALIDATE_URL
@@ -162,13 +204,27 @@ class LicenseValidator:
                     or data.get("type")
                     or ""
                 )
-                return {
+                result = {
                     "valid": valid,
                     "license_type": license_type,
                     "reason": data.get("reason", ""),
                     "message": data.get("message", ""),
                     "error": None if valid else (data.get("message") or data.get("error") or "Invalid product key."),
                 }
+                if not valid:
+                    return result
+
+                # Key is valid. For a SUBSCRIPTION licence, additionally require an
+                # active subscription - a valid key is not enough. TRIAL is exempt.
+                if is_subscription(license_type):
+                    active = subscription_is_active(data)
+                    if active is False:
+                        result["valid"] = False
+                        result["error"] = (
+                            data.get("message")
+                            or "Your subscription is not active. Please renew your subscription to use the extractor."
+                        )
+                return result
 
             if response.status_code in (401, 403):
                 return {"valid": False, "error": "Product key was not accepted. Please check the key and email."}
