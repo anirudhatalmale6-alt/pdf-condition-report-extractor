@@ -15,6 +15,7 @@ import sys
 import json
 import queue
 import threading
+import webbrowser
 
 import tkinter as tk
 from tkinter import ttk, filedialog, scrolledtext
@@ -232,6 +233,19 @@ class OrbasApp:
         tk.Label(vrow, text=f"v{VERSION}", bg=BG, fg=DARK, font=self.font_bold).pack(side="right")
         tk.Label(vrow, text="Local PDF Extraction  ", bg=BG, fg=MUTED,
                  font=self.font_small).pack(side="right")
+
+        # Footer: copyright + Terms & Conditions (packed bottom before the body
+        # so the body expands into the middle).
+        footer = tk.Frame(self.root, bg=BG)
+        footer.pack(side="bottom", fill="x", padx=18, pady=(0, 8))
+        tk.Label(footer, text="© 2026 CodeNine Tech. All rights reserved.",
+                 bg=BG, fg=MUTED, font=self.font_small).pack(side="left")
+        terms = tk.Label(footer, text="Terms & Conditions", bg=BG, fg=BRAND_GREEN,
+                         font=(self.font_small[0], self.font_small[1], "underline"),
+                         cursor="hand2")
+        terms.pack(side="right")
+        terms.bind("<Button-1>",
+                   lambda e: webbrowser.open("https://orbas.com.au/terms_conditions"))
 
         # Body: two columns
         body = tk.Frame(self.root, bg=BG)
@@ -637,7 +651,7 @@ class OrbasApp:
         self.copy_btn.configure(state="disabled", bg="#cbd5e1")
         self.copy_ok.pack_forget()
         self.meta_card.pack_forget()
-        self._set_status(self.status_label, "Extracting condition report data...", "muted")
+        self._set_status(self.status_label, "Checking licence and subscription...", "muted")
         self.progress.pack(fill="x", padx=14, pady=(0, 4))
         self.progress.start(12)
         self._set_json("Extracting PDF data, please wait...")
@@ -645,9 +659,21 @@ class OrbasApp:
         jur = self._selected_jurisdiction()
         doc = self._selected_doctype()
         path = self.pdf_path
+        key = self.key_var.get().strip()
+        email = self.email_var.get().strip()
+        is_demo = key.upper() in DEMO_KEYS
 
         def worker():
             try:
+                # Every extraction re-checks device, licence validity and
+                # subscription plan status live before processing. Offline demo
+                # keys skip the network round-trip.
+                if not is_demo:
+                    lic = validate_license(key, email=email)
+                    if not lic.get("valid"):
+                        self._queue.put(("extract_denied",
+                                         lic.get("error") or "Licence check failed. Please re-verify your product key."))
+                        return
                 detected = detect_jurisdiction(path) if jur == "auto" else jur
                 result = extract_pdf(
                     path, jurisdiction=detected,
@@ -760,6 +786,18 @@ class OrbasApp:
             self.extracting = False
             self._set_json("Extraction failed.")
             self._set_status(self.status_label, f"Error: {msg[1]}", "err")
+            self._check_ready()
+        elif kind == "extract_denied":
+            # Licence/subscription/device re-check failed at process time.
+            self.progress.stop()
+            self.progress.pack_forget()
+            self.extracting = False
+            self.license_verified = False
+            clear_activation()
+            self._set_json("Extraction blocked.")
+            self._set_status(self.status_label, msg[1], "err")
+            self._set_status(self.lic_label, msg[1], "err")
+            self.verify_btn.configure(state="normal", text="Verify")
             self._check_ready()
 
     @staticmethod
