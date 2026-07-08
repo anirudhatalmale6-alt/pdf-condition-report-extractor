@@ -408,6 +408,15 @@ class OrbasApp:
         self.extract_btn = self._accent_button(c4, "Extract PDF", ORANGE, self.on_extract, big=True)
         self.extract_btn.configure(state="disabled", bg="#cbd5e1")
         self.extract_btn.pack(fill="x", padx=14, pady=(0, 6))
+        # Inspection photos are embedded into the JSON (as compact JPEG) so the
+        # converter can display them. Users can turn this off to keep the JSON
+        # text-only when photos are not needed.
+        self.embed_photos_var = tk.BooleanVar(value=True)
+        self.embed_photos_chk = tk.Checkbutton(
+            c4, text="Include inspection photos in JSON", variable=self.embed_photos_var,
+            bg=CARD, fg=DARK, activebackground=CARD, selectcolor=CARD,
+            font=self.font_small, anchor="w", highlightthickness=0, bd=0)
+        self.embed_photos_chk.pack(fill="x", padx=12, pady=(0, 4))
         self.progress = ttk.Progressbar(c4, mode="indeterminate",
                                         style="Orbas.Horizontal.TProgressbar")
         self.status_label = tk.Label(c4, text="", bg=CARD, fg=MUTED, font=self.font_small,
@@ -658,6 +667,7 @@ class OrbasApp:
 
         jur = self._selected_jurisdiction()
         doc = self._selected_doctype()
+        embed_photos = self.embed_photos_var.get()
         path = self.pdf_path
         key = self.key_var.get().strip()
         email = self.email_var.get().strip()
@@ -678,6 +688,7 @@ class OrbasApp:
                 result = extract_pdf(
                     path, jurisdiction=detected,
                     report_type=doc, output_dir=None, save_images=False,
+                    embed_images=embed_photos,
                 )
                 self._queue.put(("extract_ok", result))
             except Exception as e:

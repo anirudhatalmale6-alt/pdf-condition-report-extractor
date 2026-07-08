@@ -1126,53 +1126,180 @@ class ConditionReportExtractor:
             },
         }
 
+    # An image drawn on more than this many pages is a repeated header/footer
+    # logo or watermark, not report content, so it is skipped.
+    _LOGO_PAGE_LIMIT = 2
+    # Content photos in these reports are large scans/photographs. Logos, icons
+    # and scanned signatures are well under this in their smaller dimension.
+    _MIN_PHOTO_DIM = 200
+    # A real photo is roughly 4:3, 3:4 or up to ~16:9. Anything much wider or
+    # taller is a full-width header banner, decorative wave or rule, not a photo.
+    _MAX_PHOTO_ASPECT = 2.5
+    # A photograph has thousands of distinct colours; a flat icon, clip-art or
+    # line graphic (e.g. a paperclip "attachment" glyph) has only a handful.
+    _MIN_PHOTO_COLORS = 200
+    _PHOTO_JPEG_QUALITY = 78
+
+    @staticmethod
+    def _color_diversity(pix, cap=80):
+        # Distinct-colour count on a small downsample - cheap and PIL-free.
+        # High for photographs, very low for icons / clip-art / rules.
+        try:
+            probe = fitz.Pixmap(pix)
+            if probe.n > 4:
+                probe = fitz.Pixmap(fitz.csRGB, probe)
+            while max(probe.width, probe.height) > cap:
+                probe.shrink(1)
+            samples = probe.samples
+            n = probe.n
+            colors = set()
+            for i in range(0, len(samples), n):
+                colors.add(samples[i:i + 3])
+            return len(colors)
+        except Exception:
+            return 10 ** 6  # on any failure, do not filter it out
+
+    def _parse_media_captions(self, page_text):
+        # Software-generated exit reports (e.g. Inspection Manager) append a
+        # "Media" gallery page where each photo carries a caption printed above
+        # it, laid out as two lines:
+        #     "Front Gardens : "
+        #     "Photo Taken : 26/06/2023"   (or "Video Taken : ...")
+        # Returns the captions in top-to-bottom reading order so they can be
+        # zipped onto the photos, which we sort into the same reading order.
+        lines = [ln.strip() for ln in page_text.split("\n")]
+        low = [ln.lower() for ln in lines]
+        if not any(ln == "media" or ln.startswith("view your photos") or
+                   ln.startswith("view your photos/videos") for ln in low):
+            return []
+        caps = []
+        for i in range(len(lines) - 1):
+            label_m = re.match(r"^(.*\S)\s*:\s*$", lines[i])
+            media_m = re.match(r"^(Photo|Video)\s+Taken\s*:\s*(.*)$",
+                               lines[i + 1], re.IGNORECASE)
+            if label_m and media_m:
+                label = label_m.group(1).strip()
+                mtype = media_m.group(1).lower()          # "photo" | "video"
+                date = media_m.group(2).strip() or None
+                caption = f"{label} - {media_m.group(1).title()} Taken: {date}" \
+                    if date else label
+                caps.append({
+                    "label": label,
+                    "media_type": mtype,
+                    "date_taken": date,
+                    "caption": caption,
+                })
+        return caps
+
     def _extract_images(self, output_dir=None, save_images=True, embed_data=False):
-        # By default we record only lightweight image metadata (page, size, count).
-        # Embedding full base64 image bytes here previously bloated the JSON to
-        # 100+ MB on a photo-heavy report, which made the app slow to render and
-        # painful to copy. The condition-report converter does not need the raw
-        # image bytes, so embed_data stays False unless explicitly requested.
+        # We surface only genuine report content - the inspection photos - not
+        # every raster in the file. Header/footer logos are referenced by every
+        # page's resource dict, so we look at what is actually *drawn* on a page
+        # (get_image_rects), drop images that repeat across many pages (logos)
+        # and anything too small to be a photo (icons, scanned signatures).
+        #
+        # Where a "Media" gallery page prints a caption above each photo, the
+        # captions are matched onto the photos in reading order (label, whether
+        # it is a photo or video still, and the date the media was taken).
+        #
+        # Photos are encoded as JPEG - a 9-photo page is ~0.5 MB as JPEG versus
+        # ~7 MB as PNG - so an embedded (base64) JSON stays light enough to copy
+        # and for the converter to render inline. embed_data controls whether
+        # the bytes are inlined; otherwise only lightweight metadata is kept.
+        doc = self.fitz_doc
+
+        pages_drawn = {}
+        for page in doc:
+            for img in page.get_images(full=True):
+                xref = img[0]
+                if page.get_image_rects(xref):
+                    pages_drawn.setdefault(xref, set()).add(page.number)
+
         images = []
-        for page_idx, page in enumerate(self.fitz_doc):
-            image_list = page.get_images(full=True)
-            for img_idx, img_info in enumerate(image_list):
-                xref = img_info[0]
+        emitted = set()
+        for page_idx, page in enumerate(doc):
+            captions = self._parse_media_captions(page.get_text())
+
+            photos = []  # (xref, rect, pixmap)
+            for img in page.get_images(full=True):
+                xref = img[0]
+                if xref in emitted:
+                    continue
+                if len(pages_drawn.get(xref, ())) > self._LOGO_PAGE_LIMIT:
+                    continue  # repeated header/footer logo or watermark
+                rects = page.get_image_rects(xref)
+                if not rects:
+                    continue
                 try:
-                    pix = fitz.Pixmap(self.fitz_doc, xref)
-                    if pix.n > 4:
-                        pix = fitz.Pixmap(fitz.csRGB, pix)
-
-                    if pix.width < 20 or pix.height < 20:
-                        pix = None
-                        continue
-
-                    img_data = {
-                        "page": page_idx + 1,
-                        "index": img_idx,
-                        "width": pix.width,
-                        "height": pix.height,
-                        "format": "png",
-                        "data_base64": None,
-                        "file_path": None,
-                    }
-
-                    img_bytes = pix.tobytes("png")
-
-                    if save_images and output_dir:
-                        os.makedirs(output_dir, exist_ok=True)
-                        img_filename = f"page{page_idx + 1}_img{img_idx}.png"
-                        img_path = os.path.join(output_dir, img_filename)
-                        with open(img_path, "wb") as f:
-                            f.write(img_bytes)
-                        img_data["file_path"] = img_filename
-                    elif embed_data:
-                        img_data["data_base64"] = base64.b64encode(img_bytes).decode("utf-8")
-                    # else: metadata only - keep data_base64 = None (small JSON)
-
-                    images.append(img_data)
-                    pix = None
+                    pix = fitz.Pixmap(doc, xref)
                 except Exception:
                     continue
+                if min(pix.width, pix.height) < self._MIN_PHOTO_DIM:
+                    pix = None
+                    continue  # icon or scanned signature, not a content photo
+                aspect = max(pix.width, pix.height) / max(1, min(pix.width, pix.height))
+                if aspect > self._MAX_PHOTO_ASPECT:
+                    pix = None
+                    continue  # header banner, wave or divider, not a photo
+                if self._color_diversity(pix) < self._MIN_PHOTO_COLORS:
+                    pix = None
+                    continue  # flat icon / clip-art / line graphic, not a photo
+                photos.append((xref, rects[0], pix))
+
+            if not photos:
+                continue
+
+            # Sort into human reading order: rows top-to-bottom (bucketed so a
+            # slightly uneven baseline still groups), then left-to-right.
+            photos.sort(key=lambda t: (round(t[1].y0 / 12), t[1].x0))
+            captions_match = len(captions) == len(photos)
+
+            for i, (xref, rect, pix) in enumerate(photos):
+                emitted.add(xref)
+                if pix.n > 4:
+                    pix = fitz.Pixmap(fitz.csRGB, pix)
+
+                entry = {
+                    "page": page_idx + 1,
+                    "index": i,
+                    "width": pix.width,
+                    "height": pix.height,
+                    "position": {"x": round(rect.x0, 1), "y": round(rect.y0, 1)},
+                    "label": None,
+                    "media_type": "photo",
+                    "date_taken": None,
+                    "caption": None,
+                    "format": None,
+                    "data_base64": None,
+                    "file_path": None,
+                }
+                if captions_match:
+                    cap = captions[i]
+                    entry["label"] = cap["label"]
+                    entry["media_type"] = cap["media_type"]
+                    entry["date_taken"] = cap["date_taken"]
+                    entry["caption"] = cap["caption"]
+
+                if embed_data or (save_images and output_dir):
+                    try:
+                        jpg = pix.tobytes("jpg", jpg_quality=self._PHOTO_JPEG_QUALITY)
+                    except Exception:
+                        jpg = pix.tobytes("png")
+                        entry["format"] = "png"
+                    else:
+                        entry["format"] = "jpg"
+                    if save_images and output_dir:
+                        os.makedirs(output_dir, exist_ok=True)
+                        ext = entry["format"]
+                        fn = f"page{page_idx + 1}_photo{i + 1}.{ext}"
+                        with open(os.path.join(output_dir, fn), "wb") as f:
+                            f.write(jpg)
+                        entry["file_path"] = fn
+                    if embed_data:
+                        entry["data_base64"] = base64.b64encode(jpg).decode("utf-8")
+
+                images.append(entry)
+                pix = None
         return images
 
     def _find_yes_no(self, text, pattern):
