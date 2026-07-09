@@ -259,6 +259,10 @@ class ConditionReportExtractor:
                 ticks = self._extract_scanned_ticks()
                 if ticks:
                     result["scanned_ticks"] = ticks
+                    # Write the reads into each component's start_of_tenancy so
+                    # the Y/N show directly in the converter grid (not only in the
+                    # separate scanned_ticks section).
+                    self._apply_scanned_ticks(result["areas"], ticks)
             if self._ocr_used:
                 result["ocr_pages"] = [
                     {"page": idx + 1, "text": self._ocr_cache[idx]}
@@ -1443,6 +1447,121 @@ class ConditionReportExtractor:
                    "cupboards", "bench", "sink", "stove", "oven", "exhaust",
                    "dishwasher", "washing", "dryer", "front", "hot", "range",
                    "shower", "bath", "toilet", "mirror", "heating", "hooks")
+
+    @staticmethod
+    def _tick_toks(s):
+        """Significant word tokens of an item/component name (>=3 letters), used
+        to match a noisy OCR'd tick-row name against a template component name."""
+        return set(w for w in re.findall(r"[a-z]+", (s or "").lower()) if len(w) >= 3)
+
+    def _apply_scanned_ticks(self, areas, ticks):
+        """Write the scanned Y/N reads into each component's start_of_tenancy so
+        they show directly in the converter's grid (not just the separate
+        scanned_ticks section).
+
+        The reader returns rows per scanned page in top-to-bottom order, but each
+        grid page packs several rooms and the rows carry noisy OCR'd item names.
+        We therefore:
+          1. segment the rows into room-blocks (each NSW room grid restarts at a
+             "walls ..." row);
+          2. identify each block's area by the best in-order match of its item
+             names against a template room's component names (a room's item
+             sequence - e.g. sink/stove/oven/dishwasher - is distinctive), using
+             a monotonic cursor so identical rooms (Bedroom 1/2/3) map in order;
+          3. align the block's rows to that area's components by name and copy the
+             Y/N values (with their per-cell confidence) in.
+        Values only ever land where an item name matches a component in the
+        correctly-identified room, so nothing is written blindly by position.
+        Returns the number of components filled."""
+        if not ticks:
+            return 0
+        toks = self._tick_toks
+
+        area_ctoks = [[toks(c.get("component_name")) for c in a.get("components", [])]
+                      for a in areas]
+
+        # 1) Segment rows into room-blocks. A new block starts at a "walls" row
+        #    (the leading item of almost every room) once the current block has
+        #    real content; rows before the first room start (the example box) fall
+        #    into a leading block that won't match any room and is dropped.
+        blocks = []
+        cur = []
+        for t in ticks:
+            it = toks(t.get("item"))
+            if "walls" in it and any(toks(r.get("item")) for r in cur):
+                blocks.append(cur)
+                cur = [t]
+            else:
+                cur.append(t)
+        if cur:
+            blocks.append(cur)
+
+        def block_area_score(block, ctoks):
+            """In-order overlap of a block's item names against a room's
+            components: how many rows match successive components."""
+            ci = 0
+            score = 0
+            for r in block:
+                rt = toks(r.get("item"))
+                if not rt:
+                    continue
+                for k in range(ci, len(ctoks)):
+                    if rt & ctoks[k]:
+                        score += 1
+                        ci = k + 1
+                        break
+            return score
+
+        filled = 0
+        used = set()
+        for block in blocks:
+            # 2) Best-matching still-unused area (physical page order does not
+            #    follow the template's area order - a single grid page can pack,
+            #    say, the Kitchen and the Laundry - so we match on the room's
+            #    distinctive item signature rather than position). Each template
+            #    area is claimed at most once; identical rooms (Bedroom 1/2/3)
+            #    simply take the next free slot.
+            best_i, best_score = None, 0
+            for i in range(len(areas)):
+                if i in used:
+                    continue
+                s = block_area_score(block, area_ctoks[i])
+                if s > best_score:
+                    best_score, best_i = s, i
+            if best_i is None or best_score < 3:
+                continue
+            comps = areas[best_i].get("components", [])
+            ctoks = area_ctoks[best_i]
+            used.add(best_i)
+
+            # 3) Align rows to this room's components by name, in order.
+            ci = 0
+            for r in block:
+                rt = toks(r.get("item"))
+                if not rt:
+                    continue
+                match_k, best_ov = None, 0
+                for k in range(ci, min(len(comps), ci + 5)):
+                    ov = len(rt & ctoks[k])
+                    if ov > best_ov:
+                        best_ov, match_k = ov, k
+                if match_k is None:
+                    continue
+                ci = match_k + 1
+                sot = comps[match_k].get("start_of_tenancy", {})
+                conf = {}
+                any_val = False
+                for col in self._TICK_COLS:
+                    v = r.get("start_of_tenancy", {}).get(col)
+                    if v is not None and sot.get(col) is None:
+                        sot[col] = v
+                        conf[col] = r.get("confidence", {}).get(col)
+                        any_val = True
+                if any_val:
+                    sot["condition_source"] = "ocr"
+                    sot["condition_confidence"] = conf
+                    filled += 1
+        return filled
 
     def _extract_scanned_ticks(self):
         """Best-effort Y/N reader for scanned condition grids.
