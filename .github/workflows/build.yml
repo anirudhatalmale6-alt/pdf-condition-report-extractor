@@ -19,7 +19,7 @@ jobs:
 
       - name: Install dependencies
         run: |
-          pip install PyMuPDF pdfplumber Pillow requests tkinterdnd2 pytesseract pyinstaller
+          pip install PyMuPDF pdfplumber Pillow requests tkinterdnd2 pytesseract numpy pyinstaller
 
       - name: Stage Tesseract OCR for bundling
         shell: pwsh

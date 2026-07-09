@@ -254,6 +254,11 @@ class ConditionReportExtractor:
             # silently yielding nulls.
             if self._file_format() in ("scanned", "mixed") or self._ocr_used:
                 result["ocr_status"] = ocr_engine.status()
+                # Best-effort Y/N tick reader for scanned condition grids, with a
+                # per-cell confidence so nothing uncertain is trusted silently.
+                ticks = self._extract_scanned_ticks()
+                if ticks:
+                    result["scanned_ticks"] = ticks
             if self._ocr_used:
                 result["ocr_pages"] = [
                     {"page": idx + 1, "text": self._ocr_cache[idx]}
@@ -1430,6 +1435,137 @@ class ConditionReportExtractor:
             })
         media.sort(key=lambda m: (round(m["cy"] / 12), m["cx"]))
         return {"gallery_url": gallery_url, "media": media}
+
+    # Column labels of the NSW "start of tenancy" tick grid, in order.
+    _TICK_COLS = ("clean", "undamaged", "working", "tenant_agrees")
+    _TICK_ITEMS = ("walls", "wall", "doors", "door", "windows", "window",
+                   "ceiling", "blinds", "lights", "light", "skirting", "floor",
+                   "cupboards", "bench", "sink", "stove", "oven", "exhaust",
+                   "dishwasher", "washing", "dryer", "front", "hot", "range",
+                   "shower", "bath", "toilet", "mirror", "heating", "hooks")
+
+    def _extract_scanned_ticks(self):
+        """Best-effort Y/N reader for scanned condition grids.
+
+        Free-text OCR cannot see the small marks in the narrow tick columns, so
+        we find the column grid-lines and the item rows and OCR each individual
+        cell with a Y/N-restricted charset. Every value carries a confidence
+        ('high' = read cleanly, 'low' = a mark was present but not read cleanly)
+        so nothing uncertain is trusted silently. Returns a list of per-row
+        dicts, or [] when nothing could be read."""
+        try:
+            import numpy as np
+            from PIL import Image, ImageOps
+        except Exception:
+            return []
+        if not ocr_engine.is_available():
+            return []
+        DARK = 110
+
+        def classify(pil, mask, x0, x1, y0, y1):
+            sub = mask[y0:y1, x0:x1]
+            if sub.size == 0 or sub.mean() < 0.03:
+                return (None, None)
+            crop = pil.crop((x0, y0, x1, y1))
+            crop = ImageOps.autocontrast(crop.resize((crop.width * 5, crop.height * 5)))
+            t = ocr_engine.ocr_char(crop, "YN").upper().replace("YY", "Y")
+            if "N" in t and "Y" not in t:
+                return ("N", "high")
+            if "Y" in t:
+                return ("Y", "high")
+            return ("Y", "low")  # a mark is present but unread -> Y, low conf
+
+        results = []
+        for page in self.fitz_doc:
+            if not self._is_scanned_page(page):
+                continue
+            try:
+                pix = page.get_pixmap(matrix=fitz.Matrix(3, 3), colorspace=fitz.csGRAY)
+                pil = Image.frombytes("L", (pix.width, pix.height), pix.samples)
+                a = np.array(pil)
+                mask = (a < DARK).astype(np.uint8)
+                H, W = a.shape
+            except Exception:
+                continue
+            # item-name anchors (reliable): known items at the left of the page.
+            # Keep each word's line key so the full item name can be rebuilt.
+            tsv_rows = ocr_engine.ocr_image_tsv(pil)
+            lines = {}
+            for r in tsv_rows:
+                key = (r.get("block_num"), r.get("par_num"), r.get("line_num"))
+                lines.setdefault(key, []).append(r)
+            anc = []
+            for r in tsv_rows:
+                t = re.sub(r"[^a-z/ ]", "", (r.get("text") or "").strip().lower())
+                if r["conf"] > 35 and r["left"] < W * 0.30 and \
+                        t.startswith(self._TICK_ITEMS) and len(t) >= 4:
+                    key = (r.get("block_num"), r.get("par_num"), r.get("line_num"))
+                    anc.append((r["top"] + r["height"] // 2, r["left"] + r["width"], key))
+            anc.sort()
+            dedup = []
+            for y, xr, key in anc:
+                if not (dedup and y - dedup[-1][0] < 18):
+                    dedup.append((y, xr, key))
+            anc = dedup
+
+            def item_name(line_key, x_limit):
+                words = sorted((w for w in lines.get(line_key, []) if w["left"] < x_limit),
+                               key=lambda w: w["left"])
+                name = " ".join((w.get("text") or "").strip() for w in words).strip()
+                name = re.sub(r"\s+", " ", name)
+                return name or None
+            if len(anc) < 3:
+                continue
+            ys = [y for y, _, _ in anc]
+            y0, y1 = max(0, min(ys) - 20), min(H, max(ys) + 20)
+            item_right = int(np.median([xr for _, xr, _ in anc]))
+            # vertical grid lines that span the item rows = the tick columns
+            n = y1 - y0
+            col = mask[y0:y1].sum(axis=0)
+            xs = [x for x in range(len(col)) if col[x] / n >= 0.45]
+            groups, run = [], []
+            for x in xs:
+                if groups and x - groups[-1][-1] <= 3:
+                    groups[-1].append(x)
+                else:
+                    groups.append([x])
+            vl = [int(np.mean(g)) for g in groups]
+            cand = [x for x in vl if item_right + 40 <= x <= W]
+            for x in cand:
+                if not run or 35 <= x - run[-1] <= 58:
+                    run.append(x)
+                elif len(run) >= 4:
+                    break
+                else:
+                    run = [x]
+            if len(run) < 4:
+                continue
+            run = run[:5]
+            # rows aligned to the marks: ink peaks inside the tick columns
+            prof = mask[:, run[0] + 3:run[-1] - 3].sum(axis=1)
+            thr = max(4, 0.12 * (run[-1] - run[0]))
+            peaks = []
+            for yy in range(y0, min(y1, H - 1)):
+                if prof[yy] >= thr and prof[yy] >= prof[yy - 1] and prof[yy] >= prof[yy + 1]:
+                    if not peaks or yy - peaks[-1] > 22:
+                        peaks.append(yy)
+            for cy in peaks:
+                vals, confs = {}, {}
+                for i in range(min(len(run) - 1, len(self._TICK_COLS))):
+                    v, cf = classify(pil, mask, run[i] + 2, run[i + 1] - 2, cy - 15, cy + 14)
+                    vals[self._TICK_COLS[i]] = v
+                    confs[self._TICK_COLS[i]] = cf
+                if not any(vals.values()):
+                    continue
+                near = min(anc, key=lambda t: abs(t[0] - cy))
+                item = item_name(near[2], run[0]) if abs(near[0] - cy) < 30 else None
+                results.append({
+                    "page": page.number + 1,
+                    "item": item,
+                    "start_of_tenancy": vals,
+                    "confidence": confs,
+                })
+        return results
 
     def _make_scan_entry(self, page, page_idx, save_images, output_dir, embed_data):
         """Render one scanned page to a compressed image entry, so a scanned

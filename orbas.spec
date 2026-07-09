@@ -38,6 +38,8 @@ a = Analysis(
         'pdfminer.pdfpage',
         'PIL',
         'PIL.Image',
+        'PIL.ImageOps',
+        'numpy',
         'pytesseract',
         'requests',
         'fitz',

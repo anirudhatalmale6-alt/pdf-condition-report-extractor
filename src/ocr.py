@@ -190,3 +190,55 @@ def ocr_page_text(fitz_page, zoom=_OCR_ZOOM):
                 os.remove(tmp_path)
             except OSError:
                 pass
+
+
+def _run_on_image(pil_image, extra_args):
+    """Save a PIL image to a temp PNG and run the bundled tesseract on it with
+    the given extra args (windowed-safe). Returns stdout text, or "" on error."""
+    if not _configure():
+        return ""
+    tmp_path = None
+    try:
+        fd, tmp_path = tempfile.mkstemp(suffix=".png", prefix="orbas_ocr_")
+        os.close(fd)
+        pil_image.save(tmp_path)
+        args = [_tesseract_cmd, tmp_path, "stdout"] + list(extra_args)
+        if _tessdata_dir:
+            args += ["--tessdata-dir", _tessdata_dir]
+        proc = _run(args)
+        if proc.returncode != 0:
+            return ""
+        return (proc.stdout or b"").decode("utf-8", "replace")
+    except Exception as e:
+        logger.warning("image OCR failed: %s", e)
+        return ""
+    finally:
+        if tmp_path and os.path.isfile(tmp_path):
+            try:
+                os.remove(tmp_path)
+            except OSError:
+                pass
+
+
+def ocr_image_tsv(pil_image, psm=6):
+    """Return tesseract's TSV word-box output for a PIL image (list of dict rows
+    with text/left/top/width/height/conf)."""
+    import csv, io
+    out = _run_on_image(pil_image, ["--psm", str(psm), "tsv"])
+    rows = []
+    for r in csv.DictReader(io.StringIO(out), delimiter="\t"):
+        try:
+            r["conf"] = float(r["conf"])
+            for k in ("left", "top", "width", "height"):
+                r[k] = int(r[k])
+        except Exception:
+            continue
+        rows.append(r)
+    return rows
+
+
+def ocr_char(pil_image, whitelist="YN", psm=10):
+    """OCR a single small cell restricted to a character whitelist (e.g. Y/N)."""
+    return _run_on_image(pil_image,
+                         ["--psm", str(psm),
+                          "-c", "tessedit_char_whitelist=" + whitelist]).strip()
