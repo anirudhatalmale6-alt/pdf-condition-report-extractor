@@ -1927,6 +1927,50 @@ class ConditionReportExtractor:
         return None
 
 
+def classify_pdf_format(pdf_path):
+    """Classify a PDF as 'digital', 'scanned', 'mixed' or 'empty' WITHOUT running
+    OCR.
+
+    Used to validate uploads - the app accepts digital PDFs only. A page counts
+    as a scanned form page when it has no text layer and is (almost) entirely
+    covered by a single image; a digital page has selectable text. A photo page
+    inside an otherwise-digital report is NOT a scanned page (its images don't
+    cover the whole page), so digital reports with embedded photos stay 'digital'.
+    Mirrors the extractor's own _is_scanned_page / _file_format logic.
+    """
+    doc = fitz.open(pdf_path)
+    try:
+        pages = list(doc)
+        if not pages:
+            return "empty"
+        text_pages = 0
+        scanned_pages = 0
+        for page in pages:
+            if page.get_text().strip():
+                text_pages += 1
+                continue
+            page_area = abs(page.rect.width * page.rect.height)
+            if not page_area:
+                continue
+            is_scan = False
+            for im in page.get_images(full=True):
+                for r in page.get_image_rects(im[0]):
+                    if abs(r.width * r.height) / page_area >= 0.85:
+                        is_scan = True
+                        break
+                if is_scan:
+                    break
+            if is_scan:
+                scanned_pages += 1
+        if scanned_pages == 0:
+            return "digital"
+        if text_pages == 0:
+            return "scanned"
+        return "mixed"
+    finally:
+        doc.close()
+
+
 def detect_jurisdiction(pdf_path):
     """Auto-detect Australian jurisdiction from PDF content."""
     doc = fitz.open(pdf_path)

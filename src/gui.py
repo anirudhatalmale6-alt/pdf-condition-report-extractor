@@ -28,7 +28,7 @@ except Exception:
     _DND_AVAILABLE = False
 
 from .config import APP_NAME, VERSION, JURISDICTIONS, REPORT_TYPES
-from .extractor import extract_pdf, detect_jurisdiction
+from .extractor import extract_pdf, detect_jurisdiction, classify_pdf_format
 from .license import (
     validate_license,
     save_activation,
@@ -432,18 +432,10 @@ class OrbasApp:
             bg=CARD, fg=DARK, activebackground=CARD, selectcolor=CARD,
             font=self.font_small, anchor="w", highlightthickness=0, bd=0)
         self.embed_photos_chk.pack(fill="x", padx=12, pady=(0, 4))
-        # OCR for scanned (image-only) reports is OFF by default so the app is a
-        # pure digital-PDF extractor unless the user opts in. Digital reports are
-        # unaffected either way (OCR only ever runs on pages with no text), but
-        # keeping it opt-in means the scanned path can never surprise a digital
-        # extraction. Turn it on to read scanned/photographed forms.
-        self.enable_ocr_var = tk.BooleanVar(value=False)
-        self.enable_ocr_chk = tk.Checkbutton(
-            c4, text="Enable OCR for scanned PDFs (image-only reports)",
-            variable=self.enable_ocr_var,
-            bg=CARD, fg=DARK, activebackground=CARD, selectcolor=CARD,
-            font=self.font_small, anchor="w", highlightthickness=0, bd=0)
-        self.enable_ocr_chk.pack(fill="x", padx=12, pady=(0, 4))
+        # The app is a digital-PDF extractor: scanned/image-only PDFs are
+        # rejected at upload (see _set_pdf), so OCR is never exposed to the user
+        # to avoid confusion. The OCR capability still exists in the engine and
+        # can be re-enabled later; extraction here always runs digital-only.
         self.progress = ttk.Progressbar(c4, mode="indeterminate",
                                         style="Orbas.Horizontal.TProgressbar")
         self.status_label = tk.Label(c4, text="", bg=CARD, fg=MUTED, font=self.font_small,
@@ -583,11 +575,29 @@ class OrbasApp:
 
     # ---- actions -------------------------------------------------------
     def _set_pdf(self, path):
-        self.pdf_path = path
-        self.pdf_size_mb = os.path.getsize(path) / (1024 * 1024)
+        # Accept DIGITAL PDFs only. Before a file can be extracted we check, in
+        # the background (off the UI thread so a large file never freezes the
+        # window), that it has a real text layer. Scanned / image-only PDFs are
+        # rejected here with a clear message, so a user never gets an empty
+        # extraction from an unsupported file. Detection reads the text/image
+        # layers - no OCR.
+        self._pending_file = path
+        self.pdf_path = None
+        try:
+            self._pending_size_mb = os.path.getsize(path) / (1024 * 1024)
+        except OSError:
+            self._pending_size_mb = 0.0
         self.file_label.configure(
-            text=f"Selected: {os.path.basename(path)}  ({self.pdf_size_mb:.2f} MB)", fg=OK_FG)
+            text=f"Checking file type:  {os.path.basename(path)} ...", fg=MUTED)
         self._check_ready()
+
+        def worker():
+            try:
+                fmt = classify_pdf_format(path)
+            except Exception:
+                fmt = "unknown"
+            self._queue.put(("file_check", path, fmt))
+        threading.Thread(target=worker, daemon=True).start()
 
     def on_browse(self):
         path = filedialog.askopenfilename(
@@ -695,7 +705,7 @@ class OrbasApp:
         jur = self._selected_jurisdiction()
         doc = self._selected_doctype()
         embed_photos = self.embed_photos_var.get()
-        enable_ocr = self.enable_ocr_var.get()
+        enable_ocr = False  # digital-only app; scanned PDFs are rejected upstream
         path = self.pdf_path
         key = self.key_var.get().strip()
         email = self.email_var.get().strip()
@@ -761,6 +771,7 @@ class OrbasApp:
             return
         self.pdf_path = None
         self.pdf_size_mb = None
+        self._pending_file = None  # invalidate any in-flight file-type check
         self.extracted_json = ""
         # File selection
         self.file_label.configure(text="No file selected.", fg=MUTED)
@@ -802,6 +813,34 @@ class OrbasApp:
 
     def _handle_message(self, msg):
         kind = msg[0]
+        if kind == "file_check":
+            _, path, fmt = msg
+            # Ignore a stale result if the user has since picked another file.
+            if path != getattr(self, "_pending_file", None):
+                return
+            if fmt == "digital":
+                self.pdf_path = path
+                self.pdf_size_mb = self._pending_size_mb
+                self.file_label.configure(
+                    text=f"Selected: {os.path.basename(path)}  "
+                         f"({self.pdf_size_mb:.2f} MB)", fg=OK_FG)
+            else:
+                self.pdf_path = None
+                if fmt == "scanned":
+                    reason = ("This looks like a scanned / image-only PDF. "
+                              "This tool supports digital PDFs only - please "
+                              "upload a digital (text-based) report.")
+                elif fmt == "mixed":
+                    reason = ("This PDF has scanned (image-only) pages. This "
+                              "tool supports fully digital PDFs only - please "
+                              "upload a digital (text-based) report.")
+                elif fmt == "empty":
+                    reason = "This PDF has no readable pages."
+                else:
+                    reason = "Could not read this PDF. Please try another file."
+                self.file_label.configure(text=reason, fg=ERR_FG)
+            self._check_ready()
+            return
         if kind == "license":
             _, ok, text = msg
             self.license_verified = ok
