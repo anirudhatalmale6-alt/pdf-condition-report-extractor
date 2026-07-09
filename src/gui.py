@@ -100,7 +100,7 @@ class OrbasApp:
         self._queue = queue.Queue()
 
         root.title(f"{APP_NAME} PDF Extractor")
-        root.geometry("1180x800")
+        root.geometry("1360x820")
         root.minsize(980, 680)
         root.configure(bg=BG)
         self._set_window_icon()
@@ -250,14 +250,29 @@ class OrbasApp:
         # Body: two columns
         body = tk.Frame(self.root, bg=BG)
         body.pack(fill="both", expand=True, padx=18, pady=(4, 16))
-        body.columnconfigure(0, weight=1, uniform="col")
-        body.columnconfigure(1, weight=1, uniform="col")
+        # 40 / 60 split - a narrower controls column on the left, a wider JSON
+        # output column on the right (no "uniform" group, so the weights set the
+        # actual 40/60 ratio instead of forcing equal widths).
+        body.columnconfigure(0, weight=40)
+        body.columnconfigure(1, weight=60)
         body.rowconfigure(0, weight=1)
 
         left_col = tk.Frame(body, bg=BG)
         left_col.grid(row=0, column=0, sticky="nsew", padx=(0, 9))
         right_col = tk.Frame(body, bg=BG)
         right_col.grid(row=0, column=1, sticky="nsew", padx=(9, 0))
+
+        # Enforce an exact 40/60 split at any window size. Grid "weight" only
+        # divides *leftover* space, so on its own the ratio drifts with content
+        # width; pinning each column's minsize to 40%/60% of the actual body
+        # width keeps it precise whether the window is small or maximised.
+        def _apply_split(event):
+            total = event.width - 18  # minus the 9px gutter on each column
+            if total < 200:
+                return
+            body.columnconfigure(0, minsize=int(total * 0.40), weight=40)
+            body.columnconfigure(1, minsize=int(total * 0.60), weight=60)
+        body.bind("<Configure>", _apply_split)
 
         self._build_left(left_col)
         self._build_right(right_col)
@@ -823,10 +838,14 @@ class OrbasApp:
     def _stat_tile(self, parent, col, label, value, value_fg=DARK):
         cell = tk.Frame(parent, bg="white")
         cell.grid(row=0, column=col, sticky="nsew", padx=2)
+        # Smaller fonts + wraplength so the eight tiles stay clean and never
+        # overflow into each other, even for longer values like "combined".
         tk.Label(cell, text=str(value), bg="white", fg=value_fg,
-                 font=(self.font_ui[0], 14, "bold")).pack()
+                 font=(self.font_ui[0], 11, "bold"),
+                 wraplength=96, justify="center").pack()
         tk.Label(cell, text=label.upper(), bg="white", fg="#94a3b8",
-                 font=(self.font_ui[0], 8, "bold")).pack(pady=(1, 0))
+                 font=(self.font_ui[0], 7, "bold"),
+                 wraplength=96, justify="center").pack(pady=(1, 0))
 
     def _show_summary(self, result):
         for ch in self.meta_card.winfo_children():
