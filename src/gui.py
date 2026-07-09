@@ -875,6 +875,7 @@ class OrbasApp:
         stats = [
             ("Jurisdiction", result.get("jurisdiction", "N/A")),
             ("Doc Type", result.get("document_type", "N/A")),
+            ("Format", (meta.get("file_format") or "N/A").title()),
             ("Pages", meta.get("total_pages", 0)),
             ("Areas", len(areas)),
             ("Records", comps),

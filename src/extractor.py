@@ -120,15 +120,71 @@ class ConditionReportExtractor:
         self._scanned = looks_scanned and ocr_engine.is_available()
         return self._scanned
 
+    # A single raster covering essentially the whole page (with no text layer)
+    # is a scanned form page - as opposed to a photo page, which carries several
+    # smaller images. Only scanned form pages are OCR'd, so a digital report's
+    # photo pages are never OCR'd and its behaviour/speed are unchanged.
+    _SCANNED_PAGE_COV = 0.85
+
+    def _is_scanned_page(self, page):
+        """True when this individual page is a scanned image of a form."""
+        if page.get_text().strip():
+            return False
+        page_area = abs(page.rect.width * page.rect.height)
+        if not page_area:
+            return False
+        for im in page.get_images(full=True):
+            for r in page.get_image_rects(im[0]):
+                if abs(r.width * r.height) / page_area >= self._SCANNED_PAGE_COV:
+                    return True
+        return False
+
+    def _has_scanned_page(self):
+        """True when at least one page is a scanned form page and OCR is usable.
+        Covers both fully-scanned and mixed (part digital, part scanned) PDFs."""
+        if getattr(self, "_has_scanned_cache", None) is not None:
+            return self._has_scanned_cache
+        val = False
+        if ocr_engine.is_available():
+            val = any(self._is_scanned_page(p) for p in self.fitz_doc)
+        self._has_scanned_cache = val
+        return val
+
+    def _file_format(self):
+        """Classify the source as 'digital', 'scanned' or 'mixed' so the user
+        knows immediately what kind of file they are extracting. A digital
+        report with photo pages is still 'digital' - only full-page scanned
+        form pages count as scanned."""
+        if getattr(self, "_file_format_cache", None) is not None:
+            return self._file_format_cache
+        text_pages = 0
+        scanned_pages = 0
+        for p in self.fitz_doc:
+            if p.get_text().strip():
+                text_pages += 1
+            elif self._is_scanned_page(p):
+                scanned_pages += 1
+        if scanned_pages == 0:
+            fmt = "digital"
+        elif text_pages == 0:
+            fmt = "scanned"
+        else:
+            fmt = "mixed"
+        self._file_format_cache = fmt
+        return fmt
+
     def _page_text(self, page):
         """Selectable text for a page, or OCR'd text when the page is a scan.
 
         For normal digital PDFs this is just page.get_text(); the OCR path only
-        engages for image-only pages of a scanned document, so digital-PDF
-        behaviour and speed are completely unaffected.
+        engages for scanned (full-page image) pages - whether the whole document
+        is scanned or only some pages are (a mixed PDF) - so a digital report's
+        text and photo pages are completely unaffected.
         """
         native = page.get_text()
-        if native.strip() or not self._is_scanned():
+        if native.strip():
+            return native
+        if not self._is_scanned_page(page):
             return native
         idx = page.number
         if idx not in self._ocr_cache:
@@ -193,6 +249,11 @@ class ConditionReportExtractor:
             # available to the converter even where the grid can't be fully
             # rebuilt from a scan.
             result["ocr_used"] = self._ocr_used
+            # Always report the OCR engine's status so a scanned PDF that comes
+            # back empty is diagnosable (e.g. engine not found) instead of
+            # silently yielding nulls.
+            if self._file_format() in ("scanned", "mixed") or self._ocr_used:
+                result["ocr_status"] = ocr_engine.status()
             if self._ocr_used:
                 result["ocr_pages"] = [
                     {"page": idx + 1, "text": self._ocr_cache[idx]}
@@ -252,26 +313,32 @@ class ConditionReportExtractor:
         if getattr(self, "_scanned_header_cache", None) is not None:
             return self._scanned_header_cache
         hdr = {}
-        if self._is_scanned():
-            for page in self.fitz_doc[:3]:
+        if self._has_scanned_page():
+            for page in self.fitz_doc[:4]:
                 found = False
                 for line in self._page_text(page).split("\n"):
                     U = line.upper()
-                    # The genuine header row carries the "PREMISES:" and
-                    # "TENANT:" field labels (with colon). Requiring the colon
-                    # avoids matching instructional sentences that merely use the
-                    # words "premises"/"tenant".
-                    if not (re.search(r"PREMISES\s*:", U) and re.search(r"TENANT\s*:", U)):
+                    # Anchor on the two labels OCR reads most reliably on this
+                    # row: "TENANT:" and "COMMENC(EMENT)". The "PREMISES:" label
+                    # itself is often mangled by OCR, so we don't depend on it.
+                    # Requiring both TENANT: and COMMENC avoids matching the
+                    # instructional sentences that only mention these words.
+                    if not (re.search(r"TENANT\s*:", U) and re.search(r"COMMENC", U)):
                         continue
-                    m = re.search(r"PREMISES\s*:\s*(.*?)\s*TENANT\s*:",
-                                  line, re.IGNORECASE)
+                    # Address = the digit-led run just before "TENANT:" (e.g.
+                    # "808/23 MAIN STREET WALLIS TOWN"), which skips any garbled
+                    # "PREMISES:" label OCR left in front of it.
+                    m = re.search(r"(\d[\w/].*?)\s*TENANT\s*:", line, re.IGNORECASE)
+                    if not m:
+                        m = re.search(r"PREMISES\s*:\s*(.*?)\s*TENANT\s*:",
+                                      line, re.IGNORECASE)
                     addr = self._clean_scanned_value(m.group(1)) if m else None
-                    # A real address starts with a street/unit number.
-                    if addr and re.match(r"^\d", addr):
+                    if addr and re.match(r"^\d", addr) and re.search(r"[A-Za-z]", addr):
                         hdr["address"] = addr
-                    m = re.search(r"TENANT\s*:\s*(.*?)\s*\(?\s*COMMENC",
+                    # Tenant = between "TENANT:" and "(COMMENCEMENT".
+                    m = re.search(r"TENANT\s*:\s*\|?\s*(.*?)\s*\(?\s*COMMENC",
                                   line, re.IGNORECASE) \
-                        or re.search(r"TENANT\s*:\s*(.*)$", line, re.IGNORECASE)
+                        or re.search(r"TENANT\s*:\s*\|?\s*(.*)$", line, re.IGNORECASE)
                     if m:
                         tn = self._clean_scanned_value(m.group(1))
                         if tn and re.search(r"[A-Za-z]", tn):
@@ -310,6 +377,7 @@ class ConditionReportExtractor:
             "date_received": self._extract_date_received(),
             "start_date": self._norm_date(self._extract_tenancy_date("start") or sh.get("commencement")),
             "end_date": self._norm_date(self._extract_tenancy_date("end")),
+            "file_format": self._file_format(),
             "source_file": os.path.basename(self.pdf_path),
             "total_pages": len(self.fitz_doc),
             "extraction_timestamp": datetime.now(timezone.utc).isoformat(),
