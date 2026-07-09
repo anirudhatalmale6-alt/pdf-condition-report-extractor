@@ -1191,6 +1191,42 @@ class ConditionReportExtractor:
                 })
         return caps
 
+    @staticmethod
+    def _parse_media_links(page):
+        # The "Media" gallery page hyperlinks each thumbnail to the real media
+        # file held online: photos to an /image?...jpg URL and videos to a
+        # /video?...mov URL, plus one /gallery/ link for the whole album. The
+        # URL path is the authoritative photo-vs-video signal (a video's still
+        # frame is otherwise indistinguishable from a photo), and it carries the
+        # actual playable video link the caption text alone cannot give.
+        #
+        # Links are returned in top-to-bottom, left-to-right reading order so
+        # they line up with the photos, which are sorted the same way.
+        gallery_url = None
+        media = []
+        for link in page.get_links():
+            uri = link.get("uri")
+            if not uri:
+                continue
+            if "/gallery/" in uri:
+                gallery_url = gallery_url or uri
+                continue
+            if "/video" in uri:
+                mtype = "video"
+            elif "/image" in uri:
+                mtype = "photo"
+            else:
+                continue
+            r = link["from"]
+            media.append({
+                "media_type": mtype,
+                "url": uri,
+                "cx": (r.x0 + r.x1) / 2,
+                "cy": (r.y0 + r.y1) / 2,
+            })
+        media.sort(key=lambda m: (round(m["cy"] / 12), m["cx"]))
+        return {"gallery_url": gallery_url, "media": media}
+
     def _extract_images(self, output_dir=None, save_images=True, embed_data=False):
         # We surface only genuine report content - the inspection photos - not
         # every raster in the file. Header/footer logos are referenced by every
@@ -1219,6 +1255,7 @@ class ConditionReportExtractor:
         emitted = set()
         for page_idx, page in enumerate(doc):
             captions = self._parse_media_captions(page.get_text())
+            media_links = self._parse_media_links(page)
 
             photos = []  # (xref, rect, pixmap)
             for img in page.get_images(full=True):
@@ -1253,6 +1290,9 @@ class ConditionReportExtractor:
             # slightly uneven baseline still groups), then left-to-right.
             photos.sort(key=lambda t: (round(t[1].y0 / 12), t[1].x0))
             captions_match = len(captions) == len(photos)
+            links = media_links["media"]
+            links_match = len(links) == len(photos)
+            gallery_url = media_links["gallery_url"]
 
             for i, (xref, rect, pix) in enumerate(photos):
                 emitted.add(xref)
@@ -1269,6 +1309,8 @@ class ConditionReportExtractor:
                     "media_type": "photo",
                     "date_taken": None,
                     "caption": None,
+                    "media_url": None,
+                    "gallery_url": gallery_url,
                     "format": None,
                     "data_base64": None,
                     "file_path": None,
@@ -1279,6 +1321,14 @@ class ConditionReportExtractor:
                     entry["media_type"] = cap["media_type"]
                     entry["date_taken"] = cap["date_taken"]
                     entry["caption"] = cap["caption"]
+                # The hyperlink under each thumbnail carries the real media file
+                # (the playable .mov for a video, or the full-resolution .jpg for
+                # a photo) and its /video-vs-/image path is the authoritative
+                # media type, so it wins over the caption's Photo/Video wording.
+                if links_match:
+                    ln = links[i]
+                    entry["media_url"] = ln["url"]
+                    entry["media_type"] = ln["media_type"]
 
                 if embed_data or (save_images and output_dir):
                     try:
