@@ -1260,6 +1260,9 @@ class ConditionReportExtractor:
     # Content photos in these reports are large scans/photographs. Logos, icons
     # and scanned signatures are well under this in their smaller dimension.
     _MIN_PHOTO_DIM = 200
+    # An image covering this much of the page is the page background / a full
+    # page scan, not an inspection photo embedded on the page.
+    _MAX_PHOTO_PAGE_FRAC = 0.9
     # A real photo is roughly 4:3, 3:4 or up to ~16:9. Anything much wider or
     # taller is a full-width header banner, decorative wave or rule, not a photo.
     _MAX_PHOTO_ASPECT = 2.5
@@ -1394,6 +1397,12 @@ class ConditionReportExtractor:
                     continue  # repeated header/footer logo or watermark
                 rects = page.get_image_rects(xref)
                 if not rects:
+                    continue
+                # A near page-sized image is the page background or, in a scanned
+                # report, the page scan itself - not an inspection photo.
+                page_area = abs(page.rect.width * page.rect.height)
+                if page_area and (abs(rects[0].width * rects[0].height) / page_area
+                                  > self._MAX_PHOTO_PAGE_FRAC):
                     continue
                 try:
                     pix = fitz.Pixmap(doc, xref)
