@@ -1156,6 +1156,16 @@ class ConditionReportExtractor:
                     ]):
                         continue
 
+                    # An item / area name must contain a real word. A bare "Y" /
+                    # "N", a stray tick or a lone number is a grid legend cell,
+                    # not a row to turn into an item - reading those legend cells
+                    # is exactly what produced components literally named "Y" (and
+                    # bogus N/Y/N values) on blank forms. Reversed rotated labels
+                    # (e.g. "MOOR EGNUOL") still contain a word and pass; they are
+                    # normalised to reading order later.
+                    if not re.search(r'[A-Za-z]{2,}', first_cell):
+                        continue
+
                     has_yn = any(
                         str(c).strip() in ('Y', 'N')
                         for c in row[1:] if c
