@@ -9,6 +9,7 @@ from PIL import Image
 from io import BytesIO
 
 from .config import VERSION, ROOM_CONFIGS, REPORT_TYPE_KEYWORDS
+from . import ocr as ocr_engine
 
 
 # Vocabulary of words that appear in area / component labels. Used to detect
@@ -87,6 +88,55 @@ class ConditionReportExtractor:
         self.detected_type = None
         self.fitz_doc = None
         self.plumber_pdf = None
+        # OCR fallback state (populated lazily only for scanned/image PDFs).
+        self._scanned = None          # tri-state: None until probed
+        self._ocr_cache = {}          # page.number -> OCR text
+        self._ocr_used = False        # True once any OCR text is actually used
+
+    # ------------------------------------------------------------------
+    # Scanned-PDF (OCR) support
+    # ------------------------------------------------------------------
+    def _is_scanned(self):
+        """True when this PDF is a scan/photo of a form with no text layer.
+
+        Detected by: most pages carry a full-page raster but return (almost) no
+        selectable text. Probed once and cached. When OCR is not available the
+        document is treated as not-scanned so behaviour is unchanged.
+        """
+        if self._scanned is not None:
+            return self._scanned
+        pages = list(self.fitz_doc)
+        if not pages:
+            self._scanned = False
+            return False
+        empty_image_pages = 0
+        for page in pages:
+            has_text = len(page.get_text().strip()) >= 20
+            has_image = bool(page.get_images(full=True))
+            if not has_text and has_image:
+                empty_image_pages += 1
+        # A scanned report: at least half its pages are image-only.
+        looks_scanned = empty_image_pages >= max(1, len(pages) // 2)
+        self._scanned = looks_scanned and ocr_engine.is_available()
+        return self._scanned
+
+    def _page_text(self, page):
+        """Selectable text for a page, or OCR'd text when the page is a scan.
+
+        For normal digital PDFs this is just page.get_text(); the OCR path only
+        engages for image-only pages of a scanned document, so digital-PDF
+        behaviour and speed are completely unaffected.
+        """
+        native = page.get_text()
+        if native.strip() or not self._is_scanned():
+            return native
+        idx = page.number
+        if idx not in self._ocr_cache:
+            self._ocr_cache[idx] = ocr_engine.ocr_page_text(page)
+        text = self._ocr_cache[idx]
+        if text.strip():
+            self._ocr_used = True
+        return text
 
     def extract(self, output_dir=None, save_images=True, embed_images=False):
         self.fitz_doc = fitz.open(self.pdf_path)
@@ -138,6 +188,18 @@ class ConditionReportExtractor:
                 "images": self._extract_images(output_dir, save_images, embed_images),
             }
 
+            # Scanned/image-only reports are read via OCR. Flag it, and always
+            # carry the full OCR text per page so every value (comments etc.) is
+            # available to the converter even where the grid can't be fully
+            # rebuilt from a scan.
+            result["ocr_used"] = self._ocr_used
+            if self._ocr_used:
+                result["ocr_pages"] = [
+                    {"page": idx + 1, "text": self._ocr_cache[idx]}
+                    for idx in sorted(self._ocr_cache)
+                    if self._ocr_cache[idx].strip()
+                ]
+
             # The NT form's final page (Communication Facilities, Other
             # Miscellaneous, work-done dates, Landlord's Guarantee, and the
             # Ingoing/Outgoing Condition Verified signature blocks) is not a
@@ -154,7 +216,7 @@ class ConditionReportExtractor:
     def _get_full_text(self):
         texts = []
         for page in self.fitz_doc:
-            texts.append(page.get_text())
+            texts.append(self._page_text(page))
         return "\n".join(texts)
 
     def _detect_report_type(self, text):
@@ -170,18 +232,84 @@ class ConditionReportExtractor:
             return "move_in"
         return "combined"
 
+    @staticmethod
+    def _clean_scanned_value(val):
+        """Trim OCR/table noise off a scanned header value (border pipes, stray
+        brackets, leftover label words) without altering the real content."""
+        if not val:
+            return None
+        val = val.strip(" \t|[]()<>:;.,-_")
+        # Drop a leftover label word that OCR merged onto the value.
+        val = re.sub(r"^(PREMISES|DATE|NAME)\s*:?\s*", "", val, flags=re.IGNORECASE)
+        val = re.sub(r"\s{2,}", " ", val).strip(" |[]():")
+        return val or None
+
+    def _scanned_header(self):
+        """REINSW-style scanned condition reports print the address, tenant and
+        commencement date across a single header row. OCR flattens that row to
+        one line - parse it here by field boundaries. Returns {} for digital
+        PDFs (which use the normal label parsing)."""
+        if getattr(self, "_scanned_header_cache", None) is not None:
+            return self._scanned_header_cache
+        hdr = {}
+        if self._is_scanned():
+            for page in self.fitz_doc[:3]:
+                found = False
+                for line in self._page_text(page).split("\n"):
+                    U = line.upper()
+                    # The genuine header row carries the "PREMISES:" and
+                    # "TENANT:" field labels (with colon). Requiring the colon
+                    # avoids matching instructional sentences that merely use the
+                    # words "premises"/"tenant".
+                    if not (re.search(r"PREMISES\s*:", U) and re.search(r"TENANT\s*:", U)):
+                        continue
+                    m = re.search(r"PREMISES\s*:\s*(.*?)\s*TENANT\s*:",
+                                  line, re.IGNORECASE)
+                    addr = self._clean_scanned_value(m.group(1)) if m else None
+                    # A real address starts with a street/unit number.
+                    if addr and re.match(r"^\d", addr):
+                        hdr["address"] = addr
+                    m = re.search(r"TENANT\s*:\s*(.*?)\s*\(?\s*COMMENC",
+                                  line, re.IGNORECASE) \
+                        or re.search(r"TENANT\s*:\s*(.*)$", line, re.IGNORECASE)
+                    if m:
+                        tn = self._clean_scanned_value(m.group(1))
+                        if tn and re.search(r"[A-Za-z]", tn):
+                            hdr["tenant_name"] = tn
+                    m = re.search(r"COMMENC\w*\s*(?:DATE)?\s*:?\s*\|?\s*"
+                                  r"(\d{1,2}\s*[/ ]\s*\d{1,2}\s*[/ ]\s*\d{2,4})",
+                                  line, re.IGNORECASE)
+                    if m:
+                        hdr["commencement"] = re.sub(r"\s*[/ ]\s*", "/",
+                                                     m.group(1).strip())
+                    if hdr.get("address") or hdr.get("tenant_name"):
+                        found = True
+                        break
+                if found:
+                    break
+        self._scanned_header_cache = hdr
+        return hdr
+
+    @staticmethod
+    def _norm_date(d):
+        """Collapse OCR spacing inside a date ("04/08 /12" -> "04/08/12")."""
+        if not d:
+            return d
+        return re.sub(r"\s*/\s*", "/", d).strip()
+
     def _build_metadata(self):
+        sh = self._scanned_header()
         return {
-            "address": self._extract_address(),
+            "address": self._extract_address() or sh.get("address"),
             "postcode": self._extract_postcode(),
             "report_number": self._extract_report_number(),
-            "tenant_name": self._extract_field_value(["tenant", "tenant name", "tenant/s", "tenants", "full name of renter"]),
+            "tenant_name": self._extract_field_value(["tenant", "tenant name", "tenant/s", "tenants", "full name of renter"]) or sh.get("tenant_name"),
             "landlord_name": self._extract_field_value(["landlord", "landlord name", "landlord/agent", "agent", "lessor", "rental provider"]),
             "property_manager": self._extract_field_value(["property manager", "managing agent", "agent's company"]),
             "bond_number": self._extract_field_value(["bond number", "bond no"]),
             "date_received": self._extract_date_received(),
-            "start_date": self._extract_tenancy_date("start"),
-            "end_date": self._extract_tenancy_date("end"),
+            "start_date": self._norm_date(self._extract_tenancy_date("start") or sh.get("commencement")),
+            "end_date": self._norm_date(self._extract_tenancy_date("end")),
             "source_file": os.path.basename(self.pdf_path),
             "total_pages": len(self.fitz_doc),
             "extraction_timestamp": datetime.now(timezone.utc).isoformat(),
@@ -207,7 +335,7 @@ class ConditionReportExtractor:
 
     def _extract_postcode(self):
         for page in self.fitz_doc[:3]:
-            text = page.get_text()
+            text = self._page_text(page)
             match = re.search(r"[Pp]ostcode[:\s]*(\d{4})", text)
             if match:
                 return match.group(1)
@@ -221,7 +349,7 @@ class ConditionReportExtractor:
 
     def _extract_report_number(self):
         for page in self.fitz_doc[:3]:
-            text = page.get_text()
+            text = self._page_text(page)
             for pattern in [
                 r"(?:Report|Reference|Ref)\s*(?:No|Number|#|:)\s*[:\s]*([A-Z0-9][\w\-/]+)",
                 r"(?:Report)\s*(?:ID)\s*[:\s]*([A-Z0-9][\w\-/]+)",
@@ -301,7 +429,7 @@ class ConditionReportExtractor:
         ("Label: value") and the common case where the value sits on the next
         line ("Label:" then "value")."""
         for page in self.fitz_doc[:pages]:
-            text = page.get_text()
+            text = self._page_text(page)
             tu = text.upper()
             if "HOW TO COMPLETE" in tu or "EXAMPLE" in tu:
                 continue
@@ -345,7 +473,7 @@ class ConditionReportExtractor:
                     "move out date", "vacating date"],
         }
         for page in self.fitz_doc[:3]:
-            text = page.get_text()
+            text = self._page_text(page)
             for kw in keywords.get(which, []):
                 # Bounded gap so we only pick a date that sits right next to the
                 # label (not an unrelated date elsewhere on the page).
@@ -359,7 +487,7 @@ class ConditionReportExtractor:
 
     def _extract_date_received(self):
         for page in self.fitz_doc[:3]:
-            text = page.get_text()
+            text = self._page_text(page)
             match = re.search(
                 r"(?:RECEIVED|COPY.*?DATE).*?(\d{1,2}\s*/\s*\d{1,2}\s*/\s*\d{2,4})",
                 text, re.IGNORECASE | re.DOTALL

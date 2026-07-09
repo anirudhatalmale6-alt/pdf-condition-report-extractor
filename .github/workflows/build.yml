@@ -19,7 +19,28 @@ jobs:
 
       - name: Install dependencies
         run: |
-          pip install PyMuPDF pdfplumber Pillow requests tkinterdnd2 pyinstaller
+          pip install PyMuPDF pdfplumber Pillow requests tkinterdnd2 pytesseract pyinstaller
+
+      - name: Stage Tesseract OCR for bundling
+        shell: pwsh
+        run: |
+          choco install tesseract --no-progress -y
+          $src = "C:\Program Files\Tesseract-OCR"
+          if (-not (Test-Path $src)) { $src = "C:\Program Files (x86)\Tesseract-OCR" }
+          Write-Host "Tesseract source: $src"
+          New-Item -ItemType Directory -Force -Path tesseract | Out-Null
+          # Copy the engine (exe + DLLs), excluding the tessdata folder for now.
+          Get-ChildItem -Path $src -File | Copy-Item -Destination tesseract -Force
+          Get-ChildItem -Path $src -Directory | Where-Object { $_.Name -ne 'tessdata' } | Copy-Item -Destination tesseract -Recurse -Force
+          # Ship only the English + orientation data to keep the download small.
+          New-Item -ItemType Directory -Force -Path tesseract\tessdata | Out-Null
+          foreach ($t in @('eng.traineddata','osd.traineddata')) {
+            $p = Join-Path $src "tessdata\$t"
+            if (Test-Path $p) { Copy-Item $p -Destination tesseract\tessdata -Force }
+          }
+          Write-Host "Staged tesseract files:"
+          Get-ChildItem -Recurse tesseract | Select-Object FullName, Length | Format-Table -AutoSize
+          & tesseract\tesseract.exe --version
 
       - name: Build (one-folder)
         run: |

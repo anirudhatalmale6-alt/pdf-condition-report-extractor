@@ -12,11 +12,24 @@ try:
 except Exception:
     _dnd_datas, _dnd_binaries, _dnd_hidden = [], [], []
 
+# Bundle a self-contained Tesseract OCR engine (for scanned/image-only reports)
+# when the build has staged it into ./tesseract (see build.yml). Each file is
+# copied preserving its folder structure, so the app ships tesseract/tesseract.exe
+# and tesseract/tessdata/*. Absent locally -> OCR simply falls back to a system
+# tesseract during development.
+import os as _os
+_tess_datas = []
+if _os.path.isdir('tesseract'):
+    for _root, _dirs, _files in _os.walk('tesseract'):
+        for _f in _files:
+            _full = _os.path.join(_root, _f)
+            _tess_datas.append((_full, _os.path.relpath(_root)))
+
 a = Analysis(
     ['main.py'],
     pathex=[],
     binaries=_dnd_binaries,
-    datas=[('schemas', 'schemas'), ('assets', 'assets')] + _dnd_datas,
+    datas=[('schemas', 'schemas'), ('assets', 'assets')] + _dnd_datas + _tess_datas,
     hiddenimports=[
         'pdfplumber',
         'pdfminer',
@@ -25,6 +38,7 @@ a = Analysis(
         'pdfminer.pdfpage',
         'PIL',
         'PIL.Image',
+        'pytesseract',
         'requests',
         'fitz',
         'tkinter',
@@ -32,6 +46,7 @@ a = Analysis(
         'src',
         'src.config',
         'src.extractor',
+        'src.ocr',
         'src.cloud_sync',
         'src.license',
         'src.gui',
@@ -48,7 +63,6 @@ a = Analysis(
         'clr_loader',
         'bottle',
         'proxy_tools',
-        'pytesseract',
     ],
     noarchive=False,
 )
