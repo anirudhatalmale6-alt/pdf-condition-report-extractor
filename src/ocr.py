@@ -36,6 +36,7 @@ _OCR_ZOOM = 4.17
 _CREATE_NO_WINDOW = 0x08000000 if os.name == "nt" else 0
 
 _tesseract_cmd = None       # resolved path to the tesseract binary, or None
+_tessdata_dir = None        # resolved path to the bundled tessdata folder, or None
 _tesseract_ready = None     # tri-state: None = not probed, True/False = probed
 _status = "not probed"      # human-readable diagnostic surfaced in the JSON
 
@@ -55,14 +56,23 @@ def _bundle_dir():
 
 def _resolve_cmd():
     """Locate a usable tesseract binary: bundled first, then system PATH."""
+    global _tessdata_dir
     base = _bundle_dir()
     bundled_dir = os.path.join(base, "tesseract")
     for name in ("tesseract.exe", "tesseract"):
         cand = os.path.join(bundled_dir, name)
         if os.path.isfile(cand):
-            # Point tesseract at the bundled language data.
-            if os.path.isdir(os.path.join(bundled_dir, "tessdata")):
-                os.environ["TESSDATA_PREFIX"] = bundled_dir
+            # Point tesseract at the bundled language data. IMPORTANT: on
+            # Tesseract 5.5+ TESSDATA_PREFIX must be the *tessdata directory
+            # itself*, NOT its parent (older builds appended "tessdata", newer
+            # ones do not). Getting this wrong lets `--version` succeed while
+            # real OCR fails with "Failed loading language 'eng'". We both set
+            # the env var correctly AND pass --tessdata-dir on every call so it
+            # works regardless of the tesseract version.
+            td = os.path.join(bundled_dir, "tessdata")
+            if os.path.isdir(td):
+                _tessdata_dir = td
+                os.environ["TESSDATA_PREFIX"] = td
             return cand
     # Fall back to whatever is on PATH (local development / system install).
     found = shutil.which("tesseract")
@@ -122,9 +132,14 @@ def is_available():
     return _configure()
 
 
+_last_ocr_error = None      # stderr from the most recent failed OCR call, if any
+
+
 def status():
     """Human-readable OCR engine status, safe to surface in the output JSON."""
     _configure()
+    if _last_ocr_error:
+        return "%s | last OCR error: %s" % (_status, _last_ocr_error)
     return _status
 
 
@@ -149,10 +164,17 @@ def ocr_page_text(fitz_page, zoom=_OCR_ZOOM):
         # "stdout" tells tesseract to write the recognised text to stdout.
         # --psm 3 (fully automatic page segmentation) reads these multi-column
         # forms - the two-column header row and the condition grid - more
-        # reliably than a single-block assumption.
-        proc = _run([_tesseract_cmd, tmp_path, "stdout", "--psm", "3"])
+        # reliably than a single-block assumption. --tessdata-dir makes the
+        # language-data path explicit so OCR works regardless of how the
+        # installed tesseract interprets TESSDATA_PREFIX.
+        args = [_tesseract_cmd, tmp_path, "stdout", "--psm", "3"]
+        if _tessdata_dir:
+            args += ["--tessdata-dir", _tessdata_dir]
+        proc = _run(args)
         if proc.returncode != 0:
+            global _last_ocr_error
             err = (proc.stderr or b"").decode("utf-8", "replace").strip()[:200]
+            _last_ocr_error = err or ("rc=%s" % proc.returncode)
             logger.warning("tesseract rc=%s on page %s: %s",
                            proc.returncode,
                            getattr(fitz_page, "number", "?"), err)
