@@ -432,6 +432,18 @@ class OrbasApp:
             bg=CARD, fg=DARK, activebackground=CARD, selectcolor=CARD,
             font=self.font_small, anchor="w", highlightthickness=0, bd=0)
         self.embed_photos_chk.pack(fill="x", padx=12, pady=(0, 4))
+        # OCR for scanned (image-only) reports is OFF by default so the app is a
+        # pure digital-PDF extractor unless the user opts in. Digital reports are
+        # unaffected either way (OCR only ever runs on pages with no text), but
+        # keeping it opt-in means the scanned path can never surprise a digital
+        # extraction. Turn it on to read scanned/photographed forms.
+        self.enable_ocr_var = tk.BooleanVar(value=False)
+        self.enable_ocr_chk = tk.Checkbutton(
+            c4, text="Enable OCR for scanned PDFs (image-only reports)",
+            variable=self.enable_ocr_var,
+            bg=CARD, fg=DARK, activebackground=CARD, selectcolor=CARD,
+            font=self.font_small, anchor="w", highlightthickness=0, bd=0)
+        self.enable_ocr_chk.pack(fill="x", padx=12, pady=(0, 4))
         self.progress = ttk.Progressbar(c4, mode="indeterminate",
                                         style="Orbas.Horizontal.TProgressbar")
         self.status_label = tk.Label(c4, text="", bg=CARD, fg=MUTED, font=self.font_small,
@@ -683,6 +695,7 @@ class OrbasApp:
         jur = self._selected_jurisdiction()
         doc = self._selected_doctype()
         embed_photos = self.embed_photos_var.get()
+        enable_ocr = self.enable_ocr_var.get()
         path = self.pdf_path
         key = self.key_var.get().strip()
         email = self.email_var.get().strip()
@@ -703,7 +716,7 @@ class OrbasApp:
                 result = extract_pdf(
                     path, jurisdiction=detected,
                     report_type=doc, output_dir=None, save_images=False,
-                    embed_images=embed_photos,
+                    embed_images=embed_photos, enable_ocr=enable_ocr,
                 )
                 self._queue.put(("extract_ok", result))
             except Exception as e:

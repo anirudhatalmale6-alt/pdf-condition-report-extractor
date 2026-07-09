@@ -92,6 +92,13 @@ class ConditionReportExtractor:
         self._scanned = None          # tri-state: None until probed
         self._ocr_cache = {}          # page.number -> OCR text
         self._ocr_used = False        # True once any OCR text is actually used
+        # Master switch for the scanned/image OCR path. When False the extractor
+        # is purely a digital-PDF reader (OCR never runs, no scanned_ticks /
+        # ocr_status in the output). Digital reports are identical either way -
+        # OCR only ever engages on pages with no text layer - but the switch lets
+        # the OCR feature be set aside entirely while digital extraction is the
+        # focus. Set from extract(enable_ocr=...).
+        self._ocr_enabled = True
 
     # ------------------------------------------------------------------
     # Scanned-PDF (OCR) support
@@ -105,6 +112,9 @@ class ConditionReportExtractor:
         """
         if self._scanned is not None:
             return self._scanned
+        if not self._ocr_enabled:
+            self._scanned = False
+            return False
         pages = list(self.fitz_doc)
         if not pages:
             self._scanned = False
@@ -145,7 +155,7 @@ class ConditionReportExtractor:
         if getattr(self, "_has_scanned_cache", None) is not None:
             return self._has_scanned_cache
         val = False
-        if ocr_engine.is_available():
+        if self._ocr_enabled and ocr_engine.is_available():
             val = any(self._is_scanned_page(p) for p in self.fitz_doc)
         self._has_scanned_cache = val
         return val
@@ -184,6 +194,8 @@ class ConditionReportExtractor:
         native = page.get_text()
         if native.strip():
             return native
+        if not self._ocr_enabled:
+            return native
         if not self._is_scanned_page(page):
             return native
         idx = page.number
@@ -194,7 +206,9 @@ class ConditionReportExtractor:
             self._ocr_used = True
         return text
 
-    def extract(self, output_dir=None, save_images=True, embed_images=False):
+    def extract(self, output_dir=None, save_images=True, embed_images=False,
+                enable_ocr=True):
+        self._ocr_enabled = enable_ocr
         self.fitz_doc = fitz.open(self.pdf_path)
         self.plumber_pdf = pdfplumber.open(self.pdf_path)
 
@@ -252,7 +266,8 @@ class ConditionReportExtractor:
             # Always report the OCR engine's status so a scanned PDF that comes
             # back empty is diagnosable (e.g. engine not found) instead of
             # silently yielding nulls.
-            if self._file_format() in ("scanned", "mixed") or self._ocr_used:
+            if self._ocr_enabled and (
+                    self._file_format() in ("scanned", "mixed") or self._ocr_used):
                 result["ocr_status"] = ocr_engine.status()
                 # Best-effort Y/N tick reader for scanned condition grids, with a
                 # per-cell confidence so nothing uncertain is trusted silently.
@@ -1587,7 +1602,7 @@ class ConditionReportExtractor:
             from PIL import Image, ImageOps
         except Exception:
             return []
-        if not ocr_engine.is_available():
+        if not self._ocr_enabled or not ocr_engine.is_available():
             return []
         DARK = 110
 
@@ -1985,7 +2000,7 @@ def detect_report_type_standalone(pdf_path):
 
 
 def extract_pdf(pdf_path, jurisdiction="NSW", report_type="auto", output_dir=None,
-                save_images=True, embed_images=False):
+                save_images=True, embed_images=False, enable_ocr=True):
     extractor = ConditionReportExtractor(pdf_path, jurisdiction, report_type)
     return extractor.extract(output_dir=output_dir, save_images=save_images,
-                             embed_images=embed_images)
+                             embed_images=embed_images, enable_ocr=enable_ocr)
