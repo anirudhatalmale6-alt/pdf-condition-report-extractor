@@ -1331,6 +1331,11 @@ class ConditionReportExtractor:
     # An image covering this much of the page is the page background / a full
     # page scan, not an inspection photo embedded on the page.
     _MAX_PHOTO_PAGE_FRAC = 0.9
+    # For scanned reports the page scans ARE the images the user wants. We render
+    # each scanned page to at most this many pixels on its long edge (keeps the
+    # form legible while keeping the embedded JSON to a sensible size).
+    _SCAN_MAX_DIM = 1400
+    _SCAN_JPEG_QUALITY = 70
     # A real photo is roughly 4:3, 3:4 or up to ~16:9. Anything much wider or
     # taller is a full-width header banner, decorative wave or rule, not a photo.
     _MAX_PHOTO_ASPECT = 2.5
@@ -1426,6 +1431,51 @@ class ConditionReportExtractor:
         media.sort(key=lambda m: (round(m["cy"] / 12), m["cx"]))
         return {"gallery_url": gallery_url, "media": media}
 
+    def _make_scan_entry(self, page, page_idx, save_images, output_dir, embed_data):
+        """Render one scanned page to a compressed image entry, so a scanned
+        report still yields images (the page scans) rather than nothing."""
+        try:
+            long_edge = max(page.rect.width, page.rect.height) or 1
+            zoom = min(self._SCAN_MAX_DIM / long_edge, 3.0)
+            # These are black-on-white form scans, so greyscale keeps them fully
+            # legible while roughly a third the size of an RGB render.
+            pix = page.get_pixmap(matrix=fitz.Matrix(zoom, zoom),
+                                  colorspace=fitz.csGRAY)
+        except Exception:
+            return None
+        entry = {
+            "page": page_idx + 1,
+            "index": 0,
+            "width": pix.width,
+            "height": pix.height,
+            "position": {"x": 0, "y": 0},
+            "label": "Page %d scan" % (page_idx + 1),
+            "media_type": "scan",
+            "date_taken": None,
+            "caption": None,
+            "media_url": None,
+            "gallery_url": None,
+            "format": None,
+            "data_base64": None,
+            "file_path": None,
+        }
+        if embed_data or (save_images and output_dir):
+            try:
+                jpg = pix.tobytes("jpg", jpg_quality=self._SCAN_JPEG_QUALITY)
+                entry["format"] = "jpg"
+            except Exception:
+                jpg = pix.tobytes("png")
+                entry["format"] = "png"
+            if save_images and output_dir:
+                os.makedirs(output_dir, exist_ok=True)
+                fn = "page%d_scan.%s" % (page_idx + 1, entry["format"])
+                with open(os.path.join(output_dir, fn), "wb") as f:
+                    f.write(jpg)
+                entry["file_path"] = fn
+            if embed_data:
+                entry["data_base64"] = base64.b64encode(jpg).decode("utf-8")
+        return entry
+
     def _extract_images(self, output_dir=None, save_images=True, embed_data=False):
         # We surface only genuine report content - the inspection photos - not
         # every raster in the file. Header/footer logos are referenced by every
@@ -1467,10 +1517,19 @@ class ConditionReportExtractor:
                 if not rects:
                     continue
                 # A near page-sized image is the page background or, in a scanned
-                # report, the page scan itself - not an inspection photo.
+                # report, the page scan itself - not an inspection photo. In a
+                # scanned report the page scan IS the image the user wants, so
+                # emit it as a page-scan image; in a digital report it is just a
+                # background, so skip it.
                 page_area = abs(page.rect.width * page.rect.height)
                 if page_area and (abs(rects[0].width * rects[0].height) / page_area
                                   > self._MAX_PHOTO_PAGE_FRAC):
+                    if self._is_scanned_page(page):
+                        entry = self._make_scan_entry(
+                            page, page_idx, save_images, output_dir, embed_data)
+                        if entry:
+                            emitted.add(xref)
+                            images.append(entry)
                     continue
                 try:
                     pix = fitz.Pixmap(doc, xref)
