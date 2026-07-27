@@ -1,0 +1,8 @@
+{
+  "version": "3.7.10",
+  "file": "ORBAS-Windows.zip",
+  "size": 58320837,
+  "sha256": "<sha256-of-the-zip>",
+  "release_notes": "Digital-only extractor. Rejects scanned PDFs at upload.",
+  "released_at": "2026-07-27"
+}
