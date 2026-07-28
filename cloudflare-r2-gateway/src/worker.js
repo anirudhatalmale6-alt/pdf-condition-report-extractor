@@ -47,6 +47,12 @@ export default {
       if (path === "/api/authorize" && request.method === "POST") {
         return await handleAuthorize(request, env, url);
       }
+      if (path === "/api/sync" && request.method === "POST") {
+        return await handleSync(request, env);
+      }
+      if (path === "/api/license-status" && request.method === "GET") {
+        return await handleLicenseStatus(request, env, url);
+      }
       if (path.startsWith("/download/")) {
         return await handleDownload(request, env, url, path);
       }
@@ -75,9 +81,25 @@ async function handleAuthorize(request, env, url) {
     return json({ ok: false, error: "License key is required." }, 400, env);
   }
 
-  const verdict = await validateLicense(env, licenseKey, email);
+  // Route 1 (synced store): the licence status lives in a Cloudflare KV store
+  // that the ORBAS licence server keeps up to date via /api/sync. We read that
+  // directly - instant, and no cross-network call to SiteGround at download time.
+  // Only if a key is NOT in the store AND LICENSE_SOURCE is explicitly "live"
+  // do we fall back to calling the licence server.
+  let verdict;
+  const rec = await lookupLicense(env, licenseKey);
+  if (rec) {
+    verdict = storeVerdict(rec, email);
+  } else if (env.LICENSE_SOURCE === "live" && env.LICENSE_VALIDATE_URL) {
+    verdict = await validateLicense(env, licenseKey, email);
+  } else {
+    verdict = {
+      valid: false,
+      error: "Licence not recognised. If you just purchased or renewed, please try again in a few minutes.",
+    };
+  }
   if (!verdict.valid) {
-    // 402/403 so the client can distinguish "not entitled" from "bad request".
+    // 403 so the client can distinguish "not entitled" from "bad request".
     return json({ ok: false, error: verdict.error || "License is not valid or not active." }, 403, env);
   }
 
@@ -110,6 +132,143 @@ async function handleAuthorize(request, env, url) {
     200,
     env
   );
+}
+
+/* -------------------------------------------------------------------------- */
+/* 1b. Sync: the licence server pushes key status into the KV store (webhook)    */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * POST /api/sync
+ *   Headers: X-ORBAS-Sync-Secret: <SYNC_SECRET>
+ *   Body (single):  { license_key, email?, status, license_type?,
+ *                     subscription_status?, max_devices?, activated_devices? }
+ *   Body (bulk):    { records: [ {..}, {..} ] }        // one-time seed / batch
+ *   Body (remove):  { license_key, delete: true }      // or status:"deleted"
+ * Upserts each record into KV keyed by the (normalised) licence key.
+ */
+async function handleSync(request, env) {
+  const secret = env.SYNC_SECRET || "";
+  if (!secret) return json({ ok: false, error: "Sync is not configured on the server." }, 503, env);
+  const provided = request.headers.get("X-ORBAS-Sync-Secret") || "";
+  if (!provided || !timingSafeEqual(provided, secret)) {
+    return json({ ok: false, error: "Unauthorized." }, 401, env);
+  }
+  if (!env.LICENSES) return json({ ok: false, error: "Licence store is not bound." }, 503, env);
+
+  let body;
+  try {
+    body = await request.json();
+  } catch {
+    return json({ ok: false, error: "Invalid JSON body" }, 400, env);
+  }
+
+  const records = Array.isArray(body.records) ? body.records : body && (body.license_key || body.licenseKey) ? [body] : null;
+  if (!records || records.length === 0) {
+    return json({ ok: false, error: "Provide a license_key, or a records array." }, 400, env);
+  }
+  if (records.length > 1000) {
+    return json({ ok: false, error: "Too many records in one request (max 1000). Send in batches." }, 400, env);
+  }
+
+  let upserted = 0,
+    removed = 0,
+    skipped = 0;
+  for (const rec of records) {
+    const key = normalizeKey(rec.license_key || rec.licenseKey);
+    if (!key) {
+      skipped++;
+      continue;
+    }
+    const isDelete = rec.delete === true || String(rec.status || "").toLowerCase() === "deleted";
+    if (isDelete) {
+      await env.LICENSES.delete(kvKey(key));
+      removed++;
+      continue;
+    }
+    await env.LICENSES.put(kvKey(key), JSON.stringify(normalizeRecord(rec)));
+    upserted++;
+  }
+  return json({ ok: true, upserted, removed, skipped }, 200, env);
+}
+
+/**
+ * GET /api/license-status?key=ORBAS-...   (Header: X-ORBAS-Sync-Secret)
+ * Lets the licence server confirm a key made it into the store.
+ */
+async function handleLicenseStatus(request, env, url) {
+  const secret = env.SYNC_SECRET || "";
+  if (!secret) return json({ ok: false, error: "Sync is not configured on the server." }, 503, env);
+  const provided = request.headers.get("X-ORBAS-Sync-Secret") || "";
+  if (!provided || !timingSafeEqual(provided, secret)) {
+    return json({ ok: false, error: "Unauthorized." }, 401, env);
+  }
+  const key = normalizeKey(url.searchParams.get("key"));
+  if (!key) return json({ ok: false, error: "Provide ?key=" }, 400, env);
+  const rec = await lookupLicense(env, key);
+  if (!rec) return json({ ok: true, found: false, key }, 200, env);
+  return json({ ok: true, found: true, key, record: rec, active: storeVerdict(rec, "").valid }, 200, env);
+}
+
+async function lookupLicense(env, licenseKey) {
+  if (!env.LICENSES) return null;
+  // LICENSES is a dedicated PRIVATE R2 bucket (separate from the download bucket,
+  // so licence records can never be reached through the /download path).
+  const obj = await env.LICENSES.get(kvKey(normalizeKey(licenseKey)));
+  if (!obj) return null;
+  try {
+    return await obj.json();
+  } catch {
+    return null;
+  }
+}
+
+/** Decide entitlement from a stored record (mirrors the live-validation rules). */
+function storeVerdict(rec, email) {
+  const status = String(rec.status || "").toLowerCase();
+  if (["inactive", "expired", "suspended", "revoked", "cancelled", "canceled", "deleted", "disabled"].includes(status)) {
+    return { valid: false, error: "This licence is not active. Please renew to download." };
+  }
+  // Optional email match - only enforced when the stored record carries an email.
+  if (rec.email && email && String(rec.email).toLowerCase() !== String(email).toLowerCase()) {
+    return { valid: false, error: "This email does not match the licence." };
+  }
+  const lt = String(rec.license_type || "").toLowerCase();
+  if (["subscription", "sub", "paid", "premium"].includes(lt)) {
+    if (normalizeStatus(rec.subscription_status) === "inactive") {
+      return { valid: false, error: "Your subscription is not active. Please renew to download." };
+    }
+  }
+  return {
+    valid: true,
+    license_type: rec.license_type || "",
+    max_devices: rec.max_devices ?? null,
+    activated_devices: rec.activated_devices ?? null,
+  };
+}
+
+function normalizeRecord(rec) {
+  const out = {
+    status: String(rec.status || "active").toLowerCase(),
+    email: rec.email ? String(rec.email).trim().toLowerCase() : null,
+    license_type: (rec.license_type || rec.licence_type || rec.type || "") ? String(rec.license_type || rec.licence_type || rec.type).toLowerCase() : null,
+    subscription_status: (rec.subscription_status || rec.subscription || rec.plan_status || "")
+      ? String(rec.subscription_status || rec.subscription || rec.plan_status).toLowerCase()
+      : null,
+    max_devices: rec.max_devices ?? rec.maximum_devices ?? null,
+    activated_devices: rec.activated_devices ?? rec.active_devices ?? rec.device_count ?? null,
+    updated_at: new Date().toISOString(),
+  };
+  return out;
+}
+
+function normalizeKey(k) {
+  if (!k) return null;
+  const s = String(k).trim().toUpperCase();
+  return s || null;
+}
+function kvKey(k) {
+  return "lic/" + k + ".json";
 }
 
 /* -------------------------------------------------------------------------- */

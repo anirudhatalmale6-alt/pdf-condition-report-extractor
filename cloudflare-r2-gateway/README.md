@@ -6,18 +6,29 @@ can only be reached through a short-lived, signed link that is issued *after* th
 licence server approves the request.
 
 ```
+  ORBAS licence server ──POST /api/sync {license_key,status,...}──▶ Worker  (keeps the
+     (on any status change / one-time seed)                          licence store fresh)
+
   Browser / App
        │  1. POST /api/authorize { license_key, email }
        ▼
-  ┌─────────────────────┐   validate    ┌────────────────────────────┐
-  │  Worker (this repo) │ ─────────────▶│ ORBAS licence server        │
-  │                     │◀───────────── │ /api/license/validate       │
-  └─────────────────────┘   valid?      └────────────────────────────┘
+  ┌─────────────────────┐   look up     ┌────────────────────────────┐
+  │  Worker (this repo) │ ─────────────▶│ Licence store (private R2)  │
+  │                     │◀───────────── │ synced from licence server  │
+  └─────────────────────┘  active?      └────────────────────────────┘
        │  2. returns signed URL:
        │     /download/ORBAS-Windows.zip?exp=..&sig=..   (valid ~5 min)
        ▼
   GET /download/... ──▶ Worker verifies sig+expiry ──▶ streams file from R2
 ```
+
+The gate reads licence status from a **synced store** (Route 1) rather than
+calling the licence server at download time. The licence server pushes each key's
+status into the store via `/api/sync` whenever it changes. This keeps the whole
+gate on Cloudflare's free tier, avoids any cross-network call (and any WAF/bot
+challenge in front of the licence server), and is faster for the user. The desktop
+app still performs the full licence + device-limit check on every run, so the
+download gate only needs to answer "is this key entitled to the installer?".
 
 Why this design:
 - The installer sits in a **private** bucket, so nobody can grab it by guessing a URL.
@@ -33,8 +44,10 @@ Why this design:
 |--------|------|------|---------|
 | `GET`  | `/` | none | Download portal (licence key + email form) |
 | `GET`  | `/api/version` | none | Current version metadata (to check for updates) |
-| `POST` | `/api/authorize` | licence | Validate licence → return a signed download URL |
+| `POST` | `/api/authorize` | licence | Check licence in the store → return a signed download URL |
 | `GET`  | `/download/<file>?exp&sig` | signature | Stream the file from R2 |
+| `POST` | `/api/sync` | `X-ORBAS-Sync-Secret` | Upsert/remove licence records in the store (webhook) |
+| `GET`  | `/api/license-status?key=` | `X-ORBAS-Sync-Secret` | Confirm a key's stored status (debug) |
 
 `POST /api/authorize` body:
 ```json
@@ -59,6 +72,55 @@ Rejected (bad key / inactive subscription / device policy):
 
 ---
 
+## Keeping the licence store in sync (`/api/sync`)
+
+The licence server tells the gate about every key via a small authenticated webhook.
+
+**Endpoint:** `POST /api/sync`
+**Header:** `X-ORBAS-Sync-Secret: <SYNC_SECRET>`
+
+Single record (send whenever a key is created or its status changes):
+```json
+{
+  "license_key": "ORBAS-AUS-SUB-XXXX-XXXX-XXXX-XXXX",
+  "email": "user@example.com",
+  "status": "active",              // active | inactive
+  "license_type": "subscription",  // subscription | trial | lifetime
+  "subscription_status": "active", // active | inactive  (for subscriptions)
+  "max_devices": 3,
+  "activated_devices": 1
+}
+```
+
+Bulk seed (one-time import of existing keys, up to 1000 per call):
+```json
+{ "records": [ { "license_key": "…", "status": "active", … }, … ] }
+```
+
+Remove a key:
+```json
+{ "license_key": "ORBAS-AUS-…", "delete": true }
+```
+
+Response: `{ "ok": true, "upserted": N, "removed": N, "skipped": N }`
+
+**When to call it:** on key creation, on subscription activate/deactivate/expire/renew,
+and on cancellation/refund (send `delete: true` or `status: "inactive"`). Only the
+fields that affect entitlement are needed — the gate does not store anything else.
+
+A key is treated as **entitled to download** when `status` is not
+inactive/expired/suspended/revoked/cancelled/deleted **and** (for `subscription`
+types) `subscription_status` is active. If a stored `email` is present it must match
+the email supplied at download time.
+
+Confirm a sync landed:
+```bash
+curl -H "X-ORBAS-Sync-Secret: <SECRET>" \
+  "https://<gateway>/api/license-status?key=ORBAS-AUS-SUB-XXXX-XXXX-XXXX-XXXX"
+```
+
+---
+
 ## One-time setup
 
 1. **Install Wrangler and log in**
@@ -67,19 +129,22 @@ Rejected (bad key / inactive subscription / device policy):
    npx wrangler login
    ```
 
-2. **Create the private bucket** (leave public access OFF)
+2. **Create the two private buckets** (leave public access OFF on both)
    ```bash
-   npx wrangler r2 bucket create <YOUR_R2_BUCKET_NAME>
+   npx wrangler r2 bucket create <YOUR_R2_BUCKET_NAME>       # installer + manifest
+   npx wrangler r2 bucket create <YOUR_LICENSE_BUCKET_NAME>  # synced licence records
    ```
 
 3. **Fill in `wrangler.toml`**
-   - `bucket_name` → your bucket
+   - `BUCKET` `bucket_name` → your download bucket
+   - `LICENSES` `bucket_name` → your licence bucket
    - `routes.pattern` → your download domain, e.g. `downloads.orbas.com.au`
-   - `LICENSE_VALIDATE_URL` is pre-set to `https://app.orbas.com.au/api/license/validate`
+   - `LICENSE_SOURCE` → `kv` (read from the synced store)
 
-4. **Set the link-signing secret** (any long random string; keep it private)
+4. **Set the two secrets** (any long random strings; keep them private)
    ```bash
-   npx wrangler secret put DOWNLOAD_SIGNING_KEY
+   npx wrangler secret put DOWNLOAD_SIGNING_KEY   # signs download links
+   npx wrangler secret put SYNC_SECRET            # protects /api/sync
    ```
 
 5. **Upload the installer + manifest to R2**

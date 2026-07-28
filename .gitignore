@@ -5,3 +5,5 @@ __pycache__/
 *.pyo
 *.egg-info/
 *.pyc
+cloudflare-r2-gateway/wrangler.deploy.toml
+cloudflare-r2-gateway/manifest.json

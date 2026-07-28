@@ -1,8 +1,9 @@
 # ORBAS gated download gateway - Cloudflare Worker + R2
 # ------------------------------------------------------
-# Fill in the two <PLACEHOLDER> values, then deploy with:  npx wrangler deploy
-# The signing secret is set separately (never put it here):
-#   npx wrangler secret put DOWNLOAD_SIGNING_KEY
+# Fill in the <PLACEHOLDER> values, then deploy with:  npx wrangler deploy
+# Two secrets are set separately (never put them here):
+#   npx wrangler secret put DOWNLOAD_SIGNING_KEY   # signs download links
+#   npx wrangler secret put SYNC_SECRET            # protects the /api/sync webhook
 
 name = "orbas-download-gateway"
 main = "src/worker.js"
@@ -13,8 +14,17 @@ compatibility_date = "2024-11-01"
 binding = "BUCKET"                 # do not change - the Worker code expects "BUCKET"
 bucket_name = "<YOUR_R2_BUCKET_NAME>"
 
+# --- Private R2 bucket that holds the synced licence records ------------------
+# Kept SEPARATE from the download bucket so licence data can never be reached
+# through the /download path. The licence server keeps it fresh via /api/sync.
+[[r2_buckets]]
+binding = "LICENSES"               # do not change - the Worker code expects "LICENSES"
+bucket_name = "<YOUR_LICENSE_BUCKET_NAME>"
+
 # --- Plain (non-secret) config ------------------------------------------------
 [vars]
+LICENSE_SOURCE = "kv"              # "kv" = read licence status from the synced store (recommended)
+                                   # "live" = fall back to calling LICENSE_VALIDATE_URL on a store miss
 LICENSE_VALIDATE_URL = "https://app.orbas.com.au/api/license/validate"
 ALLOWED_ORIGIN = "*"               # tighten to your portal origin in production
 LINK_TTL_SECONDS = "300"           # signed download links are valid for 5 minutes
