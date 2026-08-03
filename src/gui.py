@@ -34,6 +34,7 @@ from .license import (
     save_activation,
     load_activation,
     clear_activation,
+    device_usage_text,
 )
 
 DEMO_KEYS = {"ORBAS-DEMO-2026", "ORBAS-TRIAL-2026", "ORBAS-NSW-VALID"}
@@ -640,7 +641,9 @@ class OrbasApp:
                 if ok:
                     ltype = (result.get("license_type") or "").strip()
                     suffix = " ({})".format(ltype.title()) if ltype else ""
-                    msg = "Licence active{}. PDF extraction is enabled.".format(suffix)
+                    dev = device_usage_text(result)
+                    dev_part = " {}.".format(dev) if dev else ""
+                    msg = "Licence active{}.{} PDF extraction is enabled.".format(suffix, dev_part)
                 else:
                     clear_activation()
                     msg = (result.get("error")
@@ -679,7 +682,9 @@ class OrbasApp:
                     save_activation(key, email)
                     ltype = (result.get("license_type") or "").strip()
                     suffix = " ({})".format(ltype.title()) if ltype else ""
-                    msg = "Licence verified{}. PDF extraction is now enabled.".format(suffix)
+                    dev = device_usage_text(result)
+                    dev_part = " {}.".format(dev) if dev else ""
+                    msg = "Licence verified{}.{} PDF extraction is now enabled.".format(suffix, dev_part)
                 else:
                     clear_activation()
                     msg = result.get("error") or "Invalid product key."

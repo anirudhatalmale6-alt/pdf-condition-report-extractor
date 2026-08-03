@@ -123,11 +123,43 @@ _INACTIVE_SUB_REASONS = {
 
 
 def is_trial(license_type):
-    return str(license_type or "").strip().lower() in ("trial", "trialing", "free_trial")
+    # Server sends free-form types like "TRIAL" / "FREE TRIAL"; match on token.
+    return "trial" in str(license_type or "").strip().lower()
 
 
 def is_subscription(license_type):
-    return str(license_type or "").strip().lower() in ("subscription", "sub", "paid", "premium")
+    # Server sends "PAID SUBSCRIPTION", "SUBSCRIPTION", "PREMIUM" etc. - match on
+    # any subscription-ish token (but a trial is never a subscription).
+    s = str(license_type or "").strip().lower()
+    if is_trial(s):
+        return False
+    return any(tok in s for tok in ("subscription", "paid", "premium"))
+
+
+def _to_int(v, default=None):
+    """Coerce a value that may be a string ("3") or int (0) to int."""
+    try:
+        if v is None or v == "":
+            return default
+        return int(str(v).strip())
+    except (ValueError, TypeError):
+        return default
+
+
+def _to_bool_flag(v):
+    """Interpret a Yes/No/true/1 style flag. Returns None if not present."""
+    if v is None:
+        return None
+    return str(v).strip().lower() in ("yes", "true", "1", "y", "active", "validated")
+
+
+def device_usage_text(result):
+    """A short 'Device X of Y' string from a validation result, or '' if unknown."""
+    md = result.get("max_devices")
+    ad = result.get("activated_devices")
+    if isinstance(md, int) and isinstance(ad, int) and md > 0:
+        return "Device {} of {}".format(ad, md)
+    return ""
 
 
 _ACTIVE_SUB_VALUES = {"active", "current", "valid", "trialing"}
@@ -201,6 +233,75 @@ class LicenseValidator:
             "app_version": VERSION,
         }
 
+    def _interpret(self, data):
+        """Turn a 200 response body into the app's normalised licence result.
+
+        Kept separate from the network call so it can be unit-tested against the
+        exact JSON the ORBAS endpoint returns.
+        """
+        # Accept a couple of common truthy shapes so we stay compatible with the
+        # final endpoint contract (valid / active / success).
+        valid = bool(
+            data.get("valid", data.get("active", data.get("success", False)))
+        )
+        # The success response nests licence details under a "license" object
+        # (license_type, status, subscription_status, expires_at, max_devices,
+        # activated_devices, is_validated). Flatten it so lookups work either way.
+        lic = data.get("license") if isinstance(data.get("license"), dict) else {}
+        fields = {**lic, **{k: v for k, v in data.items() if k != "license"}}
+        # Licence type (Trial / Subscription) is returned by the server.
+        license_type = (
+            fields.get("license_type")
+            or fields.get("licence_type")
+            or fields.get("type")
+            or ""
+        )
+        max_devices = _to_int(fields.get("max_devices"))
+        activated_devices = _to_int(fields.get("activated_devices"))
+        is_validated = _to_bool_flag(fields.get("is_validated"))
+        result = {
+            "valid": valid,
+            "license_type": license_type,
+            "status": fields.get("status", ""),
+            "subscription_status": fields.get("subscription_status", ""),
+            "expires_at": fields.get("expires_at", ""),
+            "max_devices": max_devices,
+            "activated_devices": activated_devices,
+            "is_validated": is_validated,
+            "reason": data.get("reason", ""),
+            "message": data.get("message", ""),
+            "error": None if valid else (data.get("message") or data.get("error") or "Invalid product key."),
+        }
+        if not valid:
+            return result
+
+        # Key is valid. For a SUBSCRIPTION licence, additionally require an active
+        # subscription - a valid key is not enough. TRIAL is exempt.
+        if is_subscription(license_type):
+            active = subscription_is_active(fields)
+            if active is False:
+                result["valid"] = False
+                # Server returned valid:true here, so its `message` is a success
+                # line - use our own rejection text instead.
+                result["error"] = (
+                    "Your subscription is not active. Please renew your subscription to use the extractor."
+                )
+                return result
+
+        # Device-limit enforcement. The server is the source of truth (it either
+        # registers this device or refuses). This is a clear, friendly message
+        # for the case where the server did NOT validate this device because the
+        # plan's device allowance is already fully used on other machines.
+        if is_validated is False and max_devices is not None and \
+                activated_devices is not None and activated_devices >= max_devices:
+            result["valid"] = False
+            result["error"] = (
+                "This licence is already active on {0} of {0} devices. Please "
+                "deactivate it on another machine, or contact support to use it "
+                "here.".format(max_devices)
+            )
+        return result
+
     def validate(self, license_key, email=None):
         if not license_key or not license_key.strip():
             return {"valid": False, "error": "License key is required"}
@@ -225,48 +326,7 @@ class LicenseValidator:
             )
 
             if response.status_code == 200:
-                data = response.json()
-                # Accept a couple of common truthy shapes so we stay compatible
-                # with the final endpoint contract (valid / active / success).
-                valid = bool(
-                    data.get("valid", data.get("active", data.get("success", False)))
-                )
-                # The success response nests licence details under a "license"
-                # object (license_type, status, subscription_status, expires_at,
-                # max_devices). Flatten it so field lookups work either way.
-                lic = data.get("license") if isinstance(data.get("license"), dict) else {}
-                fields = {**lic, **{k: v for k, v in data.items() if k != "license"}}
-                # Licence type (Trial / Subscription) is returned by the server.
-                license_type = (
-                    fields.get("license_type")
-                    or fields.get("licence_type")
-                    or fields.get("type")
-                    or ""
-                )
-                result = {
-                    "valid": valid,
-                    "license_type": license_type,
-                    "status": fields.get("status", ""),
-                    "subscription_status": fields.get("subscription_status", ""),
-                    "expires_at": fields.get("expires_at", ""),
-                    "reason": data.get("reason", ""),
-                    "message": data.get("message", ""),
-                    "error": None if valid else (data.get("message") or data.get("error") or "Invalid product key."),
-                }
-                if not valid:
-                    return result
-
-                # Key is valid. For a SUBSCRIPTION licence, additionally require an
-                # active subscription - a valid key is not enough. TRIAL is exempt.
-                if is_subscription(license_type):
-                    active = subscription_is_active(fields)
-                    if active is False:
-                        result["valid"] = False
-                        result["error"] = (
-                            data.get("message")
-                            or "Your subscription is not active. Please renew your subscription to use the extractor."
-                        )
-                return result
+                return self._interpret(response.json())
 
             if response.status_code in (401, 403):
                 return {"valid": False, "error": "Product key was not accepted. Please check the key and email."}
