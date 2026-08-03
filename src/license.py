@@ -295,10 +295,12 @@ class LicenseValidator:
         if is_validated is False and max_devices is not None and \
                 activated_devices is not None and activated_devices >= max_devices:
             result["valid"] = False
+            result["reason"] = result.get("reason") or "DEVICE_LIMIT_REACHED"
             result["error"] = (
-                "This licence is already active on {0} of {0} devices. Please "
-                "deactivate it on another machine, or contact support to use it "
-                "here.".format(max_devices)
+                "You have reached the maximum number of registered devices allowed "
+                "under your subscription ({0} of {0} in use). Please remove an "
+                "existing device, upgrade your subscription, or contact the ORBAS "
+                "team.".format(max_devices)
             )
         return result
 
