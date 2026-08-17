@@ -1,6 +1,6 @@
 # ORBAS PDF Extractor — Technical Documentation
 
-**Product:** ORBAS PDF Extractor (Online Rental Bond Assessment System)
+**Product:** ORBAS PDF Extractor (Online Rental Bond Assessment Software)
 **Type:** Native Windows desktop application (Python)
 **Purpose:** Extract Australian residential tenancy condition report PDFs into
 structured, machine-readable JSON for downstream use in the ORBAS web platform
