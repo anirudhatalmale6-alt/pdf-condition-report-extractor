@@ -18,7 +18,7 @@ import threading
 import webbrowser
 
 import tkinter as tk
-from tkinter import ttk, filedialog, scrolledtext
+from tkinter import ttk, filedialog, scrolledtext, font as tkfont
 
 try:
     # Optional: enables OS-level drag-and-drop of a PDF onto the drop zone.
@@ -60,6 +60,17 @@ OK_FG = "#166534"
 ERR_BG = "#fef2f2"
 ERR_FG = "#991b1b"
 
+# Summary stat tiles: the fonts are chosen at runtime between these bounds so the
+# widest value and caption fit their tile at any window size or display scaling.
+STAT_FONT_MAX = 11
+STAT_FONT_MIN = 7
+STAT_CAP_MAX = 7
+STAT_CAP_MIN = 6
+# Tiles per row: eight across normally, folding to two rows of four when the card
+# gets too narrow for eight to stay readable.
+STAT_COLS_MAX = 8
+STAT_COLS_MIN = 4
+
 
 def _asset_path(name):
     """Resolve a bundled asset, both in dev and inside a PyInstaller build."""
@@ -99,6 +110,13 @@ class OrbasApp:
         self.extracted_json = ""
         self.extracting = False
         self._queue = queue.Queue()
+        self._stat_values = []
+        self._stat_caps = []
+        self._stat_specs = []
+        self._stat_tiles = None
+        self._stat_cols = STAT_COLS_MAX
+        self._stat_fit = None
+        self._stat_busy = False
 
         root.title(f"{APP_NAME} PDF Extractor")
         root.geometry("1360x820")
@@ -892,21 +910,127 @@ class OrbasApp:
             size /= 1024
         return f"{size:.1f} MB"
 
-    def _stat_tile(self, parent, col, label, value, value_fg=DARK):
+    def _stat_tile(self, parent, row, col, label, value, pady, value_fg=DARK):
         cell = tk.Frame(parent, bg="white")
-        cell.grid(row=0, column=col, sticky="nsew", padx=2)
-        # Smaller fonts + wraplength so the eight tiles stay clean and never
-        # overflow into each other, even for longer values like "combined".
-        tk.Label(cell, text=str(value), bg="white", fg=value_fg,
-                 font=(self.font_ui[0], 11, "bold"),
-                 wraplength=96, justify="center").pack()
-        tk.Label(cell, text=label.upper(), bg="white", fg="#94a3b8",
-                 font=(self.font_ui[0], 7, "bold"),
-                 wraplength=96, justify="center").pack(pady=(1, 0))
+        cell.grid(row=row, column=col, sticky="nsew", padx=2, pady=pady)
+        val = tk.Label(cell, text=str(value), bg="white", fg=value_fg,
+                       font=(self.font_ui[0], STAT_FONT_MAX, "bold"), justify="center")
+        val.pack()
+        cap = tk.Label(cell, text=label.upper(), bg="white", fg="#94a3b8",
+                       font=(self.font_ui[0], STAT_CAP_MAX, "bold"), justify="center")
+        cap.pack(pady=(1, 0))
+        # Both fonts are set later by _fit_stat_tiles, once the row knows its width.
+        self._stat_values.append(val)
+        self._stat_caps.append(cap)
+
+    def _layout_stat_tiles(self):
+        """(Re)build the tile grid at self._stat_cols tiles per row."""
+        tiles = self._stat_tiles
+        for ch in tiles.grid_slaves():
+            ch.destroy()
+        self._stat_values = []
+        self._stat_caps = []
+        cols = self._stat_cols
+        rows = -(-len(self._stat_specs) // cols)
+
+        # Tiles sit on even columns, the hairline dividers on the odd ones. Columns
+        # left over from a wider layout are reset, or grid keeps weighting them.
+        for c in range(STAT_COLS_MAX * 2):
+            tile_col = c % 2 == 0 and c < cols * 2
+            tiles.columnconfigure(c, weight=1 if tile_col else 0,
+                                  uniform="tile" if tile_col else "")
+
+        for i, (label, value) in enumerate(self._stat_specs):
+            row, c = divmod(i, cols)
+            pady = (0, 8) if rows > 1 and row == 0 else 0
+            self._stat_tile(tiles, row, c * 2, label, value, pady)
+            if c < cols - 1:
+                tk.Frame(tiles, bg="#eef2f7", width=1).grid(
+                    row=row, column=c * 2 + 1, sticky="ns", pady=2)
+
+    def _stat_avail(self, cols, margin=0):
+        """Width one tile's text may occupy if the row were split into `cols`.
+
+        Derived from the row width imposed by the card - not from the cells, whose
+        widths grow with their own content and so would happily report "it fits"
+        while the row overflows the card.
+        """
+        room = self._stat_tiles.winfo_width() - (cols - 1)   # 1px divider between tiles
+        return int(room / cols) - 4 - 6 - margin             # cell padx, label border/pad
+
+    def _best_stat_size(self, avail):
+        """Largest (value, caption) font pair that fits `avail`, or None if none does."""
+        def fits(size, labels):
+            f = tkfont.Font(family=self.font_ui[0], size=size, weight="bold")
+            return all(f.measure(lbl.cget("text")) <= avail for lbl in labels)
+
+        for size in range(STAT_FONT_MAX, STAT_FONT_MIN - 1, -1):
+            # Captions ride 4pt below the values, the ratio the card was designed at;
+            # they get their own floor so they stay legible.
+            cap = max(STAT_CAP_MIN, min(STAT_CAP_MAX, size - 4))
+            if fits(size, self._stat_values) and fits(cap, self._stat_caps):
+                return size, cap
+        return None
+
+    def _fit_stat_tiles(self):
+        """Size - and if need be reflow - the stat tiles to the room the card has.
+
+        The tiles split the card width equally, so the space each one gets is decided
+        by the window size and the user's display scaling, not by the text. A value
+        like "Combined" is a single word with nowhere to break, so a fixed wrap limit
+        just splits it mid-word ("combine" / "d"); scaling the text to the measured
+        width is what keeps it on one line. Once even the smallest font stops fitting
+        the row folds into two rows of four rather than shrinking into illegibility.
+        """
+        if not self._stat_values or self._stat_busy:
+            return
+        avail = self._stat_avail(self._stat_cols)
+        if avail < 24:
+            return  # Not laid out yet; the next <Configure> will have real numbers.
+
+        best = self._best_stat_size(avail)
+        if best is None and self._stat_cols == STAT_COLS_MAX:
+            self._relayout_stat_tiles(STAT_COLS_MIN)
+            return
+        if self._stat_cols == STAT_COLS_MIN:
+            # Back to one row only once it fits with room to spare, so that dragging
+            # the window across the threshold cannot flip the layout back and forth.
+            if self._best_stat_size(self._stat_avail(STAT_COLS_MAX, margin=12)):
+                self._relayout_stat_tiles(STAT_COLS_MAX)
+                return
+
+        size, cap_size = best or (STAT_FONT_MIN, STAT_CAP_MIN)
+        if (size, avail) == self._stat_fit:
+            return  # Avoid re-entering <Configure> for a fit we already applied.
+        self._stat_fit = (size, avail)
+
+        for lbl in self._stat_values:
+            # Wrapping is only ever allowed at a space. Left to itself Tk breaks a
+            # too-long single word mid-word - which is the "combine / d" the tiles
+            # used to show.
+            lbl.configure(font=(self.font_ui[0], size, "bold"),
+                          wraplength=avail if " " in lbl.cget("text") else 0)
+        for lbl in self._stat_caps:
+            lbl.configure(font=(self.font_ui[0], cap_size, "bold"),
+                          wraplength=avail if " " in lbl.cget("text") else 0)
+
+    def _relayout_stat_tiles(self, cols):
+        """Rebuild at a different tile count, without re-entering via <Configure>."""
+        self._stat_cols = cols
+        self._stat_fit = None
+        self._stat_busy = True
+        try:
+            self._layout_stat_tiles()
+        finally:
+            self._stat_busy = False
+        self.root.after_idle(self._fit_stat_tiles)
 
     def _show_summary(self, result):
         for ch in self.meta_card.winfo_children():
             ch.destroy()
+        self._stat_values = []
+        self._stat_caps = []
+        self._stat_fit = None
 
         areas = result.get("areas", [])
         comps = sum(len(a.get("components", [])) for a in areas)
@@ -950,7 +1074,9 @@ class OrbasApp:
         tiles.pack(fill="x", padx=12, pady=(10, 12))
         stats = [
             ("Jurisdiction", result.get("jurisdiction", "N/A")),
-            ("Doc Type", result.get("document_type", "N/A")),
+            # "move_in" / "combined" -> "Move In" / "Combined" for display only;
+            # the JSON value itself is untouched.
+            ("Doc Type", str(result.get("document_type") or "N/A").replace("_", " ").title()),
             ("Format", (meta.get("file_format") or "N/A").title()),
             ("Pages", meta.get("total_pages", 0)),
             ("Areas", len(areas)),
@@ -958,15 +1084,14 @@ class OrbasApp:
             ("PDF Size", pdf_size),
             ("JSON Size", json_size),
         ]
-        col = 0
-        for i, (label, value) in enumerate(stats):
-            tiles.columnconfigure(col, weight=1, uniform="tile")
-            self._stat_tile(tiles, col, label, value)
-            col += 1
-            if i < len(stats) - 1:
-                div = tk.Frame(tiles, bg="#eef2f7", width=1)
-                div.grid(row=0, column=col, sticky="ns", pady=2)
-                col += 1
+        self._stat_specs = stats
+        self._stat_tiles = tiles
+        self._stat_cols = STAT_COLS_MAX
+        self._layout_stat_tiles()
+
+        # Re-fit whenever the row is (re)sized - first layout, window resize, maximise.
+        tiles.bind("<Configure>", lambda e: self._fit_stat_tiles())
+        self.root.after_idle(self._fit_stat_tiles)
 
         if missing:
             tk.Label(inner, text="Not found in this PDF: " + ", ".join(missing),
