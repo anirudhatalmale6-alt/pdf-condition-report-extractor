@@ -106,6 +106,8 @@ pdf-extractor/
 ├── assets/                 # Branding: logo, window icon (.png), exe icon (.ico)
 ├── schemas/                # JSON schema references
 ├── samples/                # Sample condition report PDFs (one per jurisdiction)
+├── tests/                  # Layout regression checks (need a display)
+├── tools/                  # make_brand_assets.py - rebuilds assets/ from the lockup
 ├── src/
 │   ├── gui.py              # Tkinter GUI (class OrbasApp)
 │   ├── extractor.py        # Extraction engine (class ConditionReportExtractor)
