@@ -71,6 +71,17 @@ STAT_CAP_MIN = 6
 STAT_COLS_MAX = 8
 STAT_COLS_MIN = 4
 
+# Header lockup. assets/orbas_logo.png ships as a 2x master and is redrawn at
+# LOGO_HEIGHT scaled by the display setting: Tk sizes text in points (so it grows
+# with the display scaling) but images in raw pixels, so a fixed-size logo shrinks
+# against everything around it. The trademark mark is only ~12% of the lockup's
+# height and is the first detail to go, which is what LOGO_HEIGHT is set from.
+LOGO_HEIGHT = 96
+LOGO_MASTER = 2
+LOGO_MIN = 60
+LOGO_MAX = 240
+LOGO_GAP = 24     # breathing room between the lockup and the Refresh block
+
 
 def _asset_path(name):
     """Resolve a bundled asset, both in dev and inside a PyInstaller build."""
@@ -85,6 +96,26 @@ def _asset_path(name):
         if os.path.isfile(c):
             return c
     return None
+
+
+def _logo_target(scale):
+    """Header lockup height in pixels for a display scaling of `scale`."""
+    return max(LOGO_MIN, min(LOGO_MAX, int(round(LOGO_HEIGHT * scale))))
+
+
+def _logo_bitmap(path, target):
+    """The lockup master resized to `target` pixels tall, as an RGBA image.
+
+    Pillow rather than Tk's integer zoom/subsample, so the trademark mark and the
+    tagline stay clean at the in-between scalings Windows actually uses (125%,
+    150%, 175%).
+    """
+    from PIL import Image
+
+    with Image.open(path) as src:
+        im = src.convert("RGBA")
+    w = max(1, round(im.width * target / im.height))
+    return im.resize((w, target), Image.LANCZOS)
 
 
 def _enable_dpi_awareness():
@@ -117,6 +148,13 @@ class OrbasApp:
         self._stat_cols = STAT_COLS_MAX
         self._stat_fit = None
         self._stat_busy = False
+        self._logo_path = None
+        self._logo_lbl = None
+        self._logo_aspect = None
+        self._logo_h = None
+        self._logo_busy = False
+        self._logo_hdr = None
+        self._logo_right = None
 
         root.title(f"{APP_NAME} PDF Extractor")
         root.geometry("1360x820")
@@ -216,6 +254,78 @@ class OrbasApp:
         circ.pack(side="left")
         tk.Label(bar, text=title, bg=CARD, fg=DARK, font=self.font_h2).pack(side="left", padx=8)
 
+    def logo_scale(self):
+        """The display scaling, as a multiple of Windows 100%.
+
+        winfo_fpixels tracks Tk's own scaling factor, which is the knob that sizes
+        every point-sized font in the window - so the lockup grows by exactly as
+        much as the text beside it does.
+        """
+        try:
+            return self.root.winfo_fpixels("1i") / 96.0
+        except Exception:
+            return 1.0
+
+    def _logo_photo(self, target):
+        """A tk.PhotoImage of the lockup, `target` pixels tall."""
+        try:
+            import base64
+            from io import BytesIO
+
+            im = _logo_bitmap(self._logo_path, target)
+            buf = BytesIO()
+            im.save(buf, "PNG")
+            return tk.PhotoImage(data=base64.b64encode(buf.getvalue()))
+        except Exception:
+            # Pure-Tk fallback: the master back down to its intended 1x size.
+            try:
+                return tk.PhotoImage(file=self._logo_path).subsample(LOGO_MASTER)
+            except Exception:
+                return None
+
+    def _load_logo(self):
+        """The header lockup, drawn to suit the display's scaling."""
+        self._logo_path = _asset_path("orbas_logo.png")
+        if not self._logo_path:
+            return None
+        try:
+            from PIL import Image
+
+            with Image.open(self._logo_path) as m:
+                self._logo_aspect = m.width / m.height
+        except Exception:
+            self._logo_aspect = None
+        self._logo_h = _logo_target(self.logo_scale())
+        return self._logo_photo(self._logo_h)
+
+    def _fit_logo(self, event=None):
+        """Shrink the lockup when the header is too narrow to hold it.
+
+        Only bites on a narrow window at a high display scaling: at 175% in the
+        980px minimum width the full-size lockup is ~95px wider than the room left
+        beside the Refresh block, and would push it off the right edge.
+        """
+        if self._logo_busy or self._logo_lbl is None or not self._logo_aspect:
+            return
+        avail = (self._logo_hdr.winfo_width()
+                 - self._logo_right.winfo_reqwidth() - LOGO_GAP)
+        if avail <= 0:
+            return                       # not laid out yet
+        want = _logo_target(self.logo_scale())
+        if want * self._logo_aspect > avail:
+            want = max(LOGO_MIN, int(avail / self._logo_aspect))
+        if want == self._logo_h:
+            return
+        self._logo_busy = True
+        try:
+            img = self._logo_photo(want)
+            if img is not None:
+                self._logo_img = img     # the app owns the only reference
+                self._logo_lbl.configure(image=img)
+                self._logo_h = want
+        finally:
+            self._logo_busy = False
+
     # ---- layout --------------------------------------------------------
     def _build_ui(self):
         # Header
@@ -223,15 +333,10 @@ class OrbasApp:
         header.pack(fill="x", padx=18, pady=(14, 6))
         left = tk.Frame(header, bg=BG)
         left.pack(side="left")
-        logo_path = _asset_path("orbas_logo.png")
-        self._logo_img = None
-        if logo_path:
-            try:
-                self._logo_img = tk.PhotoImage(file=logo_path)
-            except Exception:
-                self._logo_img = None
+        self._logo_img = self._load_logo()
         if self._logo_img is not None:
-            tk.Label(left, image=self._logo_img, bg=BG).pack(anchor="w")
+            self._logo_lbl = tk.Label(left, image=self._logo_img, bg=BG)
+            self._logo_lbl.pack(anchor="w")
         else:
             tk.Label(left, text=APP_NAME, bg=BG, fg=BRAND_GREEN,
                      font=self.font_h1).pack(anchor="w")
@@ -252,6 +357,9 @@ class OrbasApp:
         tk.Label(vrow, text=f"v{VERSION}", bg=BG, fg=DARK, font=self.font_bold).pack(side="right")
         tk.Label(vrow, text="Local PDF Extraction  ", bg=BG, fg=MUTED,
                  font=self.font_small).pack(side="right")
+
+        self._logo_hdr, self._logo_right = header, rt
+        header.bind("<Configure>", self._fit_logo)
 
         # Footer: copyright + Terms & Conditions (packed bottom before the body
         # so the body expands into the middle).

@@ -6,7 +6,7 @@ command rather than three hand-edited images that can drift apart:
     python tools/make_brand_assets.py path/to/ORBAS_Primary_Approved_Tagline.jpg
 
 Produces, in assets/:
-    orbas_logo.png   header wordmark, transparent, 60px tall
+    orbas_logo.png   header wordmark, transparent, 2x master (192px tall)
     orbas_icon.png   256x256 monogram tile, transparent
     orbas.ico        multi-size Windows icon (title bar, taskbar, exe)
 
@@ -25,7 +25,12 @@ from PIL import Image, ImageChops
 HERE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 ASSETS = os.path.join(HERE, "assets")
 
-LOGO_HEIGHT = 60          # header lockup, used at native size by the Tk label
+# Header lockup. The file ships at 2x the size it is normally drawn at, because
+# the app rescales it to the display's scaling - see LOGO_HEIGHT in src/gui.py.
+# 96px keeps the trademark mark legible: TM is only ~12% of the lockup's height,
+# so at the old 60px it came out around 7px tall and mushed into the wordmark.
+LOGO_HEIGHT = 96
+LOGO_MASTER = 2
 ICON_SIZE = 256
 ICO_SIZES = (16, 24, 32, 48, 64, 128, 256)
 
@@ -102,16 +107,22 @@ def main(src):
     art = keyed(Image.open(src))
 
     logo = trimmed(art)
-    w = max(1, round(logo.width * LOGO_HEIGHT / logo.height))
-    logo = logo.resize((w, LOGO_HEIGHT), Image.LANCZOS)
+    h = LOGO_HEIGHT * LOGO_MASTER
+    w = max(1, round(logo.width * h / logo.height))
+    logo = logo.resize((w, h), Image.LANCZOS)
     logo.save(os.path.join(ASSETS, "orbas_logo.png"))
 
+    # The monogram crop comes from a pixel scan, so a differently re-compressed
+    # copy of the same artwork shifts the tile's margin by a few pixels. Diff the
+    # icon against the shipped one before committing a regenerated set - there is
+    # no reason to move an already-approved app icon.
     icon = monogram(art).resize((ICON_SIZE, ICON_SIZE), Image.LANCZOS)
     icon.save(os.path.join(ASSETS, "orbas_icon.png"))
     icon.save(os.path.join(ASSETS, "orbas.ico"),
               sizes=[(s, s) for s in ICO_SIZES])
 
-    print(f"orbas_logo.png  {logo.width}x{logo.height}")
+    print(f"orbas_logo.png  {logo.width}x{logo.height}  ({LOGO_MASTER}x master, "
+          f"drawn at {LOGO_HEIGHT}px on a 100% display)")
     print(f"orbas_icon.png  {ICON_SIZE}x{ICON_SIZE}")
     print(f"orbas.ico       {', '.join(str(s) for s in ICO_SIZES)}")
 
