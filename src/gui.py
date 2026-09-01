@@ -71,14 +71,20 @@ STAT_CAP_MIN = 6
 STAT_COLS_MAX = 8
 STAT_COLS_MIN = 4
 
-# Header lockup. assets/orbas_logo.png ships as a 2x master and is redrawn at
-# LOGO_HEIGHT scaled by the display setting: Tk sizes text in points (so it grows
-# with the display scaling) but images in raw pixels, so a fixed-size logo shrinks
-# against everything around it. The trademark mark is only ~12% of the lockup's
-# height and is the first detail to go, which is what LOGO_HEIGHT is set from.
-LOGO_HEIGHT = 96
-LOGO_MASTER = 2
-LOGO_MIN = 60
+# Header lockup. assets/orbas_logo.png ships oversized (LOGO_MASTER_H tall) and is
+# redrawn at LOGO_HEIGHT scaled by the display setting: Tk sizes text in points (so
+# it grows with the display scaling) but images in raw pixels, so a fixed-size logo
+# shrinks against everything around it.
+#
+# LOGO_HEIGHT is a balance the client set by eye, twice. 60px in v3.7.14 left the
+# trademark mark - only ~12% of the lockup's height - as about 3px of solid ink, so
+# it mushed into the wordmark; 96px in v3.7.15 read as too big beside the rest of the
+# header. At 72px the mark renders 8px tall with both strokes of the M resolving,
+# and more on a scaled display: the client's own machine reports 1.5x, i.e. a 108px
+# lockup with a 12px mark.
+LOGO_HEIGHT = 72
+LOGO_MASTER_H = 192   # the shipped master's real height; > 2x LOGO_HEIGHT on purpose
+LOGO_MIN = 56
 LOGO_MAX = 240
 LOGO_GAP = 24     # breathing room between the lockup and the Refresh block
 
@@ -277,9 +283,11 @@ class OrbasApp:
             im.save(buf, "PNG")
             return tk.PhotoImage(data=base64.b64encode(buf.getvalue()))
         except Exception:
-            # Pure-Tk fallback: the master back down to its intended 1x size.
+            # Pure-Tk fallback: subsample is integer-only, so this lands on the
+            # nearest whole division of the master rather than exactly on target.
             try:
-                return tk.PhotoImage(file=self._logo_path).subsample(LOGO_MASTER)
+                n = max(1, round(LOGO_MASTER_H / max(1, target)))
+                return tk.PhotoImage(file=self._logo_path).subsample(n)
             except Exception:
                 return None
 

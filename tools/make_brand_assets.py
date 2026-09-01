@@ -25,12 +25,13 @@ from PIL import Image, ImageChops
 HERE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 ASSETS = os.path.join(HERE, "assets")
 
-# Header lockup. The file ships at 2x the size it is normally drawn at, because
-# the app rescales it to the display's scaling - see LOGO_HEIGHT in src/gui.py.
-# 96px keeps the trademark mark legible: TM is only ~12% of the lockup's height,
-# so at the old 60px it came out around 7px tall and mushed into the wordmark.
-LOGO_HEIGHT = 96
-LOGO_MASTER = 2
+# Header lockup. The file ships well above the size it is normally drawn at, because
+# the app rescales it to the display's scaling - see LOGO_HEIGHT in src/gui.py, which
+# is 72 and can go to LOGO_MAX=240 on a large scaled display. A generous master keeps
+# the trademark mark (only ~12% of the lockup's height) clean at every step in that
+# range; there is no reason to trim it, so LOGO_MASTER_H in gui.py tracks this value
+# rather than the other way round.
+LOGO_MASTER_H = 192
 ICON_SIZE = 256
 ICO_SIZES = (16, 24, 32, 48, 64, 128, 256)
 
@@ -107,7 +108,7 @@ def main(src):
     art = keyed(Image.open(src))
 
     logo = trimmed(art)
-    h = LOGO_HEIGHT * LOGO_MASTER
+    h = LOGO_MASTER_H
     w = max(1, round(logo.width * h / logo.height))
     logo = logo.resize((w, h), Image.LANCZOS)
     logo.save(os.path.join(ASSETS, "orbas_logo.png"))
@@ -121,8 +122,8 @@ def main(src):
     icon.save(os.path.join(ASSETS, "orbas.ico"),
               sizes=[(s, s) for s in ICO_SIZES])
 
-    print(f"orbas_logo.png  {logo.width}x{logo.height}  ({LOGO_MASTER}x master, "
-          f"drawn at {LOGO_HEIGHT}px on a 100% display)")
+    print(f"orbas_logo.png  {logo.width}x{logo.height}  (master; the app redraws it "
+          f"from this at the display's scaling)")
     print(f"orbas_icon.png  {ICON_SIZE}x{ICON_SIZE}")
     print(f"orbas.ico       {', '.join(str(s) for s in ICO_SIZES)}")
 

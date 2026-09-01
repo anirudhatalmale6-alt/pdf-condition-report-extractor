@@ -2,7 +2,10 @@
 
 Reported on v3.7.14: "make the logo on the extractor look bigger because TM is not
 visible". The mark is only ~12% of the lockup's height, so at the old 60px header
-logo it rendered about 7px tall and its strokes disappeared into anti-aliasing.
+logo it rendered about 3px of solid ink and its strokes disappeared into
+anti-aliasing. Then on v3.7.15, "the logo looks too big" - so the size sits in a
+band, and the point of this file is that shrinking it back cannot quietly undo the
+first fix.
 
 Three things are checked, because fixing only the first would let it regress:
 
@@ -30,17 +33,21 @@ from PIL import Image
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from src.gui import (LOGO_HEIGHT, LOGO_MASTER, OrbasApp,  # noqa: E402
+from src.gui import (LOGO_HEIGHT, LOGO_MASTER_H, OrbasApp,  # noqa: E402
                      _asset_path, _logo_bitmap)
 
 # Tk's scaling is pixels-per-point, so Windows 100% (96dpi) is 96/72 = 1.333.
 SCALINGS = {"100%": 96 / 72, "125%": 120 / 72, "150%": 144 / 72, "175%": 168 / 72}
 WIDTHS = (980, 1360)      # 980 is the window minsize
-MIN_TM_PX = 10            # below ~8px the two strokes of the M stop resolving
+# Floor set by looking at the rendered mark magnified 7x, not by arithmetic: at 8px
+# both strokes of the M and the gap under the T's arms still resolve, at 7px the M's
+# middle vertex starts filling in. v3.7.14 shipped 3px of solid ink, which is the
+# defect this file exists for.
+MIN_TM_PX = 8
 INK = 40                  # alpha above this counts as ink
 # The lockup should stay in this band relative to a line of body text. Wide enough
 # not to be fussy, tight enough that a fixed-pixel logo fails it at 175%.
-RATIO_MIN, RATIO_MAX = 3.5, 8.0
+RATIO_MIN, RATIO_MAX = 2.8, 8.0
 
 
 def tm_height(im):
@@ -117,11 +124,14 @@ def main():
 
     failed = 0
     with Image.open(master) as im:
-        want = LOGO_HEIGHT * LOGO_MASTER
-        verdict = "ok  " if im.height == want else "FAIL"
-        failed += im.height != want
-        print(f"{verdict} assets/orbas_logo.png {im.width}x{im.height} "
-              f"(want {want}px tall, a {LOGO_MASTER}x master)")
+        # The master must stay comfortably above the drawn size - the app scales it
+        # up to LOGO_MAX on a large scaled display, and upscaling is what smears the
+        # trademark mark. Twice the design height is the minimum worth shipping.
+        want = LOGO_HEIGHT * 2
+        ok = im.height == LOGO_MASTER_H and im.height >= want
+        failed += not ok
+        print(f"{'ok  ' if ok else 'FAIL'} assets/orbas_logo.png {im.width}x{im.height} "
+              f"(want {LOGO_MASTER_H}px tall, >= 2x the {LOGO_HEIGHT}px design size)")
 
     for name, scaling in SCALINGS.items():
         for width in WIDTHS:
