@@ -42,6 +42,45 @@ _LABEL_VOCAB = {
     "OUTSIDE",
 }
 
+# Phrases that mark a whole page as form INSTRUCTIONS rather than data. Kept
+# deliberately narrow: these must not match a value a real report could carry.
+_INSTRUCTION_PAGE_MARKERS = (
+    "HOW TO COMPLETE",
+    "EXAMPLE ONLY",
+    "SAMPLE ONLY",
+    "THIS IS AN EXAMPLE",
+)
+
+# Condition-grid column headings, mapped to the field they fill. The grids are
+# read by NAME rather than by position because the column order is not stable:
+# the official NSW blank form runs Clean/Undamaged/Working first, an agency
+# report orders its END block differently from its own START block, and other
+# forms put "Tenant agrees" ahead of Clean. Anything positional is wrong on at
+# least one of them.
+_HEADER_FIELDS = (
+    ("tenant_agrees", ("tenant agrees", "tenant agree")),
+    ("tenant_comments", ("tenant comments", "tenant comment")),
+    ("landlord_comments", ("landlord", "agent comments", "lessor")),
+    ("clean", ("clean",)),
+    ("undamaged", ("undamaged", "undamage")),
+    ("working", ("working",)),
+    ("comments", ("comments", "comment")),
+)
+
+_ABBREVIATED_HEADERS = {
+    "c": "clean",
+    "u": "undamaged",
+    "w": "working",
+    "ta": "tenant_agrees",
+}
+
+# Column-0 headings that mean "this table lists items, and the area it belongs
+# to is named above the table" rather than "column 0 holds the area name".
+_ITEM_COLUMN_HEADS = {
+    "item", "items", "component", "components", "description", "detail",
+    "details", "area item", "item description",
+}
+
 
 class ConditionReportExtractor:
     # Expose the vocab on the instance side for helper methods.
@@ -394,7 +433,9 @@ class ConditionReportExtractor:
             "address": self._extract_address() or sh.get("address"),
             "postcode": self._extract_postcode(),
             "report_number": self._extract_report_number(),
-            "tenant_name": self._extract_field_value(["tenant", "tenant name", "tenant/s", "tenants", "full name of renter"]) or sh.get("tenant_name"),
+            "tenant_name": (self._extract_numbered_tenants()
+                            or self._extract_field_value(["tenant", "tenant name", "tenant/s", "tenants", "full name of renter"])
+                            or sh.get("tenant_name")),
             "landlord_name": self._extract_field_value(["landlord", "landlord name", "landlord/agent", "agent", "lessor", "rental provider"]),
             "property_manager": self._extract_field_value(["property manager", "managing agent", "agent's company"]),
             "bond_number": self._extract_field_value(["bond number", "bond no"]),
@@ -407,6 +448,17 @@ class ConditionReportExtractor:
             "extraction_timestamp": datetime.now(timezone.utc).isoformat(),
             "extractor_version": VERSION,
         }
+
+    def _extract_numbered_tenants(self):
+        """Join the tenants from forms that list them one per field ("Tenant 1",
+        "Tenant 2"). Every one of them is a party to the tenancy, so returning
+        only the first would drop a name the bond assessment needs."""
+        names = []
+        for n in range(1, 5):
+            value = self._value_for_labels(["tenant %d" % n], pages=3)
+            if value and value not in names:
+                names.append(value)
+        return " & ".join(names) if names else None
 
     def _extract_address(self):
         # These forms put the label and value on separate lines, e.g.
@@ -523,7 +575,12 @@ class ConditionReportExtractor:
         for page in self.fitz_doc[:pages]:
             text = self._page_text(page)
             tu = text.upper()
-            if "HOW TO COMPLETE" in tu or "EXAMPLE" in tu:
+            # Skip a genuine instruction page, but match the PHRASE. A bare
+            # "EXAMPLE" also occurs in real values - "24 Example Street",
+            # "Harbour Example Realty" - and skipping the whole page on that
+            # threw away every field on it: address, both tenants, landlord,
+            # manager and start date all came back null.
+            if any(p in tu for p in _INSTRUCTION_PAGE_MARKERS):
                 continue
             lines = [ln.strip() for ln in text.split("\n")]
             for i, line in enumerate(lines):
@@ -560,9 +617,12 @@ class ConditionReportExtractor:
     def _extract_tenancy_date(self, which="start"):
         keywords = {
             "start": ["commencement date", "commencement", "lease start",
-                      "move in date", "ingoing date", "start of tenancy"],
+                      "move in date", "ingoing date", "start of tenancy",
+                      "tenancy start date", "tenancy start",
+                      "agreement start date", "date tenancy commenced"],
             "end": ["end of tenancy", "termination", "lease end",
-                    "move out date", "vacating date"],
+                    "move out date", "vacating date", "tenancy end date",
+                    "tenancy end", "date tenancy ended"],
         }
         for page in self.fitz_doc[:3]:
             text = self._page_text(page)
@@ -988,7 +1048,127 @@ class ConditionReportExtractor:
 
         return matched
 
-    def _parse_table_row_for_item(self, item_name, row):
+    @staticmethod
+    def _header_field(cell):
+        """Map a column heading to the field it fills, or None."""
+        n = re.sub(r"[^a-z ]", " ", (cell or "").lower())
+        n = " ".join(n.split())
+        if not n:
+            return None
+        # Grids that abbreviate the three condition columns and carry a legend
+        # ("Key: C = Clean; U = Undamaged; W = Working"). Exact match only - a
+        # substring test on a single letter would hit almost every heading.
+        if n in _ABBREVIATED_HEADERS:
+            return _ABBREVIATED_HEADERS[n]
+        for field, needles in _HEADER_FIELDS:
+            if any(needle in n for needle in needles):
+                return field
+        return None
+
+    @classmethod
+    def _table_column_map(cls, table):
+        """Read a condition grid's own header rows and return
+
+            (colmap, first_data_row)
+
+        where colmap is {column index: ("start"|"end", field)}. Returns
+        (None, 0) when the table has no usable header, in which case the caller
+        falls back to the older positional reading.
+
+        Two header rows are involved: a span row naming the blocks ("Condition
+        of premises at START of tenancy" / "... at END ...") and a field row
+        naming the columns. The span row is what decides where START stops -
+        halving the column count gets this wrong whenever the item name shares
+        the row, which is how a START landlord comment ended up recorded as
+        END-of-tenancy evidence.
+        """
+        if not table or len(table) < 2:
+            return None, 0
+
+        field_row = span_row = None
+        for idx, row in enumerate(table[:4]):
+            named = sum(1 for c in row if cls._header_field(c))
+            if named >= 3 and field_row is None:
+                field_row = idx
+            joined = " ".join((c or "") for c in row).upper()
+            if span_row is None and "START" in joined and "END" in joined:
+                span_row = idx
+        if field_row is None:
+            return None, 0
+
+        width = len(table[field_row])
+
+        # Block boundaries from the span row: each non-empty cell opens a block
+        # that runs until the next non-empty cell.
+        blocks = []
+        if span_row is not None:
+            marks = [(i, (c or "").upper())
+                     for i, c in enumerate(table[span_row]) if (c or "").strip()]
+            for pos, (i, txt) in enumerate(marks):
+                if "START" in txt:
+                    block = "start"
+                elif "END" in txt:
+                    block = "end"
+                else:
+                    continue
+                stop = marks[pos + 1][0] if pos + 1 < len(marks) else width
+                blocks.append((i, stop, block))
+
+        colmap = {}
+        seen = set()
+        for i, cell in enumerate(table[field_row]):
+            field = cls._header_field(cell)
+            if not field:
+                continue
+            block = None
+            for lo, hi, name in blocks:
+                if lo <= i < hi:
+                    block = name
+                    break
+            if block is None:
+                # No span row (or a column outside every span): the second time
+                # a field name appears, the END block has started.
+                block = "end" if field in seen else "start"
+            seen.add(field)
+            if block == "end" and field == "landlord_comments":
+                field = "comments"
+            if block == "start" and field == "comments":
+                field = "landlord_comments"
+            colmap[i] = (block, field)
+
+        if not colmap:
+            return None, 0
+        return colmap, max(field_row, span_row if span_row is not None else 0) + 1
+
+    _YN_FIELDS = ("clean", "undamaged", "working", "tenant_agrees")
+
+    def _parse_row_by_header(self, item_name, row, colmap):
+        """Fill an item from a row using the grid's own column headings."""
+        item_data = self._build_empty_item(item_name)
+        for i, cell in enumerate(row):
+            spec = colmap.get(i)
+            if not spec:
+                continue
+            block, field = spec
+            text = str(cell).strip().replace("\n", " ") if cell else ""
+            if not text:
+                continue
+            target = item_data["start_of_tenancy" if block == "start"
+                               else "end_of_tenancy"]
+            if field not in target:
+                continue
+            if field in self._YN_FIELDS:
+                value = self._parse_yn(text)
+                if value:
+                    target[field] = value
+            elif not target[field]:
+                target[field] = text
+        return item_data
+
+    def _parse_table_row_for_item(self, item_name, row, colmap=None):
+        if colmap:
+            return self._parse_row_by_header(item_name, row, colmap)
+
         item_data = self._build_empty_item(item_name)
         cells = [str(c).strip() if c else "" for c in row]
 
@@ -1144,16 +1324,78 @@ class ConditionReportExtractor:
             "items": [self._build_empty_item(name) for name in expected_items],
         }
 
+    @classmethod
+    def _heading_above(cls, words, top):
+        """The nearest text line sitting above a table.
+
+        Some forms give each area its own table and put the area name on the
+        line above it, leaving the table's own first column headed just "Item".
+        Reading only inside the table names every area "Item", and the
+        duplicate-area clean-up then merges them all into one - which is how a
+        12-area report came out as a single area.
+        """
+        lines = {}
+        for w in words:
+            if w["bottom"] > top + 2:
+                continue
+            lines.setdefault(round(w["top"] / 3.0), []).append(w)
+
+        best = None
+        for group in lines.values():
+            group.sort(key=lambda w: w["x0"])
+            text = " ".join(w["text"] for w in group).strip()
+            if not text or len(text) > 60:
+                continue
+            if not re.search(r"[A-Za-z]{2,}", text):
+                continue
+            low = text.lower()
+            # A legend ("Key: C = Clean...") or a column heading is not an area.
+            if "=" in text or low.startswith(("key:", "note", "page ")):
+                continue
+            if cls._header_field(text):
+                continue
+            bottom = max(w["bottom"] for w in group)
+            if best is None or bottom > best[0]:
+                best = (bottom, text)
+        return best[1] if best else None
+
     def _extract_rooms_generic(self):
         rooms = []
         current_room = None
 
         for i, page in enumerate(self.plumber_pdf.pages):
-            tables = page.extract_tables()
-            if not tables:
+            found = page.find_tables()
+            if not found:
                 continue
+            words = None
 
-            for table in tables:
+            for found_table in found:
+                table = found_table.extract()
+                colmap, first_data = self._table_column_map(table)
+
+                # An "Item"-headed grid describes ONE area, named above it.
+                head = re.sub(r"\s+", " ", str(table[0][0] or "")).strip().lower()
+                if colmap and head in _ITEM_COLUMN_HEADS:
+                    if words is None:
+                        words = page.extract_words()
+                    heading = self._heading_above(words, found_table.bbox[1])
+                    if heading:
+                        rooms.append({
+                            "room_name": heading,
+                            "page_number": i + 1,
+                            "items": [],
+                        })
+                        current_room = heading
+                        for row in table[first_data:]:
+                            if not row or not row[0]:
+                                continue
+                            name = str(row[0]).strip().replace("\n", " ")
+                            if not re.search(r"[A-Za-z]{2,}", name) or len(name) > 100:
+                                continue
+                            rooms[-1]["items"].append(
+                                self._parse_table_row_for_item(name, row, colmap))
+                        continue
+
                 # Skip narrow key/value tables (metadata like "Vacate Date | ...").
                 # Condition grids are wide (Clean/Undamaged/Working/comment cols).
                 if not table or max((len(r) for r in table), default=0) < 4:
@@ -1191,7 +1433,8 @@ class ConditionReportExtractor:
                         # an item without a recorded condition - not a new area.
                         if self._is_component_word(first_cell) and rooms:
                             rooms[-1]["items"].append(
-                                self._parse_table_row_for_item(first_cell, row))
+                                self._parse_table_row_for_item(
+                                    first_cell, row, colmap))
                             continue
                         current_room = first_cell
                         rooms.append({
@@ -1202,7 +1445,8 @@ class ConditionReportExtractor:
                         continue
 
                     if has_yn:
-                        item_data = self._parse_table_row_for_item(first_cell, row)
+                        item_data = self._parse_table_row_for_item(
+                            first_cell, row, colmap)
                         if not rooms:
                             rooms.append({
                                 "room_name": self._guess_room_name(
@@ -1211,6 +1455,14 @@ class ConditionReportExtractor:
                                 "items": [],
                             })
                         rooms[-1]["items"].append(item_data)
+
+        # A heading row that never gathered an item came from a table that is
+        # not a condition grid - a key/value metadata block ("Tenancy start
+        # date | 03/09/2026") or a signature block ("Party | ..."). Both used to
+        # surface as empty areas. Only drop them when the document produced real
+        # areas too, so a form we failed to read still returns what it found.
+        if any(room["items"] for room in rooms):
+            rooms = [room for room in rooms if room["items"]]
 
         return rooms
 
