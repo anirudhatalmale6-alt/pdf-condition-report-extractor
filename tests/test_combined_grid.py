@@ -54,6 +54,33 @@ FIXTURES = [
     ("NSW_combined_both_populated.pdf", "combined: both halves filled"),
 ]
 
+# What "Auto Detect" must report for the Document Type. All three fixtures are
+# the SAME combined form printed with different halves filled in, so keyword
+# matching on the pre-printed headings answers "combined" for every one of them.
+# The type has to come from which half carries data.
+AUTO_DOC_TYPE = {
+    "NSW_combined_start_populated_end_blank.pdf": "move_in",
+    "NSW_combined_start_blank_end_populated.pdf": "move_out",
+    "NSW_combined_both_populated.pdf": "combined",
+}
+
+# Blank official templates on Auto Detect - a no-regression baseline, so a later
+# change to detection cannot quietly restate what these forms are. A single-block
+# form is named by its layout (note QLD's entry and exit forms come out move_in
+# and move_out respectively); a blank combined form stays combined, because there
+# is no data to say otherwise and guessing would be worse than the honest answer.
+BLANK_DOC_TYPE = {
+    "ACT_condition_report.pdf": "combined",
+    "NSW_condition_report.pdf": "combined",
+    "NT_condition_report.pdf": "move_in",
+    "QLD_condition_report_1a.pdf": "move_in",
+    "QLD_exit_condition_report_14a.pdf": "move_out",
+    "SA_condition_report.pdf": "move_in",
+    "TAS_condition_report.pdf": "combined",
+    "VIC_condition_report.pdf": "combined",
+    "WA_condition_report.pdf": "move_in",
+}
+
 META = {
     "address": "24 Example Street, Parramatta NSW 2150",
     "postcode": "2150",
@@ -167,6 +194,14 @@ def check_fixture(name, label):
     print(f"{'ok  ' if ok else 'FAIL'} no area named after a column heading"
           f"{'' if ok else ': ' + ', '.join(generic)}")
 
+    # Auto Detect: extract_pdf defaults to report_type="auto".
+    want_type = AUTO_DOC_TYPE[name]
+    got_type = result.get("document_type")
+    ok = got_type == want_type
+    failed += not ok
+    print(f"{'ok  ' if ok else 'FAIL'} auto-detected doc type: {got_type!r}"
+          f"{'' if ok else f' (want {want_type!r})'}")
+
     got = {}
     for area in areas:
         for comp in area["components"]:
@@ -221,6 +256,14 @@ def main():
         failed += not ok
         print(f"{'ok  ' if ok else 'FAIL'} {name}: {n_areas} areas / {n_items} items "
               f"(want {want_areas} / {want_items})")
+
+        want_type = BLANK_DOC_TYPE.get(name)
+        if want_type:
+            got_type = other.get("document_type")
+            ok = got_type == want_type
+            failed += not ok
+            print(f"{'     ok  ' if ok else '     FAIL'} doc type {got_type!r}"
+                  f"{'' if ok else f' (want {want_type!r})'}")
 
     print(f"\n{failed} problem(s)")
     return 1 if failed else 0

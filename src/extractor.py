@@ -281,6 +281,12 @@ class ConditionReportExtractor:
 
             areas = self._postprocess_areas(areas)
 
+            # Only now are the recorded conditions available, so an auto
+            # detection that saw a combined LAYOUT can be settled against what
+            # was actually filled in.
+            if self.report_type == "auto":
+                self.detected_type = self._refine_report_type(self.detected_type, areas)
+
             result = {
                 "jurisdiction": self.jurisdiction,
                 "document_type": self.detected_type,
@@ -344,6 +350,13 @@ class ConditionReportExtractor:
         return "\n".join(texts)
 
     def _detect_report_type(self, text):
+        """Which blocks the FORM prints - not which ones were filled in.
+
+        These keywords match the pre-printed column headings, so a combined
+        NSW form answers "combined" whether or not either half carries data.
+        That is the layout, and it is only half the answer - see
+        _refine_report_type, which decides from the data itself.
+        """
         text_lower = text.lower()
         has_start = any(kw in text_lower for kw in ["start of tenancy", "commencement", "move in", "ingoing"])
         has_end = any(kw in text_lower for kw in ["end of tenancy", "vacating", "move out", "outgoing"])
@@ -355,6 +368,62 @@ class ConditionReportExtractor:
         elif has_start:
             return "move_in"
         return "combined"
+
+    # A side has genuinely been filled in only if it carries values on a real
+    # share of the components. A bare count would let one misread cell in an
+    # otherwise blank half flip the whole document's type.
+    _SIDE_USED_MIN_ROWS = 3
+    _SIDE_USED_MIN_SHARE = 0.05
+
+    @staticmethod
+    def _side_has_data(side):
+        """True if an inspector actually recorded something on this side."""
+        if not side:
+            return False
+        if side.get("clean") or side.get("undamaged") or side.get("working"):
+            return True
+        for key in ("comments", "tenant_comments", "tenant_agrees"):
+            val = side.get(key)
+            if isinstance(val, str) and val.strip():
+                return True
+            elif val:
+                return True
+        return False
+
+    def _refine_report_type(self, layout, areas):
+        """Turn the form's LAYOUT into what this document actually is.
+
+        Agencies hand out one combined move-in/move-out form and use it three
+        ways: fill the move-in half at the start, fill the move-out half at the
+        end, or fill both. All three print identical headings, so keyword
+        detection called every one of them "combined" - including a move-out
+        report with the entire move-in half deliberately blank. Deciding from
+        the recorded conditions instead separates them.
+        """
+        if layout != "combined":
+            return layout
+
+        total = start = end = 0
+        for area in areas:
+            for comp in area.get("components", []):
+                total += 1
+                if self._side_has_data(comp.get("start_of_tenancy")):
+                    start += 1
+                if self._side_has_data(comp.get("end_of_tenancy")):
+                    end += 1
+        if not total:
+            return layout
+
+        floor = max(self._SIDE_USED_MIN_ROWS, total * self._SIDE_USED_MIN_SHARE)
+        used_start, used_end = start >= floor, end >= floor
+        if used_start and used_end:
+            return "combined"
+        if used_end:
+            return "move_out"
+        if used_start:
+            return "move_in"
+        # A blank form of a combined layout is still a combined form.
+        return layout
 
     @staticmethod
     def _clean_scanned_value(val):
