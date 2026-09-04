@@ -49,6 +49,13 @@ jobs:
       - name: Zip the app folder
         shell: pwsh
         run: |
+          # Windows Explorer will run ORBAS.exe straight out of the zip preview,
+          # which mounts it read-only under Temp - the exe then dies with
+          # "Failed to load Python DLL ... python312.dll". The app is a folder,
+          # not a single file, so it has to be extracted first. The note ships
+          # at the top of the zip listing where someone sees it before
+          # double-clicking anything.
+          Copy-Item 'packaging/READ ME FIRST.txt' -Destination dist/ORBAS/
           Compress-Archive -Path dist/ORBAS/* -DestinationPath ORBAS-Windows.zip -Force
 
       - name: Upload artifact

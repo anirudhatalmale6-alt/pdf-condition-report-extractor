@@ -1,0 +1,22 @@
+ORBAS PDF Extractor - how to run it
+===================================
+
+1. Extract this ZIP to a folder first. Right-click the zip -> "Extract All...".
+2. Open the extracted folder and run ORBAS.exe.
+
+Do NOT run ORBAS.exe from inside the zip window. Windows opens a zip in a
+read-only preview, and the app needs the files next to it, so it will stop
+with:
+
+    Failed to load Python DLL ... python312.dll
+    LoadLibrary: The specified module could not be found.
+
+That message means the app was started from the zip, not that anything is
+broken. Extract the folder and run it again.
+
+Keep every file in the folder together - ORBAS.exe and the _internal folder
+belong side by side. Extract to a NEW folder rather than over an older version.
+
+The first launch may show Windows SmartScreen ("Windows protected your PC").
+Click "More info" then "Run anyway". This appears because the app is not
+code-signed yet, and only happens once.
