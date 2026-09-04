@@ -20,3 +20,33 @@ belong side by side. Extract to a NEW folder rather than over an older version.
 The first launch may show Windows SmartScreen ("Windows protected your PC").
 Click "More info" then "Run anyway". This appears because the app is not
 code-signed yet, and only happens once.
+
+
+If Windows Defender removes ORBAS.exe
+-------------------------------------
+
+Defender may quarantine ORBAS.exe on a freshly released build, with:
+
+    Operation did not complete successfully because the file contains a
+    virus or potentially unwanted software.
+
+You will usually notice it because the extracted folder is missing ORBAS.exe,
+or the exe shows a plain Windows icon instead of the ORBAS one - Windows will
+not draw the icon of a file it has blocked.
+
+This is a false positive. The app is built by Python and PyInstaller and is not
+yet code-signed, so every new release is a file Defender's cloud has never seen
+before and is judged on heuristics alone.
+
+To restore it:
+
+1. Windows Security -> Virus & threat protection -> Protection history.
+2. Open the blocked ORBAS.exe entry and choose Actions -> Allow (or Restore).
+3. Delete the extracted folder and extract the zip again.
+
+If Defender removes it again while extracting, add an exclusion first:
+Virus & threat protection -> Manage settings -> Exclusions -> Add an
+exclusion -> Folder, and pick the folder you extract to.
+
+Every ORBAS release is built in public on GitHub Actions, so the full build log
+for the exact file you downloaded can be read before you allow it.
