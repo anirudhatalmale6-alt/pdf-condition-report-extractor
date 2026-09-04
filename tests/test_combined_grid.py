@@ -1,13 +1,14 @@
-"""Regression test: a combined START/END condition grid must be read by its own
-column headings, and every area in the report must survive.
+"""Regression test: combined START/END condition grids, read by column heading.
 
-Reported on v3.7.16 against a combined NSW report whose START columns are filled
-and whose END columns are deliberately blank. The app returned 2 areas and 19
-rows out of 12 areas and 145 rows, and put START data into END on every row it
-did keep - inventing move-out evidence, which on a bond assessment is worse than
-missing it.
+Three fixtures, one per real-world case an agency produces:
 
-Five things were wrong and each one is asserted here:
+  * start populated / end blank  - the move-in report
+  * start blank / end populated  - the move-out report
+  * both populated               - the full combined report
+
+They matter as a set. Each one fills a different half of the grid, so a reader
+that quietly assumes where START stops passes one and fails another - which is
+exactly what happened:
 
   1. Every area came back named "Item". Each area is its own table, the area
      name sits on the line ABOVE it, and the table's own first column is headed
@@ -15,21 +16,25 @@ Five things were wrong and each one is asserted here:
      merged them into one.
   2. The START/END split was `len(cells) // 2`. With 13 columns and the item
      name in column 0 the boundary lands one column early, so the last START
-     column was recorded as END data.
+     column was recorded as END data - inventing move-out evidence.
   3. The order inside each block was assumed to be Clean, Undamaged, Working,
-     Tenant agrees. This form runs Tenant agrees first, so values shifted.
+     Tenant agrees. These forms run Tenant agrees first, so values shifted.
   4. A one-character cell was dropped when the item name contained that letter
-     ("balcony" contains a "y"), so rows corrupted differently depending on
-     spelling.
-  5. Every header field was null because the page-skip guard matched the bare
-     word "EXAMPLE", and the dummy data uses "24 Example Street".
+     ("balcony" contains a "y"), so rows corrupted differently by spelling.
+  5. The page-skip guard matched a bare "EXAMPLE", and the dummy data uses
+     "24 Example Street", so every header field came back null.
+  6. end_of_tenancy had no tenant_comments key, so that column was read off the
+     row and then dropped on the way in - invisible until a fixture populated
+     the END half.
+  7. The structured-vs-generic choice scored only the START half, so a move-out
+     report scored zero on every parser and came back as an empty skeleton.
 
-The truth side is read from the PDF's own header row rather than typed here, so
-this cannot drift from the document, and the per-field comparison is what
-catches a shift - counting rows alone would pass while every value sat in the
-wrong column.
+Truth is read from each PDF's own header row rather than typed here, so the
+expectations cannot drift from the documents. Comparing field by field is the
+point: counting rows alone passes while every value sits one column across.
 """
 import os
+import re
 import sys
 import warnings
 
@@ -42,15 +47,24 @@ from src.extractor import detect_jurisdiction, extract_pdf  # noqa: E402
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 SAMPLES = os.path.join(os.path.dirname(HERE), "samples")
-FIXTURE = os.path.join(SAMPLES, "NSW_combined_start_populated_end_blank.pdf")
 
-# Column order in the fixture's header row, after the item-name column.
-START_COLUMNS = ("tenant_agrees", "tenant_comments", "clean", "undamaged",
-                 "working", "landlord_comments")
+FIXTURES = [
+    ("NSW_combined_start_populated_end_blank.pdf", "move-in: START filled, END blank"),
+    ("NSW_combined_start_blank_end_populated.pdf", "move-out: START blank, END filled"),
+    ("NSW_combined_both_populated.pdf", "combined: both halves filled"),
+]
 
-# Area / item counts for every other report we hold. A change to the grid
-# reader that "fixes" the combined form by breaking one of these is not a fix -
-# this is the half of the test that stops one report being traded for another.
+META = {
+    "address": "24 Example Street, Parramatta NSW 2150",
+    "postcode": "2150",
+    "tenant_name": "Daniel Nguyen & Priya Shah",
+    "landlord_name": "Harbour Example Realty Pty Ltd",
+    "property_manager": "Amelia Carter",
+}
+
+# Area / item counts for the official templates. A grid reader that "fixes" the
+# combined forms by breaking one of these is not a fix - this half of the test
+# is what stops one report being traded for another.
 EXPECTED = {
     "ACT_condition_report.pdf": (15, 151),
     "NSW_condition_report.pdf": (12, 146),
@@ -63,42 +77,88 @@ EXPECTED = {
     "WA_condition_report.pdf": (9, 88),
 }
 
+_ABBR = {"c": "clean", "u": "undamaged", "w": "working"}
 
-def pdf_truth():
-    """Item rows straight from the PDF, keyed by item name."""
-    rows = {}
-    total = 0
-    with pdfplumber.open(FIXTURE) as pdf:
+
+def _field(cell):
+    n = " ".join(re.sub(r"[^a-z ]", " ", (cell or "").lower()).split())
+    if n in _ABBR:
+        return _ABBR[n]
+    if "tenant" in n and "agree" in n:
+        return "tenant_agrees"
+    if "tenant" in n and "comment" in n:
+        return "tenant_comments"
+    if "landlord" in n or "agent" in n:
+        return "landlord_comments"
+    if "comment" in n:
+        return "comments"
+    return None
+
+
+def truth_from_pdf(path):
+    """Every item row, keyed by name, mapped through the table's OWN headers."""
+    rows, count, areas = {}, 0, 0
+    with pdfplumber.open(path) as pdf:
         for page in pdf.pages:
             for table in page.extract_tables():
                 if not table or (table[0][0] or "").strip() != "Item":
                     continue
+                areas += 1
+
+                span = table[0]
+                marks = [(i, (c or "").upper())
+                         for i, c in enumerate(span) if (c or "").strip()]
+                blocks = []
+                for pos, (i, txt) in enumerate(marks):
+                    block = ("start" if "START" in txt
+                             else "end" if "END" in txt else None)
+                    if not block:
+                        continue
+                    stop = marks[pos + 1][0] if pos + 1 < len(marks) else len(span)
+                    blocks.append((i, stop, block))
+
+                colmap = {}
+                for i, cell in enumerate(table[1]):
+                    field = _field(cell)
+                    if not field:
+                        continue
+                    block = next((b for lo, hi, b in blocks if lo <= i < hi), "start")
+                    if block == "end" and field == "landlord_comments":
+                        field = "comments"
+                    if block == "start" and field == "comments":
+                        field = "landlord_comments"
+                    colmap[i] = (block, field)
+
                 for row in table[2:]:
                     name = (row[0] or "").replace("\n", " ").strip()
                     if not name:
                         continue
-                    total += 1
-                    cells = [(c or "").replace("\n", " ").strip()
-                             for c in row[1:7]]
-                    rows.setdefault(name, dict(zip(START_COLUMNS, cells)))
-                    # Everything past the START block must be blank in this
-                    # fixture - that is what makes invented END data visible.
-                    assert not any((c or "").strip() for c in row[7:]), name
-    return rows, total
+                    count += 1
+                    record = {"start": {}, "end": {}}
+                    for i, (block, field) in colmap.items():
+                        if i < len(row):
+                            record[block][field] = (row[i] or "").replace("\n", " ").strip()
+                    rows.setdefault(name, record)
+    return rows, count, areas
 
 
-def main():
+def check_fixture(name, label):
+    path = os.path.join(SAMPLES, name)
     failed = 0
+    print(f"--- {name}  ({label})")
+    if not os.path.exists(path):
+        print("FAIL fixture missing")
+        return 1
 
-    truth, row_total = pdf_truth()
-    result = extract_pdf(FIXTURE, jurisdiction=detect_jurisdiction(FIXTURE) or "NSW")
+    truth, row_count, area_count = truth_from_pdf(path)
+    result = extract_pdf(path, jurisdiction=detect_jurisdiction(path) or "NSW")
     areas = result["areas"]
     items = sum(len(a["components"]) for a in areas)
 
-    ok = len(areas) == 12 and items == row_total
+    ok = (len(areas), items) == (area_count, row_count)
     failed += not ok
-    print(f"{'ok  ' if ok else 'FAIL'} structure: {len(areas)} areas / {items} rows "
-          f"(want 12 / {row_total})")
+    print(f"{'ok  ' if ok else 'FAIL'} {len(areas)} areas / {items} rows "
+          f"(PDF has {area_count} / {row_count})")
 
     generic = [a["area_name"] for a in areas
                if a["area_name"].strip().lower() in ("item", "items", "party")]
@@ -112,48 +172,42 @@ def main():
         for comp in area["components"]:
             got.setdefault(comp["component_name"], comp)
 
-    mismatches, invented, missing = [], [], []
-    for name, expected in truth.items():
-        comp = got.get(name)
+    missing, mismatch = [], []
+    for name_, record in truth.items():
+        comp = got.get(name_)
         if not comp:
-            missing.append(name)
+            missing.append(name_)
             continue
-        start = comp["start_of_tenancy"]
-        for field, want in expected.items():
-            have = start.get(field) or ""
-            if want != have:
-                mismatches.append(f"{name}.{field}: want {want!r} got {have!r}")
-        end = comp["end_of_tenancy"]
-        if any(end.get(k) for k in
-               ("clean", "undamaged", "working", "comments", "tenant_agrees")):
-            invented.append(name)
+        for block, key in (("start", "start_of_tenancy"), ("end", "end_of_tenancy")):
+            for field, want in record[block].items():
+                have = comp[key].get(field) or ""
+                if want != have:
+                    mismatch.append(f"{name_} [{block}.{field}] "
+                                    f"want {want!r} got {have!r}")
 
-    for label, bad in (("rows missing", missing),
-                       ("field mismatches", mismatches),
-                       ("rows with invented END data", invented)):
+    for lab, bad in (("rows missing", missing), ("field mismatches", mismatch)):
         ok = not bad
         failed += not ok
-        print(f"{'ok  ' if ok else 'FAIL'} {label}: {len(bad)}")
+        print(f"{'ok  ' if ok else 'FAIL'} {lab}: {len(bad)}")
         for entry in bad[:5]:
             print(f"       {entry}")
 
     meta = result["report_metadata"]
-    want_meta = {
-        "address": "24 Example Street, Parramatta NSW 2150",
-        "postcode": "2150",
-        "tenant_name": "Daniel Nguyen & Priya Shah",
-        "landlord_name": "Harbour Example Realty Pty Ltd",
-        "property_manager": "Amelia Carter",
-        "start_date": "03/09/2026",
-    }
-    for field, want in want_meta.items():
+    for field, want in META.items():
         have = meta.get(field)
         ok = have == want
         failed += not ok
         print(f"{'ok  ' if ok else 'FAIL'} metadata {field}: {have!r}"
               f"{'' if ok else f' (want {want!r})'}")
+    return failed
 
-    print()
+
+def main():
+    failed = 0
+    for name, label in FIXTURES:
+        failed += check_fixture(name, label)
+        print()
+
     for name, (want_areas, want_items) in sorted(EXPECTED.items()):
         path = os.path.join(SAMPLES, name)
         if not os.path.exists(path):

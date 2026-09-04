@@ -622,7 +622,9 @@ class ConditionReportExtractor:
                       "agreement start date", "date tenancy commenced"],
             "end": ["end of tenancy", "termination", "lease end",
                     "move out date", "vacating date", "tenancy end date",
-                    "tenancy end", "date tenancy ended"],
+                    "tenancy end", "date tenancy ended", "vacate date",
+                    "date of vacating", "move-out inspection",
+                    "move out inspection"],
         }
         for page in self.fitz_doc[:3]:
             text = self._page_text(page)
@@ -851,30 +853,35 @@ class ConditionReportExtractor:
             return self._extract_rooms_generic()
 
         structured = self._extract_rooms_structured(room_config)
-
-        total = 0
-        filled = 0
-        for room in structured:
-            for item in room.get("items", []):
-                total += 1
-                sot = item.get("start_of_tenancy", {})
-                if sot.get("clean") or sot.get("undamaged") or sot.get("working"):
-                    filled += 1
+        total, filled = self._condition_fill(structured)
 
         if total > 0 and filled / total < 0.3:
             generic = self._extract_rooms_generic()
-            g_total = 0
-            g_filled = 0
-            for room in generic:
-                for item in room.get("items", []):
-                    g_total += 1
-                    sot = item.get("start_of_tenancy", {})
-                    if sot.get("clean") or sot.get("undamaged") or sot.get("working"):
-                        g_filled += 1
+            g_total, g_filled = self._condition_fill(generic)
             if g_total > 0 and g_filled > filled:
                 return generic
 
         return structured
+
+    @staticmethod
+    def _condition_fill(rooms):
+        """(items, items carrying a condition) across BOTH ends of the tenancy.
+
+        Counting only the start of tenancy made a move-out report - where the
+        move-in half is blank by design - score zero on every parser, so the
+        one that could actually read the grid never won and the report came back
+        as an empty skeleton.
+        """
+        total = filled = 0
+        for room in rooms:
+            for item in room.get("items", []):
+                total += 1
+                for block in ("start_of_tenancy", "end_of_tenancy"):
+                    side = item.get(block, {})
+                    if side.get("clean") or side.get("undamaged") or side.get("working"):
+                        filled += 1
+                        break
+        return total, filled
 
     def _extract_rooms_structured(self, room_config):
         rooms = []
@@ -1313,7 +1320,10 @@ class ConditionReportExtractor:
             },
             "end_of_tenancy": {
                 "clean": None, "undamaged": None, "working": None,
-                "comments": None, "tenant_agrees": None,
+                # These grids carry a Tenant comments column on the END side as
+                # well as the START side. Without the key the value was read off
+                # the row and then silently dropped on the way in.
+                "comments": None, "tenant_agrees": None, "tenant_comments": None,
             },
         }
 

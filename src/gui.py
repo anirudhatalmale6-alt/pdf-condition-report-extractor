@@ -76,13 +76,18 @@ STAT_COLS_MIN = 4
 # it grows with the display scaling) but images in raw pixels, so a fixed-size logo
 # shrinks against everything around it.
 #
-# LOGO_HEIGHT is a balance the client set by eye, twice. 60px in v3.7.14 left the
-# trademark mark - only ~12% of the lockup's height - as about 3px of solid ink, so
-# it mushed into the wordmark; 96px in v3.7.15 read as too big beside the rest of the
-# header. At 72px the mark renders 8px tall with both strokes of the M resolving,
-# and more on a scaled display: the client's own machine reports 1.5x, i.e. a 108px
-# lockup with a 12px mark.
-LOGO_HEIGHT = 72
+# LOGO_HEIGHT went 60 -> 96 -> 72 -> 60 as the client judged it on screen, and the
+# round trip is worth recording: the v3.7.14 complaint was "TM is not visible" at 60px,
+# but that was the OLD low-resolution artwork rendering the mark as ~3px of solid ink,
+# not the size. Redrawn from the current master, 60px puts 8px of ink in the mark -
+# both strokes of the M and the gap under the T's arms resolve - so the size that read
+# as too small then is legible now, and 72 and 96 both read as too big.
+#
+# 60 is a floor, not a preference: measured off the master, 56px drops the mark to 7px
+# and 48px to 6px, where the M's middle vertex fills in. Going below it trades away the
+# thing the client asked for in the first place. On their own machine, which reports
+# 1.5x, this draws a 359x90 lockup with an 11px mark.
+LOGO_HEIGHT = 60
 LOGO_MASTER_H = 192   # the shipped master's real height; > 2x LOGO_HEIGHT on purpose
 LOGO_MIN = 56
 LOGO_MAX = 240
