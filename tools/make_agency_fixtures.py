@@ -104,6 +104,15 @@ EXIT_VALUES = {
 DEFAULT_ENTRY = ("Y", "Y", "Y", "Clean and in working order at handover")
 DEFAULT_EXIT = ("N", "Y", "Y", "Dust buildup noted, otherwise serviceable")
 
+# The tenant's own column. In practice tenants often do not reply at all - a
+# response is not compulsory - so the real reports have this column empty
+# throughout. It still has to be captured when it IS filled, and a fixture with
+# it blank everywhere would not prove that, so a few rows carry one here.
+TENANT_REPLIES = {
+    "walls/picture hooks": "Marks were already there at move-in, noted on the entry report",
+    "floor coverings": "Wear is from normal use over three years",
+}
+
 
 def _rotated_heading(c, text, x, y):
     """Draw a column heading so it lands in the text layer REVERSED.
@@ -220,6 +229,60 @@ def _metadata_page(c, kind):
     c.showPage()
 
 
+# The statutory questions are answered by TICKING one of two drawn boxes. Both
+# words are printed against every question either way, so a fixture has to carry
+# the boxes and the tick marks - reproducing only the text would let a reader
+# that guesses from the words pass. One question is deliberately left UNANSWERED,
+# because a blank must stay null rather than defaulting to "No".
+STATUTORY = [
+    ("Are the premises structurally sound?", "Yes"),
+    ("Does the premises have adequate ventilation?", "Yes"),
+    ("Does the premises have adequate plumbing and drainage?", "Yes"),
+    ("Are there any signs of mould and dampness?", "No"),
+    ("Are there any pests and vermin?", "No"),
+    ("Have smoke alarms been installed in the residential premises?", "Yes"),
+    ("Does the tenant agree with all of the above?", None),
+]
+
+
+def _checkbox(c, x, y, ticked):
+    """An empty 14pt box, with a curved check mark inside it when ticked."""
+    c.setLineWidth(0.6)
+    c.rect(x, y, 14, 14)
+    if not ticked:
+        return
+    # Curves, so the mark is distinguishable from the box by shape alone.
+    p = c.beginPath()
+    p.moveTo(x + 3, y + 7)
+    p.curveTo(x + 4, y + 6, x + 5, y + 4, x + 6, y + 3)
+    p.curveTo(x + 8, y + 6, x + 9, y + 9, x + 11, y + 12)
+    p.curveTo(x + 10, y + 12, x + 8, y + 9, x + 6, y + 5)
+    p.curveTo(x + 5, y + 6, x + 4, y + 7, x + 3, y + 7)
+    c.drawPath(p, stroke=1, fill=1)
+
+
+def _statutory_page(c, kind):
+    """A Minimum Standards / Health Issues page answered with ticks."""
+    _title(c, kind, PAGE_H - 30)
+    c.setFont("Helvetica", 8)
+    c.drawString(COL_X[0], PAGE_H - 56, "Minimum Standards")
+    c.setFont("Helvetica", 7)
+    c.drawString(COL_X[0], PAGE_H - 70,
+                 "The landlord must indicate whether the following apply to the "
+                 "residential premises:")
+    y = PAGE_H - 96
+    for question, answer in STATUTORY:
+        c.setFont("Helvetica", 7)
+        c.drawString(COL_X[0] + 10, y + 4, question)
+        # Boxes sit to the right of the question, each labelled after its box.
+        _checkbox(c, 400, y, answer == "Yes")
+        c.drawString(418, y + 4, "Yes")
+        _checkbox(c, 440, y, answer == "No")
+        c.drawString(458, y + 4, "No")
+        y -= 34
+    c.showPage()
+
+
 def _values_for(kind, item):
     table = ENTRY_VALUES if kind == "Entry" else EXIT_VALUES
     if item in table:
@@ -241,6 +304,9 @@ def build(kind, path):
 
     # Page 2 - the labelled metadata block.
     _metadata_page(c, kind)
+
+    # Page 3 - the statutory questions, answered by tick.
+    _statutory_page(c, kind)
 
     # Grid pages.
     rows = []
@@ -277,9 +343,12 @@ def build(kind, path):
                 continue
 
             comment = values[3] if values else ""
+            # On an exit report the tenant may reply in their own column.
+            reply = TENANT_REPLIES.get(name, "") if (kind == "Exit" and values) else ""
             body = _wrap(c, name, COL_X[1] - COL_X[0])
             note = _wrap(c, comment, COL_X[6] - COL_X[5]) if comment else [""]
-            height = max(ROW_H, 8 * max(len(body), len(note)) + 6)
+            reply_lines = _wrap(c, reply, COL_X[6] - COL_X[5]) if reply else [""]
+            height = max(ROW_H, 8 * max(len(body), len(note), len(reply_lines)) + 6)
             if y - height <= PAGE_H - GRID_BOTTOM:
                 break
             for i in range(len(COL_X) - 1):
@@ -291,10 +360,14 @@ def build(kind, path):
                 for col, val in zip(TICK_COLS, values[:3]):
                     c.drawString(COL_X[col] + 3, y - 9, val)
                 # The comment goes in whichever column belongs to the party who
-                # performed this inspection.
+                # performed this inspection - which is column 5 on the entry
+                # form and column 6 on the exit form, because the two swap.
                 target = COL_X[5] if kind == "Entry" else COL_X[6]
                 for li, line in enumerate(note):
                     c.drawString(target + 3, y - 9 - li * 8, line)
+                if reply:
+                    for li, line in enumerate(reply_lines):
+                        c.drawString(COL_X[5] + 3, y - 9 - li * 8, line)
             y -= height
             idx += 1
 

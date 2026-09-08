@@ -1,4 +1,4 @@
-VERSION = "3.7.21"
+VERSION = "3.7.22"
 APP_NAME = "ORBAS"
 
 CLOUD_SYNC_URL = "https://app.orbas.com.au/api/sync"

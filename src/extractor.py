@@ -135,6 +135,9 @@ class ConditionReportExtractor:
         # grid's column positions so a multi-page grid keeps reading correctly
         # on the continuation pages, which print no headings of their own.
         self._detached_map_cache = {}
+        # Statutory checkbox rows and line geometry, per page.
+        self._checkbox_cache = {}
+        self._line_cache = {}
         # Master switch for the scanned/image OCR path. When False the extractor
         # is purely a digital-PDF reader (OCR never runs, no scanned_ticks /
         # ocr_status in the output). Digital reports are identical either way -
@@ -1861,7 +1864,11 @@ class ConditionReportExtractor:
                 "date_last_checked": self._find_date_after(text, "Date last checked"),
                 "batteries_replaced": self._find_yes_no(text, "removable batteries.*been replaced"),
                 "date_batteries_changed": self._find_date_after(text, "Date batteries were last changed"),
-                "lithium_batteries_replaced": self._find_yes_no(text, "removable lithium"),
+                # "removable lithium" also appears in the question ABOVE this
+                # one ("...except for removable lithium batteries?"), so anchor
+                # on the wording unique to this question.
+                "lithium_batteries_replaced": self._find_yes_no(
+                    text, "that have a removable lithium"),
                 "date_lithium_changed": None,
             },
             "safety_issues": {
@@ -1916,10 +1923,16 @@ class ConditionReportExtractor:
             "taps_compliant": self._find_yes_no(text, "cold water taps.*single mixer"),
             "leaks_fixed": self._find_yes_no(text, "leaking taps.*fixed"),
             "date_last_checked": self._find_date_after(text, "water efficiency measures"),
-            "meter_reading_start": self._find_field(text, r"Water meter reading at START.*?(\d+)"),
-            "meter_reading_start_date": self._find_date_after(text, "Water meter reading at START"),
-            "meter_reading_end": self._find_field(text, r"Water meter reading at END.*?(\d+)"),
-            "meter_reading_end_date": self._find_date_after(text, "Water meter reading at END"),
+            # Bounded to the label's own line: a blank meter box must stay null
+            # rather than reaching down the page for the next digit it can find.
+            "meter_reading_start": self._find_field(
+                text, r"Water meter reading at START[^\n]*?(\d+)"),
+            "meter_reading_start_date": self._find_date_after(
+                text, "Water meter reading at START", window=40),
+            "meter_reading_end": self._find_field(
+                text, r"Water meter reading at END[^\n]*?(\d+)"),
+            "meter_reading_end_date": self._find_date_after(
+                text, "Water meter reading at END", window=40),
         }
 
     def _extract_additional_comments(self, text):
@@ -2529,7 +2542,150 @@ class ConditionReportExtractor:
                 pix = None
         return images
 
+    # The statutory questions are answered by TICKING one of two drawn boxes,
+    # not by printing a word. Both "Yes" and "No" are printed against every
+    # question regardless, so any text search finds one of them and reports it
+    # as the answer - which is how an entry report whose Minimum Standards were
+    # all ticked Yes came back as No on every line, and how an exit report with
+    # all 61 boxes left empty came back as a confident "No" throughout.
+    _BOX_MIN, _BOX_MAX = 8, 20     # the empty checkbox, ~14pt square
+    _TICK_MIN, _TICK_MAX = 4, 14   # the check mark drawn inside it
+    _ANSWER_MAX_DY = 25            # a box belongs to a question this close in y
+
+    def _checkbox_rows(self, page_idx):
+        """[{y, x0, answer}] for each Yes/No checkbox pair on a page.
+
+        answer is "Yes", "No", or None when the question was left blank - which
+        is a real and common state, and must stay null rather than becoming a
+        default "No".
+        """
+        cache = self._checkbox_cache
+        if page_idx in cache:
+            return cache[page_idx]
+
+        page = self.fitz_doc[page_idx]
+        boxes, ticks = [], []
+        for drawing in page.get_drawings():
+            rect = drawing["rect"]
+            ops = {item[0] for item in drawing["items"]}
+            if ops == {"re"} and self._BOX_MIN <= rect.width <= self._BOX_MAX \
+                    and self._BOX_MIN <= rect.height <= self._BOX_MAX:
+                boxes.append(rect)
+            elif "c" in ops and self._TICK_MIN <= rect.width <= self._TICK_MAX \
+                    and self._TICK_MIN <= rect.height <= self._TICK_MAX:
+                ticks.append(rect)
+
+        def box_left_of(word):
+            """The checkbox this Yes/No label belongs to - immediately left."""
+            lx, ly = word[0], (word[1] + word[3]) / 2
+            near = [b for b in boxes
+                    if b.x1 <= lx + 2 and lx - b.x1 < 12
+                    and abs((b.y0 + b.y1) / 2 - ly) < 8]
+            return min(near, key=lambda b: lx - b.x1) if near else None
+
+        def is_ticked(box):
+            return any(box.x0 - 1 <= (t.x0 + t.x1) / 2 <= box.x1 + 1
+                       and box.y0 - 1 <= (t.y0 + t.y1) / 2 <= box.y1 + 1
+                       for t in ticks)
+
+        pairs = {}
+        for word in page.get_text("words"):
+            if word[4] not in ("Yes", "No"):
+                continue
+            box = box_left_of(word)
+            if box is None:
+                continue
+            # Group by line, and by column - these forms print two columns of
+            # questions side by side on the same rows.
+            key = (round((word[1] + word[3]) / 2 / 6), round(word[0] / 200))
+            row = pairs.setdefault(key, {"y": (word[1] + word[3]) / 2,
+                                         "x0": box.x0, "answer": None})
+            row["x0"] = min(row["x0"], box.x0)
+            if is_ticked(box):
+                row["answer"] = word[4]
+
+        rows = sorted(pairs.values(), key=lambda r: (r["x0"], r["y"]))
+        cache[page_idx] = rows
+        return rows
+
+    def _lines_with_boxes(self, page_idx):
+        """(single lines, wrapped runs) for a page, each as (text, rect).
+
+        A wrapped run carries the UNION of the lines it spans, not the first
+        line's box: using the first line's y made "plumbing and drainage" match
+        a run beginning two questions earlier and answer from that row instead.
+        """
+        cache = self._line_cache
+        if page_idx in cache:
+            return cache[page_idx]
+        lines = []
+        for block in self.fitz_doc[page_idx].get_text("dict")["blocks"]:
+            for line in block.get("lines", []):
+                text = "".join(span["text"] for span in line["spans"]).strip()
+                if text:
+                    lines.append((text, fitz.Rect(line["bbox"])))
+        runs = []
+        for i, (text, rect) in enumerate(lines):
+            merged, box = text, fitz.Rect(rect)
+            for nxt_text, nxt_rect in lines[i + 1:i + 3]:
+                merged += " " + nxt_text
+                box = box | nxt_rect
+                runs.append((merged, fitz.Rect(box)))
+        cache[page_idx] = (lines, runs)
+        return cache[page_idx]
+
+    def _answer_for_rect(self, rows, rect):
+        """The checkbox answer belonging to a question at `rect`.
+
+        The boxes sit to the right of their question, and these forms print two
+        columns of questions side by side - so the NEAREST column to the right
+        is taken first, and only then the nearest row within it. Choosing purely
+        by vertical distance let a left-column question answer from the right
+        column's boxes.
+        """
+        right = [r for r in rows if r["x0"] > rect.x1 - 2]
+        if not right:
+            return None, False
+        band = min(r["x0"] for r in right)
+        column = [r for r in right if r["x0"] - band < 60]
+        mid = (rect.y0 + rect.y1) / 2
+        best = min(column, key=lambda r: abs(r["y"] - mid))
+        if abs(best["y"] - mid) <= self._ANSWER_MAX_DY:
+            return best["answer"], True
+        return None, False
+
+    def _ticked_answer(self, pattern):
+        """(answer, found) for a checkbox-answered question.
+
+        found says a checkbox row for this question was located, so its answer
+        stands even when it is None - the question was simply not answered, and
+        falling back to a text search would invent one.
+        """
+        try:
+            rx = re.compile(pattern, re.IGNORECASE)
+        except re.error:
+            return None, False
+        pages = range(min(8, len(self.fitz_doc)))
+        # Whole lines first. A wrapped run always contains its own first line,
+        # so trying runs together with lines would let a longer, earlier-
+        # starting run win over the line that actually asks the question.
+        for which in (0, 1):
+            for page_idx in pages:
+                rows = self._checkbox_rows(page_idx)
+                if not rows:
+                    continue
+                for text, rect in self._lines_with_boxes(page_idx)[which]:
+                    if not rx.search(text):
+                        continue
+                    answer, found = self._answer_for_rect(rows, rect)
+                    if found:
+                        return answer, True
+        return None, False
+
     def _find_yes_no(self, text, pattern):
+        answer, found = self._ticked_answer(pattern)
+        if found:
+            return answer
         try:
             match = re.search(pattern + r".*?(Yes|No|✓|✔|☑|☒)", text, re.IGNORECASE | re.DOTALL)
             if match:
@@ -2541,11 +2697,24 @@ class ConditionReportExtractor:
             pass
         return None
 
-    def _find_date_after(self, text, pattern):
+    # A value belongs to its label only if it follows closely. An unbounded
+    # ".*?" walks the rest of the document, so a BLANK box on the form was
+    # filled from whatever came next - the empty water-meter boxes picked up
+    # the "4" of "Page 4 of 79", and the empty date beside them took a date
+    # printed further down the page.
+    _FIELD_WINDOW = 60
+
+    def _find_date_after(self, text, pattern, window=None):
+        window = self._FIELD_WINDOW if window is None else window
         try:
-            match = re.search(pattern + r".*?(\d{1,2}\s*/\s*\d{1,2}\s*/\s*\d{2,4})", text, re.IGNORECASE | re.DOTALL)
+            anchor = re.search(pattern, text, re.IGNORECASE | re.DOTALL)
+            if not anchor:
+                return None
+            tail = text[anchor.end():anchor.end() + window]
+            match = re.search(r"(\d{1,2}\s*/\s*\d{1,2}\s*/\s*\d{2,4})", tail)
             if match:
-                return match.group(1).strip()
+                # These forms print a date one component per line.
+                return re.sub(r"\s+", "", match.group(1))
         except re.error:
             pass
         return None

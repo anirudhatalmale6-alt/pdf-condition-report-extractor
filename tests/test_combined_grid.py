@@ -316,6 +316,35 @@ def check_agency(name, want_type, want_block, want_comment_field):
     ok = owned > 0
     failed += not ok
     print(f"{'ok  ' if ok else 'FAIL'} comments attributed to {want_comment_field}: {owned}")
+
+    # A tenant's reply is not compulsory, so it is usually absent - but it must
+    # be captured, and kept apart from the agent's, when it is there.
+    tenant = sum(1 for a in areas for c in a["components"]
+                 if c[mine].get("tenant_comments"))
+    want_tenant = want_block == "end"
+    ok = bool(tenant) == want_tenant
+    failed += not ok
+    print(f"{'ok  ' if ok else 'FAIL'} tenant comments captured: {tenant}"
+          f"{'' if ok else ' (want %s)' % ('some' if want_tenant else 'none')}")
+
+    # The statutory questions are answered by a tick, not by a printed word.
+    st = result["statutory"]
+    checks = [
+        ("structurally_sound", st["minimum_standards"].get("structurally_sound"), "Yes"),
+        ("adequate_ventilation", st["minimum_standards"].get("adequate_ventilation"), "Yes"),
+        ("adequate_plumbing", st["minimum_standards"].get("adequate_plumbing"), "Yes"),
+        ("mould_dampness", st["health_issues"].get("mould_dampness"), "No"),
+        ("pests_vermin", st["health_issues"].get("pests_vermin"), "No"),
+        ("smoke installed", st["smoke_alarms"].get("installed"), "Yes"),
+        # Left blank on the form: it must stay null, never default to "No".
+        ("tenant_agrees (blank)", st["minimum_standards"].get("tenant_agrees"), None),
+    ]
+    wrong = [(n, g, w) for n, g, w in checks if g != w]
+    failed += len(wrong)
+    print(f"{'ok  ' if not wrong else 'FAIL'} statutory read from ticks: "
+          f"{len(checks) - len(wrong)}/{len(checks)}")
+    for name, got, want in wrong:
+        print(f"     FAIL {name}: got {got!r}, want {want!r}")
     return failed
 
 
