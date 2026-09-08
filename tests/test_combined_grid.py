@@ -345,6 +345,35 @@ def check_agency(name, want_type, want_block, want_comment_field):
           f"{len(checks) - len(wrong)}/{len(checks)}")
     for name, got, want in wrong:
         print(f"     FAIL {name}: got {got!r}, want {want!r}")
+
+    # Every photo must carry the area it evidences, or an importer has nothing
+    # to file it against. One photo per page is a close-up of a plain wall,
+    # which is what damage evidence usually looks like - those were being
+    # discarded as clip-art, so the count matters as much as the labels.
+    images = result["images"]
+    ok = len(images) == 12
+    failed += not ok
+    print(f"{'ok  ' if ok else 'FAIL'} photos found: {len(images)}"
+          f"{'' if ok else ' (want 12, incl. the flat wall close-ups)'}")
+
+    unlabelled = [i for i in images if not i.get("area")]
+    ok = images and not unlabelled
+    failed += not ok
+    print(f"{'ok  ' if ok else 'FAIL'} photos carrying an area: "
+          f"{len(images) - len(unlabelled)}/{len(images)}")
+
+    named = {i["area"] for i in images if i.get("area")}
+    stray = named - {a["area_name"] for a in areas}
+    ok = not stray
+    failed += not ok
+    print(f"{'ok  ' if ok else 'FAIL'} photo areas match real areas"
+          f"{'' if ok else ': ' + ', '.join(sorted(stray))}")
+
+    captioned = [i for i in images if i.get("caption") and i.get("photographer")]
+    ok = len(captioned) == len(images)
+    failed += not ok
+    print(f"{'ok  ' if ok else 'FAIL'} photos with caption and photographer: "
+          f"{len(captioned)}/{len(images)}")
     return failed
 
 
@@ -371,6 +400,25 @@ def main():
         failed += not ok
         print(f"{'ok  ' if ok else 'FAIL'} {name}: {n_areas} areas / {n_items} items "
               f"(want {want_areas} / {want_items})")
+
+        # A blank form has answered nothing. The official NSW PDF is a fillable
+        # AcroForm whose statutory section sits on page 10, and it was reporting
+        # 27 invented answers - "Yes" across the board on an empty document.
+        stat = other.get("statutory") or {}
+        answered = []
+        stack = [("", stat)]
+        while stack:
+            prefix, node = stack.pop()
+            for key, value in node.items():
+                if isinstance(value, dict):
+                    stack.append((prefix + key + ".", value))
+                elif value is not None:
+                    answered.append(prefix + key)
+        ok = not answered
+        failed += not ok
+        print(f"{'     ok  ' if ok else '     FAIL'} statutory blank: "
+              f"{len(answered)} answered"
+              f"{'' if ok else ' -> ' + ', '.join(answered[:6])}")
 
         want_type = BLANK_DOC_TYPE.get(name)
         if want_type:

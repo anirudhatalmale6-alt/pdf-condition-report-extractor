@@ -138,6 +138,7 @@ class ConditionReportExtractor:
         # Statutory checkbox rows and line geometry, per page.
         self._checkbox_cache = {}
         self._line_cache = {}
+        self._checkbox_pages_cache = None
         # Master switch for the scanned/image OCR path. When False the extractor
         # is purely a digital-PDF reader (OCR never runs, no scanned_ticks /
         # ocr_status in the output). Digital reports are identical either way -
@@ -2000,6 +2001,13 @@ class ConditionReportExtractor:
     # A photograph has thousands of distinct colours; a flat icon, clip-art or
     # line graphic (e.g. a paperclip "attachment" glyph) has only a handful.
     _MIN_PHOTO_COLORS = 200
+    # ...but only for SMALL rasters, where an icon could still be mistaken for a
+    # photo. A close-up of a scuff on a plain painted wall has very few distinct
+    # colours - five such photos on a real exit report scored 98 to 199 and were
+    # discarded, which is precisely the damage evidence a bond claim rests on.
+    # At this size and larger, the min-dimension and aspect tests have already
+    # excluded icons and rules, so flatness no longer means "not a photograph".
+    _COLOR_TEST_MAX_DIM = 400
     _PHOTO_JPEG_QUALITY = 78
 
     @staticmethod
@@ -2020,6 +2028,35 @@ class ConditionReportExtractor:
             return len(colors)
         except Exception:
             return 10 ** 6  # on any failure, do not filter it out
+
+    # Agency photo pages caption every picture with the area it belongs to, who
+    # took it and its place in that area's run:
+    #     "Entrance/hall (Agent) - 1 of 26"
+    # That is the only thing tying a photo to a room, so without it every image
+    # arrives unlabelled and cannot be filed against the area it evidences.
+    _PHOTO_CAPTION = re.compile(
+        r"^(?P<area>.+?)\s*\((?P<by>[^)]{1,30})\)\s*[-–]\s*"
+        r"(?P<n>\d+)\s+of\s+(?P<total>\d+)\s*$")
+
+    def _parse_area_photo_captions(self, page_text):
+        """Captions on an agency photo page, in reading order."""
+        caps = []
+        for raw in page_text.split("\n"):
+            match = self._PHOTO_CAPTION.match(raw.strip())
+            if not match:
+                continue
+            area = match.group("area").strip()
+            by = match.group("by").strip()
+            caps.append({
+                "label": area,
+                "area": area,
+                "photographer": by,
+                "media_type": "photo",
+                "date_taken": None,
+                "caption": "{} ({}) - {} of {}".format(
+                    area, by, match.group("n"), match.group("total")),
+            })
+        return caps
 
     def _parse_media_captions(self, page_text):
         # Software-generated exit reports (e.g. Inspection Manager) append a
@@ -2419,7 +2456,9 @@ class ConditionReportExtractor:
         images = []
         emitted = set()
         for page_idx, page in enumerate(doc):
-            captions = self._parse_media_captions(page.get_text())
+            page_text = page.get_text()
+            captions = (self._parse_media_captions(page_text)
+                        or self._parse_area_photo_captions(page_text))
             media_links = self._parse_media_links(page)
 
             photos = []  # (xref, rect, pixmap)
@@ -2468,7 +2507,8 @@ class ConditionReportExtractor:
                 if aspect > self._MAX_PHOTO_ASPECT:
                     pix = None
                     continue  # header banner, wave or divider, not a photo
-                if self._color_diversity(pix) < self._MIN_PHOTO_COLORS:
+                if min(pix.width, pix.height) < self._COLOR_TEST_MAX_DIM \
+                        and self._color_diversity(pix) < self._MIN_PHOTO_COLORS:
                     pix = None
                     continue  # flat icon / clip-art / line graphic, not a photo
                 photos.append((xref, rects[0], pix))
@@ -2480,6 +2520,7 @@ class ConditionReportExtractor:
             # slightly uneven baseline still groups), then left-to-right.
             photos.sort(key=lambda t: (round(t[1].y0 / 12), t[1].x0))
             captions_match = len(captions) == len(photos)
+            page_areas = {c["area"] for c in captions if c.get("area")}
             links = media_links["media"]
             links_match = len(links) == len(photos)
             gallery_url = media_links["gallery_url"]
@@ -2496,6 +2537,11 @@ class ConditionReportExtractor:
                     "height": pix.height,
                     "position": {"x": round(rect.x0, 1), "y": round(rect.y0, 1)},
                     "label": None,
+                    # Which area of the property this photo evidences, and who
+                    # took it. Without these an importer has nothing to file the
+                    # image against and every photo lands unlabelled.
+                    "area": None,
+                    "photographer": None,
                     "media_type": "photo",
                     "date_taken": None,
                     "caption": None,
@@ -2508,9 +2554,17 @@ class ConditionReportExtractor:
                 if captions_match:
                     cap = captions[i]
                     entry["label"] = cap["label"]
+                    entry["area"] = cap.get("area")
+                    entry["photographer"] = cap.get("photographer")
                     entry["media_type"] = cap["media_type"]
                     entry["date_taken"] = cap["date_taken"]
                     entry["caption"] = cap["caption"]
+                elif page_areas and len(page_areas) == 1:
+                    # The counts did not line up, so a caption cannot be pinned
+                    # to a particular photo - but every caption on this page
+                    # names the same area, so the area is still known. Better a
+                    # correct area with no caption than nothing at all.
+                    entry["area"] = next(iter(page_areas))
                 # The hyperlink under each thumbnail carries the real media file
                 # (the playable .mov for a video, or the full-resolution .jpg for
                 # a photo) and its /video-vs-/image path is the authoritative
@@ -2564,6 +2618,33 @@ class ConditionReportExtractor:
             return cache[page_idx]
 
         page = self.fitz_doc[page_idx]
+
+        # A fillable form answers with AcroForm checkboxes rather than drawn
+        # marks - the official NSW PDF has 2905 of them. They come in pairs
+        # sharing a field name, one with on-state "Yes" and one "No", so the
+        # answer is simply whichever of the pair is on. Read straight from the
+        # form: on a BLANK official form this returns rows with no answer, which
+        # is what stopped it reporting 27 invented statutory values.
+        widget_rows = {}
+        for widget in (page.widgets() or []):
+            if widget.field_type_string != "CheckBox":
+                continue
+            state = widget.on_state()
+            if state not in ("Yes", "No"):
+                continue
+            row = widget_rows.setdefault(
+                widget.field_name,
+                {"y": (widget.rect.y0 + widget.rect.y1) / 2,
+                 "x0": widget.rect.x0, "answer": None})
+            row["x0"] = min(row["x0"], widget.rect.x0)
+            value = (widget.field_value or "").strip()
+            if value and value != "Off" and value == state:
+                row["answer"] = state
+        if widget_rows:
+            rows = sorted(widget_rows.values(), key=lambda r: (r["x0"], r["y"]))
+            cache[page_idx] = rows
+            return rows
+
         boxes, ticks = [], []
         for drawing in page.get_drawings():
             rect = drawing["rect"]
@@ -2608,6 +2689,21 @@ class ConditionReportExtractor:
         cache[page_idx] = rows
         return rows
 
+    def _checkbox_pages(self):
+        """Indices of pages that carry Yes/No checkboxes, in order.
+
+        The statutory section is not always near the front: the official NSW
+        form puts Minimum Standards on page 10, and a fixed "first 8 pages"
+        scan missed it entirely, so a completely BLANK form still reported 27
+        statutory answers from the text fallback. Every page is considered, but
+        only those with checkboxes are then searched.
+        """
+        if self._checkbox_pages_cache is None:
+            self._checkbox_pages_cache = [
+                i for i in range(len(self.fitz_doc)) if self._checkbox_rows(i)
+            ]
+        return self._checkbox_pages_cache
+
     def _lines_with_boxes(self, page_idx):
         """(single lines, wrapped runs) for a page, each as (text, rect).
 
@@ -2627,7 +2723,11 @@ class ConditionReportExtractor:
         runs = []
         for i, (text, rect) in enumerate(lines):
             merged, box = text, fitz.Rect(rect)
-            for nxt_text, nxt_rect in lines[i + 1:i + 3]:
+            # The official form interleaves the "Yes" and "No" labels INTO the
+            # question text, so a two-part question can run five lines:
+            #   "...any leaking taps or toilets" / "Yes" / "No" /
+            #   "on the residential premises have been fixed"
+            for nxt_text, nxt_rect in lines[i + 1:i + 6]:
                 merged += " " + nxt_text
                 box = box | nxt_rect
                 runs.append((merged, fitz.Rect(box)))
@@ -2665,7 +2765,7 @@ class ConditionReportExtractor:
             rx = re.compile(pattern, re.IGNORECASE)
         except re.error:
             return None, False
-        pages = range(min(8, len(self.fitz_doc)))
+        pages = self._checkbox_pages()
         # Whole lines first. A wrapped run always contains its own first line,
         # so trying runs together with lines would let a longer, earlier-
         # starting run win over the line that actually asks the question.
@@ -2686,9 +2786,21 @@ class ConditionReportExtractor:
         answer, found = self._ticked_answer(pattern)
         if found:
             return answer
+        # On a form that answers by checkbox, "Yes" and "No" are printed against
+        # every question whether or not it was answered, so the text search can
+        # only ever return one of them - it cannot say "unanswered". If this
+        # document uses checkboxes at all, a question we failed to locate is
+        # reported as unknown rather than given a fabricated answer.
+        if self._checkbox_pages():
+            return None
         try:
             match = re.search(pattern + r".*?(Yes|No|✓|✔|☑|☒)", text, re.IGNORECASE | re.DOTALL)
             if match:
+                # "Yes / No" printed together is a choice to be circled, not an
+                # answer. Reading the first word of the pair reported a blank
+                # Tasmanian form as having its phone and internet connected.
+                if re.match(r"\s*[/|]\s*(Yes|No)\b", text[match.end():], re.IGNORECASE):
+                    return None
                 val = match.group(1).strip().lower()
                 if val in ("yes", "✓", "✔", "☑"):
                     return "Yes"

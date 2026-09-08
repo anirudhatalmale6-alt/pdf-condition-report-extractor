@@ -20,9 +20,11 @@ invented data. Regenerate with:
 
     python3 tools/make_agency_fixtures.py
 """
+import io
 import os
 
 from reportlab.lib.pagesizes import landscape, A4
+from reportlab.lib.utils import ImageReader
 from reportlab.pdfgen import canvas
 
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -283,6 +285,68 @@ def _statutory_page(c, kind):
     c.showPage()
 
 
+# Photo pages caption every picture with the area it belongs to and who took
+# it - the only thing tying a photo to a room. One photo per page is
+# deliberately almost FLAT (a close-up of a plain wall, which is what a damage
+# photo usually looks like): those were being discarded as clip-art, and a
+# fixture of colourful images would not catch that returning.
+PHOTO_PAGES = [
+    ("Entrance/hall", 6),
+    ("Kitchen", 6),
+]
+
+
+def _photo_bytes(seed, flat=False):
+    """A JPEG the size the real reports use - noisy, or nearly featureless.
+
+    The dimensions matter: the flatness test only applies to SMALL rasters, so
+    a fixture of thumbnails would not exercise the case that mattered - a
+    full-size close-up of a plain wall being discarded as clip-art.
+    """
+    from PIL import Image
+    import random
+    w, h = 640, 853
+    rnd = random.Random(seed)
+    if flat:
+        # A plain painted wall: a handful of near-identical tones.
+        # Seed-dependent, or every flat photo would be byte-identical, share
+        # one xref and be emitted only once.
+        tone = 224 + (seed % 12)
+        base = bytes(bytearray(
+            (tone + (i % 3)) for i in range(w * h * 3)))
+    else:
+        base = bytes(bytearray(rnd.randrange(256) for _ in range(w * h * 3 // 64)))
+        base = (base * 64)[:w * h * 3]
+    img = Image.frombytes("RGB", (w, h), base)
+    buf = io.BytesIO()
+    img.save(buf, format="JPEG", quality=85)
+    buf.seek(0)
+    return buf
+
+
+def _photo_page(c, kind, area, count, start, total, seed_base=0):
+    _title(c, kind, PAGE_H - 30)
+    c.setFont("Helvetica", 8)
+    c.drawString(COL_X[0], PAGE_H - 50, "Condition report - Photos")
+    x, y = COL_X[0], PAGE_H - 90
+    for i in range(count):
+        n = start + i
+        # The last photo on each page is the flat one.
+        flat = (i == count - 1)
+        c.drawImage(ImageReader(_photo_bytes(seed_base + n * 7 + (0 if kind == "Entry" else 3),
+                                             flat=flat)),
+                    x, y - 150, width=113, height=150)
+        c.setFont("Helvetica", 6)
+        c.drawString(x, y - 160, "{} ({}) - {} of {}".format(area, "Agent", n, total))
+        x += 140
+        if x > 700:
+            x = COL_X[0]
+            y -= 190
+    c.setFont("Helvetica", 6)
+    c.drawString(COL_X[0], 24, "Lessor/agent initials    Tenant/s initials")
+    c.showPage()
+
+
 def _values_for(kind, item):
     table = ENTRY_VALUES if kind == "Entry" else EXIT_VALUES
     if item in table:
@@ -375,6 +439,13 @@ def build(kind, path):
         c.drawString(COL_X[0], 24, "Residential Tenancies Regulation 2019 "
                                    "Schedule 2: Condition report | March 2020")
         c.showPage()
+
+    # Photo pages, captioned with the area each picture evidences.
+    for page_no, (area, count) in enumerate(PHOTO_PAGES):
+        # Distinct seeds per page: identical images share one xref, and a
+        # picture drawn on several pages is taken for a repeated logo and
+        # dropped - which silently halved the fixture's photo count.
+        _photo_page(c, kind, area, count, 1, count, seed_base=100 * (page_no + 1))
 
     c.save()
     return path
