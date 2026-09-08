@@ -237,10 +237,96 @@ def check_fixture(name, label):
     return failed
 
 
+# Agency-rendered NSW forms (see tools/make_agency_fixtures.py). Their headings
+# are rotated - so the text layer hands them over reversed - and live in a strip
+# above the grid, repeated as the grid's own first row on continuation pages.
+# Before this was handled the reader fell through to a positional guess that
+# produced its built-in 146-item checklist with EVERY tick dropped, which looked
+# exactly like a clean extraction of a standard form.
+AGENCY = [
+    ("NSW_agency_entry_rotated_grid.pdf", "move_in", "start", "landlord_comments"),
+    ("NSW_agency_exit_rotated_grid.pdf", "move_out", "end", "comments"),
+]
+
+
+def agency_truth(path):
+    """(areas, item rows, rows carrying a tick) read from the PDF itself."""
+    areas = items = ticks = 0
+    with pdfplumber.open(path) as pdf:
+        for page in pdf.pages:
+            for table in page.find_tables():
+                rows = table.extract()
+                if len(rows) < 3 or max(len(r) for r in rows) < 6:
+                    continue
+                for row_obj, row in zip(table.rows, rows):
+                    name = re.sub(r"\s+", " ", str(row[0] or "")).strip()
+                    if not re.search(r"[A-Za-z]{2,}", name):
+                        continue
+                    cells = [c for c in row_obj.cells if c]
+                    width = table.bbox[2] - table.bbox[0]
+                    if len(cells) == 1 and (cells[0][2] - cells[0][0]) / width >= 0.8:
+                        areas += 1
+                        continue
+                    items += 1
+                    if any((c or "").strip() in ("Y", "N") for c in row[1:5]):
+                        ticks += 1
+    return areas, items, ticks
+
+
+def check_agency(name, want_type, want_block, want_comment_field):
+    path = os.path.join(SAMPLES, name)
+    failed = 0
+    print(f"--- {name}")
+    if not os.path.exists(path):
+        print("FAIL fixture missing")
+        return 1
+
+    want_areas, want_items, want_ticks = agency_truth(path)
+    result = extract_pdf(path, jurisdiction=detect_jurisdiction(path) or "NSW")
+    areas = result["areas"]
+    items = sum(len(a["components"]) for a in areas)
+    ticks = sum(1 for a in areas for c in a["components"]
+                for b in ("start_of_tenancy", "end_of_tenancy")
+                if c[b].get("clean") or c[b].get("undamaged") or c[b].get("working"))
+
+    for label, got, want in (("areas", len(areas), want_areas),
+                             ("item rows", items, want_items),
+                             ("rows with a tick", ticks, want_ticks)):
+        ok = got == want
+        failed += not ok
+        print(f"{'ok  ' if ok else 'FAIL'} {label}: {got} (PDF has {want})")
+
+    ok = result["document_type"] == want_type
+    failed += not ok
+    print(f"{'ok  ' if ok else 'FAIL'} doc type {result['document_type']!r}"
+          f"{'' if ok else f' (want {want_type!r})'}")
+
+    # The observations must land on the correct side of the tenancy, and the
+    # comment must be attributed to whoever actually wrote it - the two comment
+    # columns swap owners between the entry and exit forms.
+    other = "end_of_tenancy" if want_block == "start" else "start_of_tenancy"
+    mine = "start_of_tenancy" if want_block == "start" else "end_of_tenancy"
+    stray = sum(1 for a in areas for c in a["components"] if any(c[other].values()))
+    ok = stray == 0
+    failed += not ok
+    print(f"{'ok  ' if ok else 'FAIL'} nothing filed under {other}: {stray} row(s)")
+
+    owned = sum(1 for a in areas for c in a["components"]
+                if c[mine].get(want_comment_field))
+    ok = owned > 0
+    failed += not ok
+    print(f"{'ok  ' if ok else 'FAIL'} comments attributed to {want_comment_field}: {owned}")
+    return failed
+
+
 def main():
     failed = 0
     for name, label in FIXTURES:
         failed += check_fixture(name, label)
+        print()
+
+    for name, want_type, want_block, want_comment in AGENCY:
+        failed += check_agency(name, want_type, want_block, want_comment)
         print()
 
     for name, (want_areas, want_items) in sorted(EXPECTED.items()):

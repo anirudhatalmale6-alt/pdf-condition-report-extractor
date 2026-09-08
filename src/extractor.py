@@ -131,6 +131,10 @@ class ConditionReportExtractor:
         self._scanned = None          # tri-state: None until probed
         self._ocr_cache = {}          # page.number -> OCR text
         self._ocr_used = False        # True once any OCR text is actually used
+        # Column maps recovered from a rotated heading strip, keyed by the
+        # grid's column positions so a multi-page grid keeps reading correctly
+        # on the continuation pages, which print no headings of their own.
+        self._detached_map_cache = {}
         # Master switch for the scanned/image OCR path. When False the extractor
         # is purely a digital-PDF reader (OCR never runs, no scanned_ticks /
         # ocr_status in the output). Digital reports are identical either way -
@@ -502,10 +506,21 @@ class ConditionReportExtractor:
             "address": self._extract_address() or sh.get("address"),
             "postcode": self._extract_postcode(),
             "report_number": self._extract_report_number(),
+            # Precise form labels first. These are tried in order, so the exact
+            # wording of the NSW Schedule 2 form wins over a bare "tenant" or
+            # "landlord", which also occur in the explanatory prose.
             "tenant_name": (self._extract_numbered_tenants()
-                            or self._extract_field_value(["tenant", "tenant name", "tenant/s", "tenants", "full name of renter"])
+                            or self._extract_field_value([
+                                "full name/s of the tenant/s", "full name of the tenant",
+                                "full name/s of tenant/s", "name/s of the tenant/s",
+                                "full name of renter", "tenant name", "tenant/s", "tenants",
+                                "tenant"])
                             or sh.get("tenant_name")),
-            "landlord_name": self._extract_field_value(["landlord", "landlord name", "landlord/agent", "agent", "lessor", "rental provider"]),
+            "landlord_name": self._extract_field_value([
+                "name of the lessor/agent", "name of lessor/agent",
+                "name of the landlord/agent", "name of the landlord",
+                "landlord name", "landlord/agent", "rental provider",
+                "landlord", "lessor", "agent"]),
             "property_manager": self._extract_field_value(["property manager", "managing agent", "agent's company"]),
             "bond_number": self._extract_field_value(["bond number", "bond no"]),
             "date_received": self._extract_date_received(),
@@ -543,8 +558,47 @@ class ConditionReportExtractor:
         ]
         val = self._value_for_labels(labels, pages=3)
         if val and len(val) > 3 and not re.match(r'^[YN\s/|]+$', val):
-            return val
+            return self._complete_address(val)
         return None
+
+    # A bare 4-digit line under an address is its postcode.
+    _POSTCODE_LINE = re.compile(r"^\d{4}$")
+
+    def _complete_address(self, first_line):
+        """Gather the rest of a stacked address.
+
+        Agency systems print the address over three lines - street, then
+        "Suburb, STATE", then the postcode on its own. Taking only the line
+        after the label returned "510/3 George St" for a property in Warwick
+        Farm NSW 2170, which is not enough to identify a property and left the
+        postcode null as well.
+        """
+        for page in self.fitz_doc[:3]:
+            lines = [ln.strip() for ln in self._page_text(page).split("\n")]
+            try:
+                i = lines.index(first_line)
+            except ValueError:
+                continue
+            parts = [first_line]
+            for nxt in lines[i + 1:i + 4]:
+                if not nxt:
+                    continue
+                if self._POSTCODE_LINE.match(nxt):
+                    parts.append(nxt)
+                    break
+                # A following label ends the address.
+                if not self._valid_field_value(nxt) or self._is_label_like(nxt, ""):
+                    break
+                parts.append(nxt)
+            if len(parts) == 1:
+                continue
+            # "Street, Suburb STATE 2170" - the postcode joins its own line
+            # without a comma so the result reads as a normal address.
+            out = ", ".join(parts[:-1]) if self._POSTCODE_LINE.match(parts[-1]) else ", ".join(parts)
+            if self._POSTCODE_LINE.match(parts[-1]):
+                out = f"{out} {parts[-1]}"
+            return out
+        return first_line
 
     def _extract_postcode(self):
         for page in self.fitz_doc[:3]:
@@ -563,8 +617,11 @@ class ConditionReportExtractor:
     def _extract_report_number(self):
         for page in self.fitz_doc[:3]:
             text = self._page_text(page)
+            # The number word is required. Allowing a bare "Report:" made the
+            # title line "Entry condition report: 510/3 George St, ..." yield a
+            # report number of "510/3" - the unit and street number.
             for pattern in [
-                r"(?:Report|Reference|Ref)\s*(?:No|Number|#|:)\s*[:\s]*([A-Z0-9][\w\-/]+)",
+                r"(?:Report|Reference|Ref)\s*(?:No\.?|Number|#)\s*[:\s]*([A-Z0-9][\w\-/]+)",
                 r"(?:Report)\s*(?:ID)\s*[:\s]*([A-Z0-9][\w\-/]+)",
             ]:
                 match = re.search(pattern, text, re.IGNORECASE)
@@ -640,7 +697,23 @@ class ConditionReportExtractor:
     def _value_for_labels(self, labels, pages=5):
         """Return the value for a labelled field. Handles both inline values
         ("Label: value") and the common case where the value sits on the next
-        line ("Label:" then "value")."""
+        line ("Label:" then "value").
+
+        Labels are tried in the order given, each across the whole document
+        before the next is considered, so a precise label always beats a loose
+        one. Scanning line-by-line and accepting whichever label happened to
+        appear first let a prose sentence containing "landlord" outrank the
+        actual "Name of the lessor/agent" field, and a real agency report came
+        back with its landlord recorded as "Have the removable batteries in all
+        the smoke alarms been".
+        """
+        for label in labels:
+            found = self._value_for_one_label(label, pages)
+            if found is not None:
+                return found
+        return None
+
+    def _value_for_one_label(self, label, pages=5):
         for page in self.fitz_doc[:pages]:
             text = self._page_text(page)
             tu = text.upper()
@@ -653,26 +726,24 @@ class ConditionReportExtractor:
                 continue
             lines = [ln.strip() for ln in text.split("\n")]
             for i, line in enumerate(lines):
-                low = line.lower()
-                for label in labels:
-                    if label not in low:
+                if label not in line.lower():
+                    continue
+                # Inline value after the label (and optional colon).
+                m = re.search(re.escape(label) + r"[^\S\n]*:?[^\S\n]*(.*)$",
+                              line, re.IGNORECASE)
+                inline = m.group(1).strip() if m else ""
+                if self._valid_field_value(inline):
+                    return inline
+                # Otherwise take the next non-empty line - but only if this
+                # line is a real field label, not a sentence containing the word.
+                if not self._is_label_like(line, label):
+                    continue
+                for nxt in lines[i + 1:i + 3]:
+                    if not nxt:
                         continue
-                    # Inline value after the label (and optional colon).
-                    m = re.search(re.escape(label) + r"[^\S\n]*:?[^\S\n]*(.*)$",
-                                  line, re.IGNORECASE)
-                    inline = m.group(1).strip() if m else ""
-                    if self._valid_field_value(inline):
-                        return inline
-                    # Otherwise take the next non-empty line - but only if this
-                    # line is a real field label, not a sentence containing the word.
-                    if not self._is_label_like(line, label):
-                        continue
-                    for nxt in lines[i + 1:i + 3]:
-                        if not nxt:
-                            continue
-                        if self._valid_field_value(nxt):
-                            return nxt
-                        break
+                    if self._valid_field_value(nxt):
+                        return nxt
+                    break
         return None
 
     def _extract_field_value(self, field_names):
@@ -716,7 +787,10 @@ class ConditionReportExtractor:
                 text, re.IGNORECASE | re.DOTALL
             )
             if match:
-                return match.group(1).strip()
+                # These forms lay the date out one component per line
+                # ("26\n/\n11\n/ 2024"), which reached the JSON with its
+                # newlines intact.
+                return re.sub(r"\s+", "", match.group(1))
         return None
 
     # Tokens that mark a row as metadata / signature noise rather than a real
@@ -1126,19 +1200,36 @@ class ConditionReportExtractor:
 
     @staticmethod
     def _header_field(cell):
-        """Map a column heading to the field it fills, or None."""
-        n = re.sub(r"[^a-z ]", " ", (cell or "").lower())
-        n = " ".join(n.split())
-        if not n:
-            return None
-        # Grids that abbreviate the three condition columns and carry a legend
-        # ("Key: C = Clean; U = Undamaged; W = Working"). Exact match only - a
-        # substring test on a single letter would hit almost every heading.
-        if n in _ABBREVIATED_HEADERS:
-            return _ABBREVIATED_HEADERS[n]
-        for field, needles in _HEADER_FIELDS:
-            if any(needle in n for needle in needles):
-                return field
+        """Map a column heading to the field it fills, or None.
+
+        Rotated headings often come out of the text layer reversed ("naelC" for
+        "Clean"), so each candidate is tried in both reading directions. The
+        reversed try is last and cannot invent a match: no field name reads as
+        another field name backwards.
+        """
+        raw = cell or ""
+        for text in (raw, raw[::-1]):
+            n = re.sub(r"[^a-z ]", " ", text.lower())
+            n = " ".join(n.split())
+            if not n:
+                continue
+            # Grids that abbreviate the three condition columns and carry a
+            # legend ("Key: C = Clean; U = Undamaged; W = Working"). Exact match
+            # only - a substring test on a single letter would hit almost every
+            # heading.
+            if n in _ABBREVIATED_HEADERS:
+                return _ABBREVIATED_HEADERS[n]
+            for field, needles in _HEADER_FIELDS:
+                if any(needle in n for needle in needles):
+                    return field
+            # A rotated heading can also arrive one character per line
+            # ("n\na\ne\nl\nC"), which leaves a space between every letter and
+            # matches nothing above. Compare with all spacing removed.
+            tight = n.replace(" ", "")
+            if len(tight) > 2:
+                for field, needles in _HEADER_FIELDS:
+                    if any(needle.replace(" ", "") in tight for needle in needles):
+                        return field
         return None
 
     @classmethod
@@ -1215,6 +1306,163 @@ class ConditionReportExtractor:
         if not colmap:
             return None, 0
         return colmap, max(field_row, span_row if span_row is not None else 0) + 1
+
+    # The two wide comment columns are labelled above the grid rather than in
+    # it, and the NSW form SWAPS their order between entry and exit: an entry
+    # report reads "Lessor/agent - Comments (if any)" then "Tenant/s - Comment
+    # on lessor/agent report", an exit report the other way round. Reading them
+    # by position files the agent's exit findings as the tenant's, which in a
+    # bond dispute is precisely backwards.
+    _COMMENT_OWNERS = (
+        ("landlord_comments", ("lessor", "landlord", "agent")),
+        ("tenant_comments", ("tenant",)),
+    )
+
+    @classmethod
+    def _comment_owner_order(cls, page_text):
+        """Owners of the two comment columns, left to right, from the page."""
+        hits = []
+        low = (page_text or "").lower()
+        for field, needles in cls._COMMENT_OWNERS:
+            pos = min((low.find(n) for n in needles if low.find(n) >= 0),
+                      default=-1)
+            if pos >= 0:
+                hits.append((pos, field))
+        hits.sort()
+        order = [f for _, f in hits]
+        # Fall back to the printed form's usual order rather than guessing.
+        return order or ["landlord_comments", "tenant_comments"]
+
+    _TICK_FIELDS = ("clean", "undamaged", "working", "tenant_agrees")
+
+    def _rotated_column_map(self, page_tables, found_table, block, page_text):
+        """Column map for a grid whose headings are rotated Clean / Undamaged /
+        Working / Tenant Agrees labels, and whose two wide comment columns are
+        named only in the page text.
+
+        Agency systems that render the NSW form (PrinceXML and friends) put the
+        rotated headings in their own one-row strip above the grid on the first
+        page, then repeat them as the grid's own first row on continuation
+        pages - and in both cases the text layer hands them over reversed
+        ("naelC"). Neither shape gave a usable map, so the reader fell through
+        to a positional guess that dropped every tick: 123 of them on one real
+        report, with the unfilled rows promoted to areas in their place.
+
+        Headings are matched to columns by x-position, which works whether they
+        sit in the grid or in a strip above it.
+        """
+        bounds = self._column_bounds(found_table)
+        signature = tuple(round(x0) for x0, _ in bounds)
+
+        header_cells = []
+        for other in page_tables:
+            # The grid's own first row, or a heading strip sitting above it.
+            if other.bbox != found_table.bbox and other.bbox[3] > found_table.bbox[1] + 2:
+                continue
+            rows = other.extract()
+            if not rows:
+                continue
+            for row_idx, row in enumerate(rows[:1] if other.bbox == found_table.bbox
+                                          else rows[:2]):
+                for col_idx, cell in enumerate(row):
+                    if self._header_field(cell) not in self._TICK_FIELDS:
+                        continue
+                    cell_box = self._cell_bounds(other, row_idx, col_idx)
+                    if cell_box:
+                        header_cells.append((cell_box, self._header_field(cell)))
+
+        if len(header_cells) < 3:
+            # Some continuation pages repeat neither. Reuse the map from a page
+            # that did carry headings, but only for a grid ruled to the same
+            # column positions, so it can never borrow a differently shaped
+            # table's map.
+            return self._detached_map_cache.get(signature)
+
+        colmap, claimed = {}, set()
+        for col_idx, (x0, x1) in enumerate(bounds):
+            centre = (x0 + x1) / 2.0
+            for (hx0, hx1), field in header_cells:
+                if hx0 - 1 <= centre <= hx1 + 1 and field not in claimed:
+                    colmap[col_idx] = (block, field)
+                    claimed.add(field)
+                    break
+        if len(colmap) < 3:
+            return None
+
+        # Everything right of the last tick column is a comment column. Name
+        # them from the page, in the order the page names them - see
+        # _comment_owner_order for why position alone is not safe.
+        last_tick = max(colmap)
+        owners = self._comment_owner_order(page_text)
+        for pos, col_idx in enumerate(i for i in range(len(bounds)) if i > last_tick):
+            if pos >= len(owners):
+                break
+            field = owners[pos]
+            if block == "end" and field == "landlord_comments":
+                field = "comments"
+            colmap[col_idx] = (block, field)
+        self._detached_map_cache[signature] = colmap
+        return colmap
+
+    @staticmethod
+    def _cell_bounds(table, row_idx, col_idx):
+        """(x0, x1) of one extracted cell, or None."""
+        try:
+            row = table.rows[row_idx]
+        except (AttributeError, IndexError):
+            return None
+        cells = [c for c in row.cells if c]
+        if col_idx >= len(cells):
+            return None
+        return cells[col_idx][0], cells[col_idx][2]
+
+    @staticmethod
+    def _column_bounds(table):
+        """(x0, x1) per column of a found table, left to right."""
+        edges = sorted({round(c[0], 1) for row in table.rows
+                        for c in row.cells if c})
+        edges.append(table.bbox[2])
+        return [(edges[i], edges[i + 1]) for i in range(len(edges) - 1)]
+
+    # An area heading in these grids is one cell merged across the whole table
+    # width; an item row keeps its separate columns. That is structural, so it
+    # needs no vocabulary of room names - which matters because an unfilled item
+    # ("blinds/curtains" with no ticks) and an area heading ("Lounge room") are
+    # otherwise the same shape: a name in column 0 and nothing else.
+    _MERGED_HEADING_SHARE = 0.8
+
+    @classmethod
+    def _is_merged_heading(cls, table_row, table):
+        cells = [c for c in table_row.cells if c]
+        if len(cells) != 1:
+            return False
+        width = table.bbox[2] - table.bbox[0]
+        return width > 0 and (cells[0][2] - cells[0][0]) / width >= cls._MERGED_HEADING_SHARE
+
+    _REPORT_TITLE_BLOCK = (
+        ("start", ("entry condition report", "entry inspection report",
+                   "ingoing condition report", "condition report at the start")),
+        ("end", ("exit condition report", "exit inspection report",
+                 "outgoing condition report", "final inspection report",
+                 "condition report at the end")),
+    )
+
+    def _document_block(self):
+        """Whether this document records the START or the END of a tenancy.
+
+        Agency systems title the page plainly - "Entry condition report: ..." /
+        "Exit Condition Report: ..." - which beats keyword-counting the body,
+        where the instruction pages discuss both ends at length. That is what
+        made an entry report come out as a move-out, with every move-in
+        observation filed under end-of-tenancy.
+        """
+        head = ""
+        for page in self.fitz_doc[:3]:
+            head += self._page_text(page)[:400].lower() + "\n"
+        for block, titles in self._REPORT_TITLE_BLOCK:
+            if any(t in head for t in titles):
+                return block
+        return "end" if self.detected_type == "move_out" else "start"
 
     _YN_FIELDS = ("clean", "undamaged", "working", "tenant_agrees")
 
@@ -1441,6 +1689,7 @@ class ConditionReportExtractor:
     def _extract_rooms_generic(self):
         rooms = []
         current_room = None
+        block = self._document_block()
 
         for i, page in enumerate(self.plumber_pdf.pages):
             found = page.find_tables()
@@ -1448,9 +1697,40 @@ class ConditionReportExtractor:
                 continue
             words = None
 
+            page_text = None
+
             for found_table in found:
                 table = found_table.extract()
                 colmap, first_data = self._table_column_map(table)
+
+                # A rotated-heading grid. Its own header row names only the four
+                # tick columns, so a map from it is incomplete - the wider map
+                # that also names the two comment columns wins.
+                if page_text is None:
+                    page_text = page.extract_text() or ""
+                rotated = self._rotated_column_map(found, found_table, block, page_text)
+                if rotated and len(rotated) > len(colmap or {}):
+                    # Read structurally: a full-width merged cell opens an area,
+                    # anything else is an item of the area above it.
+                    for row_obj, row in zip(found_table.rows, table):
+                        name = re.sub(r"\s+", " ", str(row[0] or "")).strip()
+                        if not re.search(r"[A-Za-z]{2,}", name):
+                            continue
+                        # A rotated heading landing in column 0 ("naelC") is a
+                        # label, not a component.
+                        if self._header_field(name):
+                            continue
+                        if self._is_merged_heading(row_obj, found_table):
+                            current_room = name
+                            rooms.append({"room_name": name,
+                                          "page_number": i + 1,
+                                          "items": []})
+                            continue
+                        if not rooms:
+                            continue
+                        rooms[-1]["items"].append(
+                            self._parse_row_by_header(name, row, rotated))
+                    continue
 
                 # An "Item"-headed grid describes ONE area, named above it.
                 head = re.sub(r"\s+", " ", str(table[0][0] or "")).strip().lower()
@@ -2104,11 +2384,23 @@ class ConditionReportExtractor:
         # the bytes are inlined; otherwise only lightweight metadata is kept.
         doc = self.fitz_doc
 
+        # get_image_rects has to lay the page out to answer, which is by far the
+        # most expensive call here - a real 79-page report with 456 photos spent
+        # most of its time in it. The scan below asks the same question the main
+        # loop asks again a moment later, so the answers are kept.
+        rects_cache = {}
+
+        def rects_for(page, xref):
+            key = (page.number, xref)
+            if key not in rects_cache:
+                rects_cache[key] = page.get_image_rects(xref)
+            return rects_cache[key]
+
         pages_drawn = {}
         for page in doc:
             for img in page.get_images(full=True):
                 xref = img[0]
-                if page.get_image_rects(xref):
+                if rects_for(page, xref):
                     pages_drawn.setdefault(xref, set()).add(page.number)
 
         images = []
@@ -2124,7 +2416,17 @@ class ConditionReportExtractor:
                     continue
                 if len(pages_drawn.get(xref, ())) > self._LOGO_PAGE_LIMIT:
                     continue  # repeated header/footer logo or watermark
-                rects = page.get_image_rects(xref)
+                # The dimensions are already in the resource entry, so the
+                # too-small and wrong-shape rejections can be made before
+                # decoding anything. Decoding first meant every icon and divider
+                # in the file was fully decompressed only to be thrown away.
+                raw_w, raw_h = img[2], img[3]
+                if raw_w and raw_h:
+                    if min(raw_w, raw_h) < self._MIN_PHOTO_DIM:
+                        continue
+                    if max(raw_w, raw_h) / max(1, min(raw_w, raw_h)) > self._MAX_PHOTO_ASPECT:
+                        continue
+                rects = rects_for(page, xref)
                 if not rects:
                     continue
                 # A near page-sized image is the page background or, in a scanned
