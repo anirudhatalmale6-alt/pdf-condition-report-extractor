@@ -256,7 +256,12 @@ def agency_truth(path):
         for page in pdf.pages:
             for table in page.find_tables():
                 rows = table.extract()
-                if len(rows) < 3 or max(len(r) for r in rows) < 6:
+                # Six-plus columns is what makes a table a condition grid. Do
+                # NOT also require several rows: a grid that runs over a page
+                # boundary can leave a two-row continuation table carrying a
+                # real item, and skipping it made this helper undercount by one
+                # - nearly sending me to "fix" an extractor that was right.
+                if not rows or max(len(r) for r in rows) < 6:
                     continue
                 for row_obj, row in zip(table.rows, rows):
                     name = re.sub(r"\s+", " ", str(row[0] or "")).strip()
@@ -377,8 +382,60 @@ def check_agency(name, want_type, want_block, want_comment_field):
     return failed
 
 
+def check_blank_grid():
+    """A report whose grid was left entirely blank, with only photos taken.
+
+    Nothing is ticked and nothing is commented, so both readings score zero -
+    and the reader used to settle that tie by returning its own built-in
+    checklist: 146 rows under ITS OWN uppercase area names for a form that
+    lists 143 under its own. A tidy, entirely fictional skeleton. The document's
+    structure has to win.
+    """
+    name = "NSW_agency_exit_blank_grid.pdf"
+    path = os.path.join(SAMPLES, name)
+    failed = 0
+    print(f"--- {name}  (grid blank, photos only)")
+    if not os.path.exists(path):
+        print("FAIL fixture missing")
+        return 1
+
+    want_areas, want_items, _ = agency_truth(path)
+    result = extract_pdf(path, jurisdiction=detect_jurisdiction(path) or "NSW")
+    areas = result["areas"]
+    items = sum(len(a["components"]) for a in areas)
+
+    for label, got, want in (("areas", len(areas), want_areas),
+                             ("item rows", items, want_items)):
+        ok = got == want
+        failed += not ok
+        print(f"{'ok  ' if ok else 'FAIL'} {label}: {got} (PDF has {want})")
+
+    # The document names its areas "Entrance/hall"; the built-in checklist uses
+    # "ENTRANCE/HALL". Upper-case names mean the checklist was returned instead.
+    shouty = [a["area_name"] for a in areas
+              if a["area_name"].isupper() and len(a["area_name"]) > 3]
+    ok = not shouty
+    failed += not ok
+    print(f"{'ok  ' if ok else 'FAIL'} areas came from the document"
+          f"{'' if ok else ': got built-in names ' + ', '.join(shouty[:3])}")
+
+    ok = result["document_type"] == "move_out"
+    failed += not ok
+    note = "" if ok else " (want 'move_out' - the title says Exit)"
+    print(f"{'ok  ' if ok else 'FAIL'} doc type {result['document_type']!r}{note}")
+
+    labelled = sum(1 for i in result["images"] if i.get("area"))
+    ok = result["images"] and labelled == len(result["images"])
+    failed += not ok
+    print(f"{'ok  ' if ok else 'FAIL'} photos carrying an area: "
+          f"{labelled}/{len(result['images'])}")
+    return failed
+
+
 def main():
     failed = 0
+    failed += check_blank_grid()
+    print()
     for name, label in FIXTURES:
         failed += check_fixture(name, label)
         print()

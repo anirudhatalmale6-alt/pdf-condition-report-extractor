@@ -49,6 +49,10 @@ TENANT = "Marcus Ellery"
 AGENT_ENTRY = "Dana Whitfield - Kingsford Realty (Riverstone)"
 AGENT_EXIT = "Owen Brackley - Meridian Property Group"
 
+# Twelve areas and ~143 rows, matching the shape of a real NSW Schedule 2
+# report. The size matters: whether a header-read grid is preferred to the
+# built-in checklist depends on how much of it the reading covers, so a
+# cut-down fixture would sit below the threshold and never exercise that rule.
 AREAS = [
     ("Entrance/hall", [
         "front door/screen door /security door", "walls/picture hooks",
@@ -62,27 +66,44 @@ AREAS = [
         "blinds/curtains", "lights/power points", "skirting boards",
         "floor coverings", "other"]),
     ("Dining room", [
-        "walls/picture hooks", "doors/doorway frames", "ceiling/light fittings",
-        "blinds/curtains", "lights/power points", "floor coverings", "other"]),
+        "walls/picture hooks", "doors/doorway frames",
+        "windows/screens/ window safety devices", "ceiling/light fittings",
+        "blinds/curtains", "lights/power points", "skirting boards",
+        "floor coverings", "other"]),
     ("Kitchen", [
         "walls/picture hooks", "cupboards/drawers", "bench tops", "sink/taps",
         "stove/hotplates", "oven/griller", "range hood/exhaust fan",
+        "windows/screens", "ceiling/light fittings", "lights/power points",
         "floor coverings", "other"]),
     ("Bedroom 1", [
         "walls/picture hooks", "wardrobe/shelves", "windows/screens",
-        "blinds/curtains", "lights/power points", "floor coverings", "other"]),
+        "blinds/curtains", "ceiling/light fittings", "lights/power points",
+        "skirting boards", "floor coverings", "other"]),
+    ("Ensuite", [
+        "walls/tiling", "shower/screen", "basin/taps", "mirror/cabinet",
+        "toilet/cistern/seat", "exhaust fan", "floor coverings", "other"]),
+    ("Bedroom 2", [
+        "walls/picture hooks", "wardrobe/shelves", "windows/screens",
+        "blinds/curtains", "ceiling/light fittings", "lights/power points",
+        "skirting boards", "floor coverings", "other"]),
+    ("Bedroom 3", [
+        "walls/picture hooks", "wardrobe/shelves", "windows/screens",
+        "blinds/curtains", "ceiling/light fittings", "lights/power points",
+        "skirting boards", "floor coverings", "other"]),
     ("Bathroom", [
         "walls/tiling", "bath/taps", "shower/screen", "basin/taps",
-        "mirror/cabinet", "toilet/cistern/seat", "floor coverings", "other"]),
-    ("Laundry", [
-        "walls/tiling", "tub/taps", "washing machine taps", "blinds/curtains",
+        "mirror/cabinet", "toilet/cistern/seat", "towel rails", "exhaust fan",
         "floor coverings", "other"]),
+    ("Laundry", [
+        "walls/tiling", "tub/taps", "washing machine taps", "cupboards",
+        "windows/screens", "blinds/curtains", "floor coverings", "other"]),
     ("Security/Safety", [
-        "locks/keys", "smoke alarms", "window safety devices", "other"]),
+        "locks/keys", "smoke alarms", "window safety devices",
+        "security screens", "other"]),
     ("General", [
         "hot water system", "gutters/downpipes", "clothesline", "garbage bins",
-        "external television antenna/tv points", "other"]),
-    ("Balcony", ["walls/railings", "floor coverings", "lights/power points", "other"]),
+        "external television antenna/tv points", "letter box", "driveway",
+        "fences/gates", "grounds/gardens", "other"]),
 ]
 
 # (clean, undamaged, working, comment). None leaves the row blank, as a real
@@ -347,14 +368,19 @@ def _photo_page(c, kind, area, count, start, total, seed_base=0):
     c.showPage()
 
 
-def _values_for(kind, item):
+def _values_for(kind, item, blank_grid=False):
+    # Agencies sometimes photograph everything and leave the condition grid
+    # itself completely empty. That report still has to come back with the
+    # document's OWN areas and rows, not this app's built-in checklist.
+    if blank_grid:
+        return None
     table = ENTRY_VALUES if kind == "Entry" else EXIT_VALUES
     if item in table:
         return table[item]
     return DEFAULT_ENTRY if kind == "Entry" else DEFAULT_EXIT
 
 
-def build(kind, path):
+def build(kind, path, blank_grid=False):
     c = canvas.Canvas(path, pagesize=PAGE)
 
     # Page 1 - instructions. Marked so the reader skips it for field lookups.
@@ -364,6 +390,13 @@ def build(kind, path):
     c.drawString(COL_X[0], PAGE_H - 64,
                  "1. Three copies of this condition report should be completed and "
                  "signed by the landlord or the landlord's agent.")
+    # The real reports identify their jurisdiction here. Without it the fixture
+    # was detected as Northern Territory and never reached the NSW code path it
+    # exists to test.
+    c.drawString(COL_X[0], PAGE_H - 78,
+                 "Call NSW Fair Trading on 13 32 20 for more information about the "
+                 "rights and responsibilities of landlords and tenants under the "
+                 "Residential Tenancies Act 2010.")
     c.showPage()
 
     # Page 2 - the labelled metadata block.
@@ -377,7 +410,7 @@ def build(kind, path):
     for area, items in AREAS:
         rows.append(("area", area, None))
         for item in items:
-            rows.append(("item", item, _values_for(kind, item)))
+            rows.append(("item", item, _values_for(kind, item, blank_grid)))
 
     first_grid_page = True
     idx = 0
@@ -452,7 +485,11 @@ def build(kind, path):
 
 
 if __name__ == "__main__":
-    for kind, name in (("Entry", "NSW_agency_entry_rotated_grid.pdf"),
-                       ("Exit", "NSW_agency_exit_rotated_grid.pdf")):
-        out = build(kind, os.path.join(SAMPLES, name))
+    for kind, name, blank in (
+            ("Entry", "NSW_agency_entry_rotated_grid.pdf", False),
+            ("Exit", "NSW_agency_exit_rotated_grid.pdf", False),
+            # Photos taken, grid left entirely blank - the shape that made the
+            # reader fall back to its own checklist and report the wrong areas.
+            ("Exit", "NSW_agency_exit_blank_grid.pdf", True)):
+        out = build(kind, os.path.join(SAMPLES, name), blank_grid=blank)
         print("wrote", out)

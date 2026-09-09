@@ -139,6 +139,9 @@ class ConditionReportExtractor:
         self._checkbox_cache = {}
         self._line_cache = {}
         self._checkbox_pages_cache = None
+        # True once a condition grid has been read using its OWN column
+        # headings, rather than guessed at positionally.
+        self._grid_read_by_header = False
         # Master switch for the scanned/image OCR path. When False the extractor
         # is purely a digital-PDF reader (OCR never runs, no scanned_ticks /
         # ocr_status in the output). Digital reports are identical either way -
@@ -410,6 +413,14 @@ class ConditionReportExtractor:
         """
         if layout != "combined":
             return layout
+
+        # A document that names itself settles it. An agency exit report whose
+        # grid was left blank (photos taken, nothing ticked) has no filled side
+        # to count, so it came back "combined" despite saying "Exit Condition
+        # Report" at the top of every page.
+        titled = self._titled_block()
+        if titled:
+            return "move_in" if titled == "start" else "move_out"
 
         total = start = end = 0
         for area in areas:
@@ -989,6 +1000,14 @@ class ConditionReportExtractor:
         norm = self._nt_normalize(raw).upper()
         return "INGOING CONDITION REPORT" in norm and "INSERT Y" in norm
 
+    # How much of the built-in checklist a header-read grid must cover before it
+    # is preferred to that checklist on a document with no conditions filled in.
+    _GENERIC_COVERAGE_MIN = 0.5
+
+    @staticmethod
+    def _area_count(rooms):
+        return sum(1 for room in rooms if room.get("items"))
+
     def _extract_rooms(self):
         if self.jurisdiction == "NT":
             if self._is_nt_rotated_grid():
@@ -1006,6 +1025,26 @@ class ConditionReportExtractor:
             generic = self._extract_rooms_generic()
             g_total, g_filled = self._condition_fill(generic)
             if g_total > 0 and g_filled > filled:
+                return generic
+            # Neither reading found a condition, which happens when an agency
+            # takes photos and leaves the grid itself blank. The two are NOT
+            # equally good: the structured reading is this app's own built-in
+            # checklist, while the generic one was read off the page by matching
+            # the grid's own column headings. Reporting the checklist would give
+            # back 146 invented rows under our own uppercase names for a form
+            # that actually lists 143 under its own - a tidy, entirely fictional
+            # skeleton.
+            #
+            # Only when that reading actually held together, though. A grid can
+            # also be read badly - on the WA form the generic pass broke single
+            # rows out as areas, ending up with MORE areas than the form has and
+            # less than half its rows. Two conditions separate a real read from
+            # a fragmented one, measured across every sample: it must not invent
+            # areas, and it must cover a fair share of the checklist. A genuine
+            # read sits at 9-12 rows per area, a fragmented one at about 3.
+            if (g_total > 0 and self._grid_read_by_header
+                    and self._area_count(generic) <= self._area_count(structured)
+                    and g_total >= total * self._GENERIC_COVERAGE_MIN):
                 return generic
 
         return structured
@@ -1451,6 +1490,16 @@ class ConditionReportExtractor:
                  "condition report at the end")),
     )
 
+    def _titled_block(self):
+        """"start"/"end" if the document TITLES itself, else None."""
+        head = ""
+        for page in self.fitz_doc[:3]:
+            head += self._page_text(page)[:400].lower() + "\n"
+        for block, titles in self._REPORT_TITLE_BLOCK:
+            if any(t in head for t in titles):
+                return block
+        return None
+
     def _document_block(self):
         """Whether this document records the START or the END of a tenancy.
 
@@ -1460,12 +1509,9 @@ class ConditionReportExtractor:
         made an entry report come out as a move-out, with every move-in
         observation filed under end-of-tenancy.
         """
-        head = ""
-        for page in self.fitz_doc[:3]:
-            head += self._page_text(page)[:400].lower() + "\n"
-        for block, titles in self._REPORT_TITLE_BLOCK:
-            if any(t in head for t in titles):
-                return block
+        titled = self._titled_block()
+        if titled:
+            return titled
         return "end" if self.detected_type == "move_out" else "start"
 
     _YN_FIELDS = ("clean", "undamaged", "working", "tenant_agrees")
@@ -1714,6 +1760,7 @@ class ConditionReportExtractor:
                     page_text = page.extract_text() or ""
                 rotated = self._rotated_column_map(found, found_table, block, page_text)
                 if rotated and len(rotated) > len(colmap or {}):
+                    self._grid_read_by_header = True
                     # Read structurally: a full-width merged cell opens an area,
                     # anything else is an item of the area above it.
                     for row_obj, row in zip(found_table.rows, table):
@@ -1739,6 +1786,7 @@ class ConditionReportExtractor:
                 # An "Item"-headed grid describes ONE area, named above it.
                 head = re.sub(r"\s+", " ", str(table[0][0] or "")).strip().lower()
                 if colmap and head in _ITEM_COLUMN_HEADS:
+                    self._grid_read_by_header = True
                     if words is None:
                         words = page.extract_words()
                     heading = self._heading_above(words, found_table.bbox[1])
@@ -2919,9 +2967,15 @@ def detect_jurisdiction(pdf_path):
         def _norm(s):
             return re.sub(r"[^a-z0-9]+", " ", s.lower()).strip()
 
+        # Match on whole words. A plain substring test made "nt exit" fire on
+        # "...the landlord's agent. Exit condition report", so an NSW report
+        # scored as Northern Territory purely because "agent" ends in "nt".
         scores = {}
         for jur, keywords in markers.items():
-            score = sum(1 for kw in keywords if _norm(kw) in text_lower)
+            score = sum(
+                1 for kw in keywords
+                if re.search(r"\b" + re.escape(_norm(kw)) + r"\b", text_lower)
+            )
             if score > 0:
                 scores[jur] = score
 
