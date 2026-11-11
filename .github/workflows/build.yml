@@ -19,12 +19,13 @@ jobs:
 
       - name: Install dependencies
         run: |
-          pip install PyMuPDF pdfplumber Pillow requests tkinterdnd2 pytesseract numpy pyinstaller
+          pip install -r requirements-build.txt
+          pip freeze
 
       - name: Stage Tesseract OCR for bundling
         shell: pwsh
         run: |
-          choco install tesseract --no-progress -y
+          choco install tesseract --version 5.5.3.20260724 --no-progress -y
           $src = "C:\Program Files\Tesseract-OCR"
           if (-not (Test-Path $src)) { $src = "C:\Program Files (x86)\Tesseract-OCR" }
           Write-Host "Tesseract source: $src"

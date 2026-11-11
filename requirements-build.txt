@@ -1,0 +1,27 @@
+# Exact versions the Windows build installs. Pinned to the v3.7.24 build so a
+# release changes only what its own commit changes: left unpinned, the v3.7.25
+# build silently picked up PyMuPDF 2.1 (from 1.28.2), pymupdf-layout with an
+# ONNX runtime, and Pillow 13 - an untested change to the PDF reader itself.
+# The web extractor (scan.orbas.com.au) runs the same versions.
+PyMuPDF==1.28.2
+pdfplumber==0.11.10
+pdfminer.six==20260107
+pypdfium2==5.13.0
+Pillow==12.3.0
+numpy==2.5.3
+pytesseract==0.3.13
+requests==2.34.2
+charset-normalizer==3.5.1
+idna==3.19
+urllib3==2.7.0
+certifi==2026.7.22
+cryptography==50.0.1
+cffi==2.1.1
+pycparser==3.0
+tkinterdnd2==0.6.3
+pyinstaller==6.22.2
+pyinstaller-hooks-contrib==2026.7
+altgraph==0.17.5
+pefile==2024.8.26
+pywin32-ctypes==0.2.3
+setuptools==84.0.0
