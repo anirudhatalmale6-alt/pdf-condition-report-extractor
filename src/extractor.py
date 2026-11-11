@@ -411,14 +411,18 @@ class ConditionReportExtractor:
         report with the entire move-in half deliberately blank. Deciding from
         the recorded conditions instead separates them.
         """
-        if layout != "combined":
+        ie = getattr(self, "_ie_layout", False)
+        if layout != "combined" and not ie:
             return layout
 
         # A document that names itself settles it. An agency exit report whose
         # grid was left blank (photos taken, nothing ticked) has no filled side
         # to count, so it came back "combined" despite saying "Exit Condition
         # Report" at the top of every page.
-        titled = self._titled_block()
+        # ...except an Inspection Express exit report, which is titled "Exit"
+        # but reprints the whole entry report beside the exit columns: what is
+        # filled in decides.
+        titled = None if ie else self._titled_block()
         if titled:
             return "move_in" if titled == "start" else "move_out"
 
@@ -1008,7 +1012,196 @@ class ConditionReportExtractor:
     def _area_count(rooms):
         return sum(1 for room in rooms if room.get("items"))
 
+    # ---- Inspection Express (iPropertyExpress) ---------------------------
+    # Agency software used by e.g. Ray White. Its exit report carries the entry
+    # report alongside it: every row of the drawn grid holds the ENTRY columns
+    # (Cln / Udg / Wkg, Agent comments, Tenant agrees, Tenant comments) on the
+    # left and the EXIT columns (Cln / Udg / Wkg, Agent and Tenant comments,
+    # Tenant agrees) on the right. Item names sit vertically centred in tall
+    # rows, so reading text line by line attaches comments to the wrong item;
+    # the ruled row lines are what delimit an item.
+    _IE_MARKERS = ("inspection express", "ipropertyexpress")
+
+    def _is_inspection_express(self):
+        if getattr(self, "_ie_cached", None) is None:
+            meta = self.fitz_doc.metadata or {}
+            blob = " ".join(str(meta.get(k) or "") for k in ("subject", "keywords", "creator", "producer")).lower()
+            if not any(m in blob for m in self._IE_MARKERS):
+                blob = self.fitz_doc[0].get_text().lower() if len(self.fitz_doc) else ""
+            self._ie_cached = any(m in blob for m in self._IE_MARKERS) and self._ie_columns() is not None
+        return self._ie_cached
+
+    @staticmethod
+    def _ie_page_lines(page):
+        """(horizontal rule y values, grey header cell rects) drawn on a page."""
+        ys, cells = set(), []
+        for dr in page.get_drawings():
+            for it in dr["items"]:
+                if it[0] == "l":
+                    p1, p2 = it[1], it[2]
+                    if abs(p1.y - p2.y) < 0.6 and abs(p1.x - p2.x) > 3:
+                        ys.add(round(p1.y, 1))
+                elif it[0] == "re" and dr.get("fill") and dr["fill"] != (1.0, 1.0, 1.0):
+                    cells.append(it[1])
+        return sorted(ys), cells
+
+    def _ie_columns(self):
+        """Column layout read off the first grid header: a list of
+        (x0, x1, side, field) where side is "start"/"end"/"name"."""
+        if hasattr(self, "_ie_cols"):
+            return self._ie_cols
+        self._ie_cols = None
+        for page in self.fitz_doc:
+            words = page.get_text("words")
+            if sum(1 for w in words if w[4] == "Cln") < 2:
+                continue
+            _, cells = self._ie_page_lines(page)
+            for hdr in cells:
+                inside = [w for w in words if hdr.x0 - 1 <= (w[0] + w[2]) / 2 <= hdr.x1 + 1
+                          and hdr.y0 - 1 <= (w[1] + w[3]) / 2 <= hdr.y1 + 1]
+                if not any(w[4] == "Cln" for w in inside):
+                    continue
+                # Found one header cell row: collect every grey cell on that band.
+                band = sorted((c for c in cells if abs(c.y0 - hdr.y0) < 2 and abs(c.y1 - hdr.y1) < 2),
+                              key=lambda c: c.x0)
+                cols, clns = [], 0
+                for c in band:
+                    txt = " ".join(w[4] for w in sorted(words, key=lambda w: (w[1], w[0]))
+                                   if c.x0 - 1 <= (w[0] + w[2]) / 2 <= c.x1 + 1
+                                   and c.y0 - 1 <= (w[1] + w[3]) / 2 <= c.y1 + 1).lower()
+                    if txt.startswith("cln"):
+                        clns += 1
+                    side = "start" if clns <= 1 else "end"
+                    if not cols:
+                        cols.append((c.x0, c.x1, "name", "name"))
+                        continue
+                    if txt.startswith("cln"):
+                        field = "clean"
+                    elif txt.startswith("udg"):
+                        field = "undamaged"
+                    elif txt.startswith("wkg"):
+                        field = "working"
+                    elif "agrees" in txt:
+                        field = "tenant_agrees"
+                    elif txt.startswith("tenant comments") or txt.startswith("tenant comment"):
+                        field = "tenant_comments"
+                    elif "comments" in txt:
+                        field = "landlord_comments" if side == "start" else "comments"
+                    else:
+                        continue
+                    cols.append((c.x0, c.x1, side, field))
+                if clns >= 1 and len(cols) >= 5:
+                    self._ie_cols = cols
+                    return cols
+        return None
+
+    @staticmethod
+    def _ie_cell_text(words, x0, x1):
+        """Words of one cell joined in reading order. A line break is kept only
+        where the writer broke the line (the next word would have fitted)."""
+        if not words:
+            return ""
+        lines = []
+        for w in sorted(words, key=lambda w: (round(w[1]), w[0])):
+            if lines and abs(lines[-1][0][1] - w[1]) < 3:
+                lines[-1].append(w)
+            else:
+                lines.append([w])
+        out = ""
+        for i, ln in enumerate(lines):
+            ln.sort(key=lambda w: w[0])
+            text = " ".join(w[4] for w in ln)
+            if i == 0:
+                out = text
+                continue
+            prev = lines[i - 1]
+            room = x1 - prev[-1][2]
+            first_w = ln[0][2] - ln[0][0]
+            if room > first_w + 6:
+                out += "\n" + text          # a real line break
+            elif out.endswith(("-", "/", "(")) or text.startswith(("/", ")")):
+                out += text                 # word or bracket split across the wrap
+            else:
+                out += " " + text
+        return out.strip()
+
+    _IE_PHOTO_REF = re.compile(r"^\(?\d+\s+photos?,\s*page\s+\d+\)?$", re.IGNORECASE)
+
+    def _extract_rooms_ie(self):
+        cols = self._ie_columns()
+        if not cols:
+            return []
+        left, right = cols[0][0], cols[-1][1]
+        rooms, room, item = [], None, None
+        for page_idx, page in enumerate(self.fitz_doc):
+            words = page.get_text("words")
+            if sum(1 for w in words if w[4] in ("Cln", "Y", "N")) == 0:
+                continue
+            ys, _ = self._ie_page_lines(page)
+            ys = [y for y in ys if y > 30]
+            if len(ys) < 2:
+                continue
+            first_band = True
+            for top, bottom in zip(ys, ys[1:]):
+                if bottom - top < 4:
+                    continue
+                band = [w for w in words if top - 0.5 <= (w[1] + w[3]) / 2 <= bottom + 0.5
+                        and left - 2 <= (w[0] + w[2]) / 2 <= right + 2]
+                if not band:
+                    continue
+                cells = {}
+                for x0, x1, side, field in cols:
+                    cw = [w for w in band if x0 - 0.5 <= (w[0] + w[2]) / 2 <= x1 + 0.5]
+                    cells[(side, field)] = (self._ie_cell_text(cw, x0, x1), x0, x1)
+                name = re.sub(r"\(\s+", "(", re.sub(r"\s+\)", ")", cells[("name", "name")][0].replace("\n", " "))).strip()
+                is_header = sum(1 for w in band if w[4] == "Cln") >= 1 and \
+                    any(w[4] in ("Udg", "Wkg") for w in band)
+                if is_header:
+                    if name:
+                        room = {"room_name": name, "page_number": page_idx + 1, "items": []}
+                        rooms.append(room)
+                        item = None
+                    first_band = False
+                    continue
+                if room is None:
+                    first_band = False
+                    continue
+                if not name:
+                    # A row carried over from the previous page: more of the
+                    # same item, never a new one.
+                    if first_band and item is not None:
+                        for (side, field), (txt, _, _) in cells.items():
+                            if txt and side != "name" and field.endswith("comments"):
+                                cur = item[side + "_of_tenancy"].get(field)
+                                item[side + "_of_tenancy"][field] = (cur + "\n" + txt) if cur else txt
+                    first_band = False
+                    continue
+                first_band = False
+                item = self._build_empty_item(name)
+                for (side, field), (txt, _, _) in cells.items():
+                    if side == "name" or not txt:
+                        continue
+                    block = item[side + "_of_tenancy"]
+                    if field in ("clean", "undamaged", "working", "tenant_agrees"):
+                        block[field] = self._parse_yn(txt.split()[0])
+                    else:
+                        block[field] = txt
+                if name.lower() == "overall":
+                    # The area-wide row normally only points at the photo pages.
+                    texts = [v for (sd, f), (v, _, _) in cells.items() if sd != "name" and v]
+                    if all(self._IE_PHOTO_REF.match(t.replace("\n", " ").strip())
+                           or all(self._IE_PHOTO_REF.match(x.strip()) for x in t.split("\n"))
+                           for t in texts):
+                        continue
+                room["items"].append(item)
+        return [r for r in rooms if r["items"] or r["room_name"]]
+
     def _extract_rooms(self):
+        if self._is_inspection_express():
+            rooms = self._extract_rooms_ie()
+            if rooms:
+                self._ie_layout = True
+                return rooms
         if self.jurisdiction == "NT":
             if self._is_nt_rotated_grid():
                 return self._extract_rooms_nt()
@@ -1909,7 +2102,7 @@ class ConditionReportExtractor:
             },
             "smoke_alarms": {
                 "installed": self._find_yes_no(text, "smoke alarms been installed"),
-                "checked_working": self._find_yes_no(text, "checked and found to be in working"),
+                "checked_working": self._find_yes_no(text, r"checked and found\s+to be in working"),
                 "date_last_checked": self._find_date_after(text, "Date last checked"),
                 "batteries_replaced": self._find_yes_no(text, "removable batteries.*been replaced"),
                 "date_batteries_changed": self._find_date_after(text, "Date batteries were last changed"),
@@ -1918,7 +2111,8 @@ class ConditionReportExtractor:
                 # on the wording unique to this question.
                 "lithium_batteries_replaced": self._find_yes_no(
                     text, "that have a removable lithium"),
-                "date_lithium_changed": None,
+                "date_lithium_changed": self._find_date_after(
+                    text, r"that have a removable lithium.{0,400}?Date batteries were last changed", window=40),
             },
             "safety_issues": {
                 "damaged_appliances": self._find_yes_no(text, "damaged appliances"),
@@ -1965,7 +2159,7 @@ class ConditionReportExtractor:
         }
 
     def _extract_water_efficiency(self, text):
-        return {
+        result = {
             "separately_metered": self._find_yes_no(text, "separately metered"),
             "showerhead_compliant": self._find_yes_no(text, "showerheads.*maximum flow rate"),
             "toilet_compliant": self._find_yes_no(text, "toilets are dual flush"),
@@ -1983,6 +2177,36 @@ class ConditionReportExtractor:
             "meter_reading_end_date": self._find_date_after(
                 text, "Water meter reading at END", window=40),
         }
+        if getattr(self, "_ie_layout", False):
+            # Label on one line, the reading alone on the next. The END reading is
+            # printed twice (exit section, then a blank copy in the entry form),
+            # so the first filled one wins.
+            for key, label in (("start", "START"), ("end", "END")):
+                if result["meter_reading_" + key]:
+                    continue
+                for m in re.finditer(r"Water meter reading at " + label + r"[^\n]*\n\s*(\d+)\s*\n"
+                                     r"\s*Date of reading:\s*\n([^\n]*)", text, re.IGNORECASE):
+                    result["meter_reading_" + key] = m.group(1)
+                    d = re.search(r"\d{1,2}/\d{1,2}/\d{2,4}", m.group(2))
+                    result["meter_reading_%s_date" % key] = d.group(0) if d else None
+                    break
+        return result
+
+    def _strip_running_headers(self, chunk):
+        """Remove the page header lines a report repeats on every page."""
+        if not chunk:
+            return chunk
+        if not hasattr(self, "_running_headers"):
+            counts = {}
+            for page in self.fitz_doc:
+                for ln in [x.strip() for x in page.get_text().split("\n") if x.strip()][:3]:
+                    counts[ln] = counts.get(ln, 0) + 1
+            n = max(1, len(self.fitz_doc))
+            self._running_headers = {ln for ln, c in counts.items() if c > n / 2}
+        keep = [ln for ln in chunk.split("\n")
+                if ln.strip() not in self._running_headers
+                and not re.match(r"^\s*\d+\s*/\s*\d+\s*$", ln)]
+        return "\n".join(keep).strip()
 
     def _extract_additional_comments(self, text):
         match = re.search(
@@ -1993,7 +2217,11 @@ class ConditionReportExtractor:
             comment = match.group(1).strip()
             comment = re.sub(r"Additional comments on.*?devices\s*", "", comment, flags=re.DOTALL | re.IGNORECASE)
             comment = re.sub(r"\(may be added.*?\)", "", comment, flags=re.DOTALL | re.IGNORECASE)
-            comment = comment.strip()
+            comment = re.sub(r"\[may be added[^\]]*\]?", "", comment, flags=re.DOTALL | re.IGNORECASE)
+            comment = self._strip_running_headers(comment)
+            # A label with nothing after it ("Tenant Comments:") is an empty box.
+            comment = "\n".join(ln for ln in comment.split("\n")
+                                 if not re.match(r"^\s*[A-Za-z' ]{1,40}:\s*$", ln)).strip()
             if comment and len(comment) > 3:
                 return comment
         return None
@@ -2008,17 +2236,17 @@ class ConditionReportExtractor:
 
     def _extract_landlord_promise(self, text):
         match = re.search(
-            r"LANDLORD.S PROMISE.*?WORK.*?(?:during the tenancy[:\s]*)(.+?)(?:The landlord agrees to complete|Landlord.agent.s signature)",
+            r"LANDLORD.S PROMISE.*?WORK.*?(?:during\s+the\s+tenancy[:\s]*)(.+?)(?:The landlord agrees to complete|Landlord.agent.s signature)",
             text, re.DOTALL | re.IGNORECASE
         )
         if match:
-            promise = match.group(1).strip()
+            promise = self._strip_running_headers(match.group(1).strip())
             if promise and len(promise) > 3:
                 return promise
         return None
 
     def _extract_signatures(self, text):
-        return {
+        sig = {
             "start_of_tenancy": {
                 "landlord_date": self._find_date_after(text, "Condition Report at START.*?Date"),
                 "tenant_date": None,
@@ -2028,6 +2256,22 @@ class ConditionReportExtractor:
                 "tenant_date": None,
             },
         }
+        if getattr(self, "_ie_layout", False):
+            # "Agent Signature at Entry Condition Report ... Date: Monday 27/11/2023"
+            # "Tenant's Acknowledgement & Signature at Entry Condition Report ...
+            #  Main Tenant ... Date: 22:43 Friday 01/12/2023"
+            # "Agent Signature at the END of the Tenancy ... Date: Tuesday 10/11/2026"
+            start, end = sig["start_of_tenancy"], sig["end_of_tenancy"]
+            start["landlord_date"] = start["landlord_date"] or self._find_date_after(
+                text, r"Agent Signature at Entry Condition Report[^\n]*\n(?:[^\n]*\n){0,4}?Date:", window=40)
+            start["tenant_date"] = self._find_date_after(
+                text, r"Signature at Entry Condition Report.{0,400}?Main Tenant.{0,200}?Date:", window=40)
+            end["landlord_date"] = end["landlord_date"] or self._find_date_after(
+                text, r"Agent Signature at the END of the Tenancy[^\n]*\n(?:[^\n]*\n){0,4}?Date:", window=40)
+            end["tenant_date"] = self._find_date_after(
+                text, r"Signature at the END of the Tenancy.{0,400}?(?:Main )?Tenant.{0,200}?Date:", window=40) \
+                if re.search(r"Tenant'?s? (?:Acknowledgement & )?Signature at the END", text, re.IGNORECASE) else None
+        return sig
 
     # An image drawn on more than this many pages is a repeated header/footer
     # logo or watermark, not report content, so it is skipped.
@@ -2085,6 +2329,46 @@ class ConditionReportExtractor:
     _PHOTO_CAPTION = re.compile(
         r"^(?P<area>.+?)\s*\((?P<by>[^)]{1,30})\)\s*[-–]\s*"
         r"(?P<n>\d+)\s+of\s+(?P<total>\d+)\s*$")
+
+    # "Entrance/hall: walls/picture hooks (photo 1 of 14)" - the caption often
+    # wraps onto a second line, sometimes mid-way through "of 14".
+    _IE_PHOTO_CAPTION = re.compile(
+        r"^(?P<area>[^:\n]{1,80}):[ \t]*(?P<item>[^\n]*?(?:\n[^\n:]*?)?)\s*"
+        r"\(photo\s+(?P<n>\d+)\s+of\s+(?P<total>\d+)\)", re.IGNORECASE | re.MULTILINE)
+    # "Agent Inspection Photos at Entry Condition Report (12 photos)" /
+    # "Agent Inspection Photos at the END of the Tenancy (64 photos)" opens each
+    # photo run; the pages after it carry only the captions.
+    _IE_PHOTO_RUN = re.compile(
+        r"^(?P<by>[A-Za-z ]{2,30}?) Inspection Photos at (?:the )?(?P<when>[^\n(]+?)\s*\(\d+ photos?\)",
+        re.IGNORECASE | re.MULTILINE)
+
+    def _parse_ie_photo_captions(self, page_text):
+        """Inspection Express photo pages: "<Area>: <Item> (photo n of N)"."""
+        # A page can end one run and open the next, so each caption takes the
+        # run that was open where it is printed.
+        runs = [(m.start(), m.group("by").strip(),
+                 "Entry" if ("entry" in m.group("when").lower() or "start" in m.group("when").lower()) else "Exit")
+                for m in self._IE_PHOTO_RUN.finditer(page_text)]
+        caps = []
+        for match in self._IE_PHOTO_CAPTION.finditer(page_text):
+            while runs and runs[0][0] < match.start():
+                self._ie_photo_run = runs.pop(0)[1:]
+            by, when = getattr(self, "_ie_photo_run", (None, None))
+            area = match.group("area").strip()
+            item = re.sub(r"\s*\n\s*", " ", match.group("item")).strip()
+            item = re.sub(r"\s+/", "/", item)
+            caption = "{}: {} (photo {} of {})".format(area, item, match.group("n"), match.group("total"))
+            caps.append({
+                "label": "{}: {}".format(area, item),
+                "area": area,
+                "photographer": by,
+                "media_type": "photo",
+                "date_taken": None,
+                "caption": caption + (" - {} inspection".format(when) if when else ""),
+            })
+        for _, by, when in runs:        # a run opening after the last caption
+            self._ie_photo_run = (by, when)
+        return caps
 
     def _parse_area_photo_captions(self, page_text):
         """Captions on an agency photo page, in reading order."""
@@ -2506,7 +2790,8 @@ class ConditionReportExtractor:
         for page_idx, page in enumerate(doc):
             page_text = page.get_text()
             captions = (self._parse_media_captions(page_text)
-                        or self._parse_area_photo_captions(page_text))
+                        or self._parse_area_photo_captions(page_text)
+                        or self._parse_ie_photo_captions(page_text))
             media_links = self._parse_media_links(page)
 
             photos = []  # (xref, rect, pixmap)
@@ -2830,7 +3115,40 @@ class ConditionReportExtractor:
                         return answer, True
         return None, False
 
+    # Some agency systems print the boxes as characters - "☑Yes ☐No" - rather
+    # than drawing them. Both words are printed against every question, so the
+    # answer is whichever one carries the ticked glyph; reading the first word
+    # reported "Yes" for mould, pests and rubbish on a report that ticked No.
+    _GLYPH_PAIR = re.compile(r"([☑☐])\s*Yes\s*([☑☐])\s*No(?:\s*([☑☐])\s*N/?A)?", re.IGNORECASE)
+
+    def _glyph_answer(self, text, pattern):
+        """(answer, found) for a question answered with ☑/☐ characters."""
+        try:
+            anchors = list(re.finditer(pattern, text, re.IGNORECASE | re.DOTALL))
+        except re.error:
+            return None, False
+        for m in anchors:
+            tail = text[m.end():m.end() + 400]
+            pair = self._GLYPH_PAIR.search(tail)
+            # The pair must be the first set of boxes after the question, or it
+            # belongs to a later question.
+            if not pair or re.search(r"[☑☐]", tail[:pair.start()]):
+                continue
+            ticks = [pair.group(1), pair.group(2), pair.group(3)]
+            if ticks[0] == "☑":
+                return "Yes", True
+            if ticks[1] == "☑":
+                return "No", True
+            if ticks[2] == "☑":
+                return "N/A", True
+            return None, True
+        return None, False
+
     def _find_yes_no(self, text, pattern):
+        if "☑" in text or "☐" in text:
+            answer, found = self._glyph_answer(text, pattern)
+            if found:
+                return answer
         answer, found = self._ticked_answer(pattern)
         if found:
             return answer
