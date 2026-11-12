@@ -42,11 +42,19 @@ reference for tweaking field names / shape to match the ORBAS converter.
   "start_date": null,
   "end_date": null,
   "source_file": "NSW-PCR-Exit.pdf",
+  "source_software": "Property Inspection Manager",
   "total_pages": 15,
   "extraction_timestamp": "2026-07-06T...",
   "extractor_version": "2.3.0"
 }
 ```
+
+`source_software` (v3.7.27+) names the inspection app that produced the report, read
+from the file properties, the web links inside the PDF (e.g. photo links) or a
+"Powered by" line. Recognised: Inspection Express, Property Inspection Manager,
+SnapInspect, Inspect Real Estate, PropertyMe, InspectPro, PCR Pro. `null` = not
+recognised (an official form filled by hand, or an app not yet known) - such a
+report is still extracted, but deserves a check.
 
 ## areas  (the main condition table)
 

@@ -1252,6 +1252,13 @@ class OrbasApp:
                  font=(self.font_ui[0], 8, "bold")).pack(anchor="w")
         tk.Label(fl, text=fname, bg="white", fg=DARK, font=self.font_bold,
                  anchor="w").pack(anchor="w")
+        # Which inspection app made the report. Unrecognised is said out loud:
+        # a layout we have never seen is the likeliest to need a second look.
+        software = meta.get("source_software")
+        tk.Label(fl, text=("Software: " + software) if software
+                 else "Software: not recognised - please check the result",
+                 bg="white", fg=(MUTED if software else "#b45309"),
+                 font=self.font_small, anchor="w").pack(anchor="w", pady=(2, 0))
         badge_bg = "#dcfce7" if passed else "#fef3c7"
         badge_fg = "#15803d" if passed else "#b45309"
         tk.Label(hdr, text=("VALIDATION  PASSED" if passed else "VALIDATION  REVIEW"),

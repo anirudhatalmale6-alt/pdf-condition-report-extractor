@@ -547,10 +547,45 @@ class ConditionReportExtractor:
             "end_date": self._norm_date(self._extract_tenancy_date("end")),
             "file_format": self._file_format(),
             "source_file": os.path.basename(self.pdf_path),
+            # Which inspection app produced the report (None = not recognised).
+            "source_software": self._detect_source_software(),
             "total_pages": len(self.fitz_doc),
             "extraction_timestamp": datetime.now(timezone.utc).isoformat(),
             "extractor_version": VERSION,
         }
+
+    # Inspection apps used by Australian agencies, with the marks they leave in
+    # a PDF. A mark only counts where an app would put it - the file properties,
+    # a web link, or a "Powered by" line - never in the body text, where an
+    # inspector could mention another product in a comment.
+    _SOFTWARE_MARKS = (
+        ("Inspection Express", ("inspection express", "ipropertyexpress.com")),
+        ("Property Inspection Manager", ("property inspection manager", "propertyinspectionmanager.com")),
+        ("SnapInspect", ("snapinspect",)),
+        ("Inspect Real Estate", ("inspect real estate", "inspectrealestate.com")),
+        ("PropertyMe", ("propertyme.com", "powered by propertyme", "inspectme")),
+        ("InspectPro", ("inspectpro",)),
+        ("PCR Pro", ("pcrpro.com",)),
+    )
+
+    def _detect_source_software(self):
+        if hasattr(self, "_source_software"):
+            return self._source_software
+        meta = self.fitz_doc.metadata or {}
+        places = [" ".join(str(meta.get(k) or "") for k in ("title", "subject", "keywords", "creator", "producer", "author"))]
+        n = len(self.fitz_doc)
+        for idx in list(range(min(n, 60))) + list(range(max(60, n - 5), n)):
+            page = self.fitz_doc[idx]
+            for link in page.get_links():
+                uri = link.get("uri") or ""
+                if uri:
+                    places.append(re.sub(r"^[a-z]+://", "", uri.lower()).split("/")[0])
+            if idx < 3 or idx >= n - 2:
+                places += [ln for ln in page.get_text().split("\n") if "powered by" in ln.lower()]
+        blob = "\n".join(places).lower()
+        self._source_software = next((name for name, marks in self._SOFTWARE_MARKS
+                                      if any(m in blob for m in marks)), None)
+        return self._source_software
 
     def _extract_numbered_tenants(self):
         """Join the tenants from forms that list them one per field ("Tenant 1",
