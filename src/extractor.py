@@ -314,6 +314,7 @@ class ConditionReportExtractor:
                 "images": self._extract_images(output_dir, save_images, embed_images),
             }
             self._align_image_areas(result["areas"], result["images"])
+            self._fill_image_phase(result["document_type"], result["images"])
 
             # Scanned/image-only reports are read via OCR. Flag it, and always
             # carry the full OCR text per page so every value (comments etc.) is
@@ -2402,6 +2403,7 @@ class ConditionReportExtractor:
                 "media_type": "photo",
                 "date_taken": None,
                 "caption": caption + (" - {} inspection".format(when) if when else ""),
+                "phase": {"Entry": "move_in", "Exit": "move_out"}.get(when),
             })
         for _, by, when in runs:        # a run opening after the last caption
             self._ie_photo_run = (by, when)
@@ -2429,6 +2431,19 @@ class ConditionReportExtractor:
     @classmethod
     def _name_key(cls, s):
         return cls._tidy_name(s).lower()
+
+    @staticmethod
+    def _fill_image_phase(document_type, images):
+        """Every image says which inspection it belongs to. Photos whose page
+        names the phase already have it; in a single-phase report every photo
+        is from that phase. Only in a combined report can a photo with no
+        stated phase stay null - the cover page and keys page, which belong to
+        the report rather than to either inspection."""
+        single = document_type if document_type in ("move_in", "move_out") else None
+        for im in images:
+            if im.get("phase") is None:
+                im["phase"] = single
+        return images
 
     def _align_image_areas(self, areas, images):
         """A photo is linked to its room BY NAME, so the name on the photo must be
@@ -2964,6 +2979,9 @@ class ConditionReportExtractor:
                     # took it. Without these an importer has nothing to file the
                     # image against and every photo lands unlabelled.
                     "area": None,
+                    # "move_in" / "move_out": which inspection the photo was
+                    # taken at. A combined report carries both sets of photos.
+                    "phase": None,
                     "photographer": None,
                     "media_type": "photo",
                     "date_taken": None,
@@ -2982,6 +3000,7 @@ class ConditionReportExtractor:
                     entry["media_type"] = cap["media_type"]
                     entry["date_taken"] = cap["date_taken"]
                     entry["caption"] = cap["caption"]
+                    entry["phase"] = cap.get("phase")
                 elif page_areas and len(page_areas) == 1:
                     # The counts did not line up, so a caption cannot be pinned
                     # to a particular photo - but every caption on this page
