@@ -2405,6 +2405,18 @@ class ConditionReportExtractor:
             self._ie_photo_run = (by, when)
         return caps
 
+    def _page_role(self, page_idx, page_text):
+        """What a non-room page is: "Cover page", "Keys page", "Signature page"."""
+        if page_idx == 0:
+            return "Cover page"
+        head = " ".join(ln.strip().lower() for ln in page_text.split("\n")[:12])
+        if re.search(r"\bkeys?\b.{0,30}\b(supplied|issued|register|received|provided)|"
+                     r"\b(supplied|issued|received)\b.{0,30}\bkeys\b", head):
+            return "Keys page"
+        if "signature" in head:
+            return "Signature page"
+        return None
+
     def _parse_area_photo_captions(self, page_text):
         """Captions on an agency photo page, in reading order."""
         caps = []
@@ -2933,6 +2945,15 @@ class ConditionReportExtractor:
                     # names the same area, so the area is still known. Better a
                     # correct area with no caption than nothing at all.
                     entry["area"] = next(iter(page_areas))
+                if entry["area"] is None and entry["label"] is None:
+                    # A picture that belongs to no room (agency logo, the cover
+                    # photo of the house, the keys page) says where it came from,
+                    # so it is not mistaken for a room photo that lost its link.
+                    # area stays null: an importer must not create a room for it.
+                    role = self._page_role(page_idx, page_text)
+                    if role:
+                        entry["label"] = role
+                        entry["caption"] = "{} (page {})".format(role, page_idx + 1)
                 # The hyperlink under each thumbnail carries the real media file
                 # (the playable .mov for a video, or the full-resolution .jpg for
                 # a photo) and its /video-vs-/image path is the authoritative
