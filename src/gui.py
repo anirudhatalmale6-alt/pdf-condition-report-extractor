@@ -14,7 +14,10 @@ import re
 import sys
 import json
 import queue
+import shutil
+import tempfile
 import threading
+import zipfile
 import webbrowser
 
 import tkinter as tk
@@ -483,7 +486,7 @@ class OrbasApp:
         self.dz_main = tk.Label(txt, text="Drag & drop your PDF here", bg=self.dz_bg,
                                 fg=DARK, font=self.font_bold, anchor="w")
         self.dz_main.pack(anchor="w")
-        self.dz_hint = tk.Label(txt, text="or use the Browse button",
+        self.dz_hint = tk.Label(txt, text="or use the Browse button (PDF or ZIP)",
                                 bg=self.dz_bg, fg=MUTED, font=self.font_small, anchor="w")
         self.dz_hint.pack(anchor="w")
         self.browse_btn = self._accent_button(txt, "Browse PDF", DARK, self.on_browse)
@@ -660,7 +663,7 @@ class OrbasApp:
         if not _DND_AVAILABLE:
             # No DnD library bundled - the drop zone still works as a Browse click.
             self.dz_main.configure(text="Choose a PDF from your computer")
-            self.dz_hint.configure(text="click Browse to select a file")
+            self.dz_hint.configure(text="click Browse to select a PDF or ZIP")
             return
         try:
             self.dropzone.drop_target_register(DND_FILES)
@@ -697,8 +700,8 @@ class OrbasApp:
         path = self._parse_dnd_path(event.data)
         if not path:
             return
-        if not path.lower().endswith(".pdf") or not os.path.isfile(path):
-            self.file_label.configure(text="Please drop a single PDF file.", fg=ERR_FG)
+        if not path.lower().endswith((".pdf", ".zip")) or not os.path.isfile(path):
+            self.file_label.configure(text="Please drop a single PDF (or a zip with one PDF).", fg=ERR_FG)
             return
         self._set_pdf(path)
 
@@ -713,6 +716,53 @@ class OrbasApp:
             return braced[0]
         return data.split()[0]
 
+    # ---- zip input -----------------------------------------------------
+    # A report can arrive zipped (agencies email them that way). The zip must
+    # hold exactly one PDF; it is unpacked to a private temp folder that is
+    # removed when the next file is chosen, on Refresh, or when the app closes.
+    _ZIP_MAX_BYTES = 1024 * 1024 * 1024
+
+    def _cleanup_zip_dirs(self, keep=None):
+        for d in list(getattr(self, "_zip_dirs", [])):
+            if d != keep:
+                shutil.rmtree(d, ignore_errors=True)
+                self._zip_dirs.remove(d)
+
+    def _unzip_report(self, zip_path):
+        """(pdf_path, None) or (None, user-facing error)."""
+        try:
+            with zipfile.ZipFile(zip_path) as z:
+                pdfs = [i for i in z.infolist() if not i.is_dir()
+                        and i.filename.lower().endswith(".pdf")
+                        and not i.filename.startswith("__MACOSX/")
+                        and not os.path.basename(i.filename).startswith("._")]
+                if not pdfs:
+                    return None, "This zip has no PDF in it."
+                if len(pdfs) > 1:
+                    return None, ("This zip has {} PDFs in it. Please zip one report "
+                                  "at a time.".format(len(pdfs)))
+                info = pdfs[0]
+                if info.file_size > self._ZIP_MAX_BYTES:
+                    return None, "The PDF inside this zip is too large to open."
+                folder = tempfile.mkdtemp(prefix="orbas_zip_")
+                self._zip_dirs = getattr(self, "_zip_dirs", []) + [folder]
+                name = os.path.basename(info.filename.replace("\\", "/")) or "report.pdf"
+                out = os.path.join(folder, name)
+                written = 0
+                with z.open(info) as src, open(out, "wb") as dst:
+                    while True:
+                        chunk = src.read(1024 * 1024)
+                        if not chunk:
+                            break
+                        written += len(chunk)
+                        if written > self._ZIP_MAX_BYTES:
+                            raise ValueError("too large")
+                        dst.write(chunk)
+                return out, None
+        except (zipfile.BadZipFile, ValueError, RuntimeError, OSError, NotImplementedError):
+            return None, ("This zip could not be opened (damaged, too large or "
+                          "password-protected).")
+
     # ---- actions -------------------------------------------------------
     def _set_pdf(self, path):
         # Accept DIGITAL PDFs only. Before a file can be extracted we check, in
@@ -723,26 +773,32 @@ class OrbasApp:
         # layers - no OCR.
         self._pending_file = path
         self.pdf_path = None
-        try:
-            self._pending_size_mb = os.path.getsize(path) / (1024 * 1024)
-        except OSError:
-            self._pending_size_mb = 0.0
+        # Never pull the file out from under an extraction that is running.
+        self._cleanup_zip_dirs(
+            keep=os.path.dirname(self._extract_src) if self.extracting else None)
         self.file_label.configure(
             text=f"Checking file type:  {os.path.basename(path)} ...", fg=MUTED)
         self._check_ready()
 
         def worker():
+            pdf = path
+            if path.lower().endswith(".zip"):
+                pdf, problem = self._unzip_report(path)
+                if not pdf:
+                    self._queue.put(("file_check", path, "zip_error", problem))
+                    return
             try:
-                fmt = classify_pdf_format(path)
+                fmt = classify_pdf_format(pdf)
             except Exception:
                 fmt = "unknown"
-            self._queue.put(("file_check", path, fmt))
+            self._queue.put(("file_check", path, fmt, pdf))
         threading.Thread(target=worker, daemon=True).start()
 
     def on_browse(self):
         path = filedialog.askopenfilename(
             title="Select condition report PDF",
-            filetypes=[("PDF files", "*.pdf"), ("All files", "*.*")],
+            filetypes=[("PDF or ZIP", "*.pdf *.zip"), ("PDF files", "*.pdf"),
+                       ("ZIP files", "*.zip"), ("All files", "*.*")],
         )
         if not path or not os.path.isfile(path):
             return
@@ -851,6 +907,7 @@ class OrbasApp:
         embed_photos = self.embed_photos_var.get()
         enable_ocr = False  # digital-only app; scanned PDFs are rejected upstream
         path = self.pdf_path
+        self._extract_src = path
         key = self.key_var.get().strip()
         email = self.email_var.get().strip()
         is_demo = key.upper() in DEMO_KEYS
@@ -913,6 +970,7 @@ class OrbasApp:
         """Clear the canvas and cached result - ready for a fresh upload."""
         if self.extracting:
             return
+        self._cleanup_zip_dirs()
         self.pdf_path = None
         self.pdf_size_mb = None
         self._pending_file = None  # invalidate any in-flight file-type check
@@ -958,19 +1016,31 @@ class OrbasApp:
     def _handle_message(self, msg):
         kind = msg[0]
         if kind == "file_check":
-            _, path, fmt = msg
-            # Ignore a stale result if the user has since picked another file.
+            _, path, fmt, pdf = msg
+            # Ignore a stale result if the user has since picked another file
+            # (and drop the folder a stale zip was unpacked into).
             if path != getattr(self, "_pending_file", None):
+                stale_dir = os.path.dirname(pdf) if fmt != "zip_error" and pdf != path else None
+                if stale_dir in getattr(self, "_zip_dirs", []):
+                    shutil.rmtree(stale_dir, ignore_errors=True)
+                    self._zip_dirs.remove(stale_dir)
                 return
             if fmt == "digital":
-                self.pdf_path = path
-                self.pdf_size_mb = self._pending_size_mb
+                self.pdf_path = pdf
+                try:
+                    self.pdf_size_mb = os.path.getsize(pdf) / (1024 * 1024)
+                except OSError:
+                    self.pdf_size_mb = 0.0
+                via = f"\nfrom {os.path.basename(path)}" if pdf != path else ""
                 self.file_label.configure(
-                    text=f"Selected: {os.path.basename(path)}  "
-                         f"({self.pdf_size_mb:.2f} MB)", fg=OK_FG)
+                    text=f"Selected: {os.path.basename(pdf)}  "
+                         f"({self.pdf_size_mb:.2f} MB){via}", fg=OK_FG)
             else:
                 self.pdf_path = None
-                if fmt == "scanned":
+                self._cleanup_zip_dirs()
+                if fmt == "zip_error":
+                    reason = pdf
+                elif fmt == "scanned":
                     reason = ("This looks like a scanned / image-only PDF. "
                               "This tool supports digital PDFs only - please "
                               "upload a digital (text-based) report.")
@@ -1232,5 +1302,8 @@ def run_gui():
             root = tk.Tk()
     else:
         root = tk.Tk()
-    OrbasApp(root)
-    root.mainloop()
+    app = OrbasApp(root)
+    try:
+        root.mainloop()
+    finally:
+        app._cleanup_zip_dirs()   # unpacked zip reports never outlive the app
