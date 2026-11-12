@@ -313,6 +313,7 @@ class ConditionReportExtractor:
                 },
                 "images": self._extract_images(output_dir, save_images, embed_images),
             }
+            self._align_image_areas(result["areas"], result["images"])
 
             # Scanned/image-only reports are read via OCR. Flag it, and always
             # carry the full OCR text per page so every value (comments etc.) is
@@ -2389,9 +2390,10 @@ class ConditionReportExtractor:
             while runs and runs[0][0] < match.start():
                 self._ie_photo_run = runs.pop(0)[1:]
             by, when = getattr(self, "_ie_photo_run", (None, None))
-            area = match.group("area").strip()
-            item = re.sub(r"\s*\n\s*", " ", match.group("item")).strip()
-            item = re.sub(r"\s+/", "/", item)
+            area = self._tidy_name(match.group("area"))
+            item = re.sub(r"-\s*\n\s*", "-", match.group("item"))   # "built-" / "in wardrobe"
+            item = re.sub(r"\s*\n\s*", " ", item).strip()
+            item = self._tidy_name(re.sub(r"\s+/", "/", item))
             caption = "{}: {} (photo {} of {})".format(area, item, match.group("n"), match.group("total"))
             caps.append({
                 "label": "{}: {}".format(area, item),
@@ -2416,6 +2418,47 @@ class ConditionReportExtractor:
         if "signature" in head:
             return "Signature page"
         return None
+
+    @staticmethod
+    def _tidy_name(s):
+        """Same spelling rules the room grid uses: one space between words and
+        none inside brackets - "Bedroom 1 ( start of hallway)" -> "(start of".."""
+        s = re.sub(r"\s+", " ", s or "").strip()
+        return re.sub(r"\(\s+", "(", re.sub(r"\s+\)", ")", s))
+
+    @classmethod
+    def _name_key(cls, s):
+        return cls._tidy_name(s).lower()
+
+    def _align_image_areas(self, areas, images):
+        """A photo is linked to its room BY NAME, so the name on the photo must be
+        the room's name exactly as the areas list spells it. Photo captions and
+        the room grid are printed separately and can differ in spacing or case;
+        an importer matching names would then drop every photo of that room."""
+        by_key = {self._name_key(a.get("area_name")): a.get("area_name") for a in areas}
+        # Item names compared with all spacing removed: a caption that wrapped
+        # mid-word ("built- in") must still find "built-in wardrobe/shelves".
+        squash = lambda t: re.sub(r"\s+", "", (t or "").lower())  # noqa: E731
+        items = {(a.get("area_name"), squash(c.get("component_name"))): c.get("component_name")
+                 for a in areas for c in a.get("components", [])}
+        for im in images:
+            area = im.get("area")
+            if not area:
+                continue
+            real = area if area in by_key.values() else by_key.get(self._name_key(area))
+            if not real:
+                continue
+            old_label = im.get("label") or ""
+            prefix = area + ": "
+            item = old_label[len(prefix):] if old_label.startswith(prefix) else None
+            real_item = items.get((real, squash(item))) if item else None
+            new_label = (real + ": " + (real_item or item)) if item else (real if old_label == area else old_label)
+            if im.get("caption") and old_label and im["caption"].startswith(old_label):
+                im["caption"] = new_label + im["caption"][len(old_label):]
+            if old_label:
+                im["label"] = new_label
+            im["area"] = real
+        return images
 
     def _parse_area_photo_captions(self, page_text):
         """Captions on an agency photo page, in reading order."""
