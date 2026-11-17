@@ -42,6 +42,7 @@ reference for tweaking field names / shape to match the ORBAS converter.
   "start_date": null,
   "end_date": null,
   "source_file": "NSW-PCR-Exit.pdf",
+  "source_file_sha256": "9f2c...e41a",
   "source_software": "Property Inspection Manager",
   "total_pages": 15,
   "extraction_timestamp": "2026-07-06T...",
@@ -55,6 +56,12 @@ from the file properties, the web links inside the PDF (e.g. photo links) or a
 SnapInspect, Inspect Real Estate, PropertyMe, InspectPro, PCR Pro. `null` = not
 recognised (an official form filled by hand, or an app not yet known) - such a
 report is still extracted, but deserves a check.
+
+`source_file_sha256` (v3.7.31+) is the SHA-256 of the original PDF file (64 hex
+characters). The same PDF always gives the same value, whatever the extractor
+version, extraction time or file name, so it identifies "the same PDF imported
+again". For a ZIP upload it is the hash of the PDF inside the ZIP. `null` only if
+the file could not be read.
 
 ## areas  (the main condition table)
 

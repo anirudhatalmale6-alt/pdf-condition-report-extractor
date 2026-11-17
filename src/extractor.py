@@ -4,6 +4,7 @@ import json
 import os
 import re
 import base64
+import hashlib
 from datetime import datetime, timezone
 from PIL import Image
 from io import BytesIO
@@ -549,6 +550,9 @@ class ConditionReportExtractor:
             "end_date": self._norm_date(self._extract_tenancy_date("end")),
             "file_format": self._file_format(),
             "source_file": os.path.basename(self.pdf_path),
+            # SHA-256 of the original PDF bytes: the same PDF always gives the same
+            # value, whatever the extractor version or extraction time.
+            "source_file_sha256": self._source_sha256(),
             # Which inspection app produced the report (None = not recognised).
             "source_software": self._detect_source_software(),
             "total_pages": len(self.fitz_doc),
@@ -569,6 +573,16 @@ class ConditionReportExtractor:
         ("InspectPro", ("inspectpro",)),
         ("PCR Pro", ("pcrpro.com",)),
     )
+
+    def _source_sha256(self):
+        try:
+            h = hashlib.sha256()
+            with open(self.pdf_path, "rb") as f:
+                for block in iter(lambda: f.read(1024 * 1024), b""):
+                    h.update(block)
+            return h.hexdigest()
+        except OSError:
+            return None
 
     def _detect_source_software(self):
         if hasattr(self, "_source_software"):
