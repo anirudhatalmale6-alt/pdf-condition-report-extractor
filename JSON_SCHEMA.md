@@ -92,14 +92,24 @@ converter flattens `areas > components` into a flat table.
           "working": "Y",
           "comments": null,
           "tenant_agrees": null
-        }
+        },
+        "photos": { "move_in": 3, "move_out": 1 }
       }
-    ]
+    ],
+    "room_photos": { "move_in": 12, "move_out": 9 }
   }
 ]
 ```
 
 Values for clean/undamaged/working are `"Y"`, `"N"`, or `null` (blank in the PDF).
+
+Photos (v3.7.35+): `components[].photos` = how many item photos that component has
+per inspection (`images[]` with `level` "item" and the same `area` + `component`);
+`room_photos` on the area = its whole-room photos (`level` "area"). A third key
+`unknown` appears only when a photo's inspection is not stated. The conditions for a
+photo are on its component: `phase` "move_in" -> `start_of_tenancy`, "move_out" ->
+`end_of_tenancy`. The PDF's own link text such as "(8 photos, page 157)" is removed
+from the comments; these counts replace it.
 
 ### Column-name mapping (this is the part to confirm)
 

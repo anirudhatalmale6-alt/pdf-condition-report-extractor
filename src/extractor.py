@@ -317,6 +317,7 @@ class ConditionReportExtractor:
             self._align_image_areas(result["areas"], result["images"])
             self._fill_image_component(result["areas"], result["images"])
             self._fill_image_phase(result["document_type"], result["images"])
+            self._count_photos(result["areas"], result["images"])
 
             # Scanned/image-only reports are read via OCR. Flag it, and always
             # carry the full OCR text per page so every value (comments etc.) is
@@ -2484,6 +2485,47 @@ class ConditionReportExtractor:
                 out["level"] = level
             images[i] = out
         return images
+
+    # The PDF's own photo link inside a comment, e.g. "... intact (8 photos, page 157)".
+    _PHOTO_LINK_TEXT = re.compile(r"\s*\(\d+ photos?, page \d+\)")
+
+    @classmethod
+    def _count_photos(cls, areas, images):
+        """Each component gets "photos": how many item photos it has per inspection,
+        and each area "room_photos": its whole-room photos per inspection - so an
+        importer can check it filed every photo. The PDF's "(8 photos, page 157)"
+        link text is removed from the comments; the counts replace it."""
+        def tally(level):
+            counts = {}
+            for im in images:
+                if im.get("level") == level:
+                    key = (im.get("area"), im.get("component") if level == "item" else None)
+                    counts.setdefault(key, {})
+                    phase = im.get("phase") or "unknown"
+                    counts[key][phase] = counts[key].get(phase, 0) + 1
+            return counts
+
+        def shape(found):
+            out = {"move_in": found.get("move_in", 0), "move_out": found.get("move_out", 0)}
+            if found.get("unknown"):
+                out["unknown"] = found["unknown"]
+            return out
+
+        items, rooms = tally("item"), tally("area")
+        for a in areas:
+            name = a.get("area_name")
+            for c in a.get("components", []):
+                for side in ("start_of_tenancy", "end_of_tenancy"):
+                    block = c.get(side)
+                    if not isinstance(block, dict):
+                        continue
+                    for key in ("landlord_comments", "comments", "tenant_comments"):
+                        text = block.get(key)
+                        if isinstance(text, str) and cls._PHOTO_LINK_TEXT.search(text):
+                            block[key] = cls._PHOTO_LINK_TEXT.sub("", text).strip() or None
+                c["photos"] = shape(items.get((name, c.get("component_name")), {}))
+            a["room_photos"] = shape(rooms.get((name, None), {}))
+        return areas
 
     @staticmethod
     def _fill_image_phase(document_type, images):
