@@ -131,11 +131,21 @@ promise, and signatures. All nested objects with Yes/No/date values.
 
 ## images  (one entry per inspection photo)
 
-Fields an importer uses to file each photo (v3.7.30+):
+Fields an importer uses to file each photo (v3.7.30+; `component` and `level` v3.7.34+). Example:
+
+```json
+"area": "Bathroom",
+"component": "heating/exhaust fan/vent",
+"level": "item",
+"label": "Bathroom: heating/exhaust fan/vent",
+"phase": "move_in"
+```
 
 | Field | Meaning |
 |---|---|
 | `area` | Exactly an `areas[].area_name` of the same JSON, or `null` for a report-level image (cover page, keys page) |
+| `component` | (v3.7.34+) The item (component) the photo shows: exactly a `components[].component_name` of that area, e.g. `"heating/exhaust fan/vent"`. `null` for a photo of the whole room and for report-level images. Link item photos with `area` + `component` |
+| `level` | (v3.7.34+) `"item"` = linked to the item in `component`; `"area"` = a photo of the whole room (or an item the report names that is not in that room's list); `"report"` = belongs to no room (cover page, keys page) |
 | `label` | `"<area>: <item>"`, e.g. `"Bathroom: wash basin/taps"`. The part after `"<area>: "` is exactly a `components[].component_name` of that area, or `"Overall"` = a photo of the whole room (attach to the area). Report-level images: `"Cover page"`, `"Keys page"`, `"Signature page"` |
 | `phase` | `"move_in"` or `"move_out"`: the inspection the photo was taken at. `null` = belongs to the report as a whole (cover/keys page, or a combined report from software that does not say) |
 | `caption` | Human-readable, e.g. `"Bathroom: wash basin/taps (photo 3 of 4) - Exit inspection"` |

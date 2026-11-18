@@ -315,6 +315,7 @@ class ConditionReportExtractor:
                 "images": self._extract_images(output_dir, save_images, embed_images),
             }
             self._align_image_areas(result["areas"], result["images"])
+            self._fill_image_component(result["areas"], result["images"])
             self._fill_image_phase(result["document_type"], result["images"])
 
             # Scanned/image-only reports are read via OCR. Flag it, and always
@@ -2445,6 +2446,44 @@ class ConditionReportExtractor:
     @classmethod
     def _name_key(cls, s):
         return cls._tidy_name(s).lower()
+
+    @staticmethod
+    def _fill_image_component(areas, images):
+        """Every image says which item (component) it shows, as its own field, so
+        an importer never has to cut the label apart:
+          level "item"   - component is exactly a components[].component_name of
+                           the image's area ("Bathroom: wash basin/taps")
+          level "area"   - a photo of the whole room ("Bathroom: Overall"), or a
+                           label whose item is not one of that room's components;
+                           component is null
+          level "report" - not part of any room (cover page, keys page); area and
+                           component are null
+        The fields sit right after "area"; the label itself is unchanged."""
+        names = {a.get("area_name"): {c.get("component_name") for c in a.get("components", [])}
+                 for a in areas}
+        for i, im in enumerate(images):
+            area = im.get("area")
+            component, level = None, "report"
+            if area:
+                level = "area"
+                label = im.get("label") or ""
+                prefix = area + ": "
+                item = label[len(prefix):] if label.startswith(prefix) else None
+                if item and item in names.get(area, ()):
+                    component, level = item, "item"
+            out = {}
+            for key, value in im.items():
+                if key in ("component", "level"):
+                    continue
+                out[key] = value
+                if key == "area":
+                    out["component"] = component
+                    out["level"] = level
+            if "area" not in out:
+                out["component"] = component
+                out["level"] = level
+            images[i] = out
+        return images
 
     @staticmethod
     def _fill_image_phase(document_type, images):
