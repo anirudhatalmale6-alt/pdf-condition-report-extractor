@@ -486,7 +486,7 @@ class OrbasApp:
         self.dz_main = tk.Label(txt, text="Drag & drop your PDF here", bg=self.dz_bg,
                                 fg=DARK, font=self.font_bold, anchor="w")
         self.dz_main.pack(anchor="w")
-        self.dz_hint = tk.Label(txt, text="or use the Browse button (PDF or ZIP)",
+        self.dz_hint = tk.Label(txt, text="or use the Browse button (PDF or ZIP, up to 300 MB)",
                                 bg=self.dz_bg, fg=MUTED, font=self.font_small, anchor="w")
         self.dz_hint.pack(anchor="w")
         self.browse_btn = self._accent_button(txt, "Browse PDF", DARK, self.on_browse)
@@ -667,7 +667,7 @@ class OrbasApp:
         if not _DND_AVAILABLE:
             # No DnD library bundled - the drop zone still works as a Browse click.
             self.dz_main.configure(text="Choose a PDF from your computer")
-            self.dz_hint.configure(text="click Browse to select a PDF or ZIP")
+            self.dz_hint.configure(text="click Browse to select a PDF or ZIP (up to 300 MB)")
             return
         try:
             self.dropzone.drop_target_register(DND_FILES)
@@ -724,7 +724,14 @@ class OrbasApp:
     # A report can arrive zipped (agencies email them that way). The zip must
     # hold exactly one PDF; it is unpacked to a private temp folder that is
     # removed when the next file is chosen, on Refresh, or when the app closes.
-    _ZIP_MAX_BYTES = 1024 * 1024 * 1024
+    # Same limit as the web extractor: the file chosen (PDF or zip) and the PDF
+    # inside a zip may each be at most 300 MB.
+    MAX_FILE_MB = 300
+    _ZIP_MAX_BYTES = MAX_FILE_MB * 1024 * 1024
+
+    def _too_large(self, size_bytes, what="This file"):
+        return "{} is {:.1f} MB. The maximum is {} MB.".format(
+            what, size_bytes / (1024 * 1024), self.MAX_FILE_MB)
 
     def _cleanup_zip_dirs(self, keep=None):
         for d in list(getattr(self, "_zip_dirs", [])):
@@ -747,7 +754,7 @@ class OrbasApp:
                                   "at a time.".format(len(pdfs)))
                 info = pdfs[0]
                 if info.file_size > self._ZIP_MAX_BYTES:
-                    return None, "The PDF inside this zip is too large to open."
+                    return None, self._too_large(info.file_size, "The PDF inside this zip")
                 folder = tempfile.mkdtemp(prefix="orbas_zip_")
                 self._zip_dirs = getattr(self, "_zip_dirs", []) + [folder]
                 name = os.path.basename(info.filename.replace("\\", "/")) or "report.pdf"
@@ -786,6 +793,13 @@ class OrbasApp:
 
         def worker():
             pdf = path
+            try:
+                size = os.path.getsize(path)
+            except OSError:
+                size = 0
+            if size > self._ZIP_MAX_BYTES:
+                self._queue.put(("file_check", path, "zip_error", self._too_large(size)))
+                return
             if path.lower().endswith(".zip"):
                 pdf, problem = self._unzip_report(path)
                 if not pdf:
