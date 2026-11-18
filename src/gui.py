@@ -609,11 +609,15 @@ class OrbasApp:
         tt = tk.Frame(htl, bg=CARD)
         tt.pack(side="left", padx=8)
         tk.Label(tt, text="JSON Output", bg=CARD, fg=DARK, font=self.font_h2).pack(anchor="w")
-        tk.Label(tt, text="Select text and press Ctrl+C, or use the Copy JSON button.",
+        tk.Label(tt, text="Save the JSON file and upload it in the ORBAS converter.",
                  bg=CARD, fg=MUTED, font=self.font_small).pack(anchor="w")
         self.copy_btn = self._accent_button(top, "Copy JSON", DARK, self.on_copy)
         self.copy_btn.configure(state="disabled", bg="#cbd5e1")
         self.copy_btn.pack(side="right")
+        # Saves the complete JSON (photos included) as a file for the converter.
+        self.save_btn = self._accent_button(top, "Save JSON", GREEN, self.on_save)
+        self.save_btn.configure(state="disabled", bg="#cbd5e1")
+        self.save_btn.pack(side="right", padx=(0, 8))
         # Inline copy confirmation, sits just left of the Copy button.
         self.copy_ok = tk.Label(top, text="", bg=CARD, fg=OK_FG, font=self.font_bold)
 
@@ -895,6 +899,7 @@ class OrbasApp:
         self.extracting = True
         self._check_ready()
         self.copy_btn.configure(state="disabled", bg="#cbd5e1")
+        self.save_btn.configure(state="disabled", bg="#cbd5e1", text="Save JSON")
         self.copy_ok.pack_forget()
         self.meta_card.pack_forget()
         self._set_status(self.status_label, "Checking licence and subscription...", "muted")
@@ -944,6 +949,46 @@ class OrbasApp:
         self.root.update_idletasks()
         self._show_copied("Copied to clipboard!")
 
+    def on_save(self):
+        if not self.extracted_json or getattr(self, "_saving", False):
+            return
+        src = getattr(self, "_source_file", None) or getattr(self, "_extract_src", None) or "report"
+        stem = os.path.splitext(os.path.basename(src))[0] or "report"
+        start_dir = (getattr(self, "_save_dir", None)
+                     or os.path.dirname(getattr(self, "_source_file", None) or "")
+                     or os.path.expanduser("~"))
+        target = filedialog.asksaveasfilename(
+            title="Save JSON for the ORBAS converter", defaultextension=".json",
+            filetypes=[("JSON file", "*.json")], initialdir=start_dir,
+            initialfile=stem + ".json")
+        if not target:
+            return
+        self._saving = True
+        self.save_btn.configure(state="disabled", bg="#cbd5e1", text="Saving...")
+        data = self.extracted_json
+
+        def worker():
+            # Write next to the target, then rename: a full disk or a crash never
+            # leaves a half-written JSON behind under the real name.
+            tmp = target + ".part"
+            try:
+                with open(tmp, "w", encoding="utf-8", newline="\n") as f:
+                    f.write(data)
+                os.replace(tmp, target)
+                self._queue.put(("save_ok", target))
+            except OSError as e:
+                try:
+                    os.remove(tmp)
+                except OSError:
+                    pass
+                self._queue.put(("save_err", str(e)))
+
+        threading.Thread(target=worker, daemon=True).start()
+
+    def _reset_save_btn(self):
+        if self.extracted_json and not self.extracting and not getattr(self, "_saving", False):
+            self.save_btn.configure(state="normal", bg=GREEN, text="Save JSON")
+
     def _select_all_json(self, event=None):
         self.json_text.tag_add("sel", "1.0", "end-1c")
         self.json_text.mark_set("insert", "1.0")
@@ -951,9 +996,9 @@ class OrbasApp:
         return "break"
 
     def _show_copied(self, text):
-        # Inline green confirmation next to the button.
-        self.copy_ok.configure(text="✓  " + text)
-        self.copy_ok.pack(side="right", padx=(0, 10))
+        # The header has no room for an inline note next to two buttons, so the
+        # confirmation goes in the status line and the button flashes green.
+        self._set_status(self.status_label, "JSON " + text[0].lower() + text[1:], "ok")
         # Flash the Copy button green so the action is unmistakable.
         self.copy_btn.configure(text="✓ Copied", bg=BRAND_GREEN)
         if getattr(self, "_copy_reset_job", None):
@@ -988,6 +1033,7 @@ class OrbasApp:
         self._set_json("No extraction output yet.")
         self.copy_ok.pack_forget()
         self.copy_btn.configure(state="disabled", bg="#cbd5e1", text="Copy JSON")
+        self.save_btn.configure(state="disabled", bg="#cbd5e1", text="Save JSON")
         # Progress / status
         try:
             self.progress.stop()
@@ -1027,6 +1073,7 @@ class OrbasApp:
                 return
             if fmt == "digital":
                 self.pdf_path = pdf
+                self._source_file = path
                 try:
                     self.pdf_size_mb = os.path.getsize(pdf) / (1024 * 1024)
                 except OSError:
@@ -1069,9 +1116,30 @@ class OrbasApp:
             self.extracted_json = json.dumps(result, indent=2, ensure_ascii=False)
             self._set_json(self.extracted_json)
             self.copy_btn.configure(state="normal", bg=DARK, text="Copy JSON")
+            if not getattr(self, "_saving", False):
+                self.save_btn.configure(state="normal", bg=GREEN, text="Save JSON")
             self._set_status(self.status_label, "Extraction completed successfully.", "ok")
             self._show_summary(result)
             self._check_ready()
+        elif kind in ("save_ok", "save_err"):
+            self._saving = False
+            ready = bool(self.extracted_json) and not self.extracting
+            if kind == "save_ok":
+                self._save_dir = os.path.dirname(msg[1])  # next save opens here
+                try:
+                    size = " (" + self._human_size(os.path.getsize(msg[1])) + ")"
+                except OSError:
+                    size = ""
+                # The button confirms; the full path goes in the status line,
+                # where a long file name has room.
+                if ready:
+                    self.save_btn.configure(state="normal", bg=BRAND_GREEN_DK, text="✓ Saved")
+                    self.root.after(2500, self._reset_save_btn)
+                self._set_status(self.status_label, "JSON saved" + size + ": " + msg[1], "ok")
+            else:
+                if ready:
+                    self.save_btn.configure(state="normal", bg=GREEN, text="Save JSON")
+                self._set_status(self.status_label, "Could not save the JSON: " + msg[1], "err")
         elif kind == "extract_err":
             self.progress.stop()
             self.progress.pack_forget()
