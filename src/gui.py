@@ -946,7 +946,7 @@ class OrbasApp:
                 result = extract_pdf(
                     path, jurisdiction=detected,
                     report_type=doc, output_dir=None, save_images=False,
-                    embed_images=embed_photos, enable_ocr=enable_ocr,
+                    embed_images=embed_photos, enable_ocr=enable_ocr, app="desktop",
                 )
                 self._queue.put(("extract_ok", result))
             except Exception as e:
@@ -1308,14 +1308,10 @@ class OrbasApp:
         areas = result.get("areas", [])
         comps = sum(len(a.get("components", [])) for a in areas)
         meta = result.get("report_metadata", {})
-        missing = []
-        if not meta.get("address"):
-            missing.append("Property Address")
-        if not meta.get("tenant_name"):
-            missing.append("Tenant Name")
-        if not meta.get("landlord_name"):
-            missing.append("Landlord Name")
-        passed = not missing
+        # The validation result is worked out by the engine (same on the web).
+        check = result.get("extraction") or {}
+        missing = list(check.get("validation_missing") or [])
+        passed = check.get("validation_status", "passed" if not missing else "review") == "passed"
 
         fname = meta.get("source_file") or (
             os.path.basename(self.pdf_path) if self.pdf_path else "N/A")

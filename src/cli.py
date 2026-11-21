@@ -63,6 +63,7 @@ def main():
                 report_type=args.report_type,
                 output_dir=output_dir,
                 save_images=not args.no_images,
+                app="cli",
             )
 
             base_name = os.path.splitext(os.path.basename(pdf_path))[0]

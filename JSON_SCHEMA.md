@@ -27,6 +27,50 @@ reference for tweaking field names / shape to match the ORBAS converter.
 | `other_sections` | Compliance, utilities, water efficiency, signatures, etc. |
 | `images` | Photos embedded in the PDF (base64) |
 
+## extraction  (v3.7.36+, first key in the JSON)
+
+One row for an extraction register; every extraction run gets a new `extraction_id`.
+
+```json
+"extraction": {
+  "extraction_id": "3f6c2a9e-8d41-4b6a-9c1e-2b7d5f0a1c44",
+  "extracted_at_utc": "2026-11-21T12:43:05Z",
+  "extracted_at_sydney": "21/11/2026 23:43:05",
+  "sydney_timezone": "AEDT (UTC+11:00)",
+  "extractor_version": "3.7.36",
+  "extractor_app": "desktop",
+  "duration_seconds": 27.6,
+  "validation_status": "passed",
+  "validation_missing": [],
+  "source_file": "2026-11-10 (Exit) 8 OMalley Pl  Glenfield.pdf",
+  "source_file_sha256": "f9c9302a...e90",
+  "pdf_size_bytes": 88992542,
+  "source_software": "Inspection Express",
+  "jurisdiction": "NSW",
+  "document_type": "combined",
+  "file_format": "digital",
+  "pages": 245,
+  "areas": 10,
+  "records": 97,
+  "photos": 1861,
+  "photos_included": true
+}
+```
+
+| Field | Meaning |
+|---|---|
+| `extraction_id` | Unique ID (UUID v4) of this extraction run - use it as the register key |
+| `extracted_at_utc` | When it was extracted, UTC (ISO 8601) - use this for sorting and storage |
+| `extracted_at_sydney` | Same moment in Sydney time, `dd/mm/yyyy HH:MM:SS`; `sydney_timezone` says AEST (UTC+10) or AEDT (UTC+11, daylight saving) |
+| `extractor_app` | `"desktop"`, `"web"` or `"cli"` |
+| `duration_seconds` | How long the extraction took |
+| `validation_status` | `"passed"` when the property address, tenant name and landlord name were all found, otherwise `"review"`; `validation_missing` lists what was not found. Same check as the desktop and web summary badge |
+| `pdf_size_bytes` | Size of the PDF that was extracted (the PDF inside a ZIP) |
+| `records` | Number of components (items) across all areas |
+| `photos` / `photos_included` | Number of photos found / whether the photo files are inside this JSON |
+
+The JSON's own file size is not included (adding it would change the size); record it from the file the converter receives.
+
 ## report_metadata
 
 ```json

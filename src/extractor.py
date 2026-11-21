@@ -5,7 +5,9 @@ import os
 import re
 import base64
 import hashlib
-from datetime import datetime, timezone
+import time
+import uuid
+from datetime import datetime, timedelta, timezone
 from PIL import Image
 from io import BytesIO
 
@@ -258,7 +260,8 @@ class ConditionReportExtractor:
         return text
 
     def extract(self, output_dir=None, save_images=True, embed_images=False,
-                enable_ocr=True):
+                enable_ocr=True, app=None):
+        started = time.monotonic()
         self._ocr_enabled = enable_ocr
         self.fitz_doc = fitz.open(self.pdf_path)
         self.plumber_pdf = pdfplumber.open(self.pdf_path)
@@ -354,10 +357,71 @@ class ConditionReportExtractor:
             if self.jurisdiction == "NT" and self._is_nt_rotated_grid():
                 result["statutory"] = self._extract_nt_final_page()
 
-            return result
+            # One block a register can store as a row; placed first in the JSON.
+            block = self._extraction_block(result, app, embed_images, time.monotonic() - started)
+            return {"extraction": block, **result}
         finally:
             self.fitz_doc.close()
             self.plumber_pdf.close()
+
+    @staticmethod
+    def sydney_time(utc_dt):
+        """UTC -> Sydney local time (AEST UTC+10, AEDT UTC+11). NSW daylight saving
+        runs from 2 am on the first Sunday of October to 3 am on the first Sunday of
+        April - both moments are 16:00 UTC on the Saturday before. Worked out here
+        rather than from a time-zone database so the desktop app (which ships none)
+        and the web extractor always give the same answer."""
+        def first_sunday(year, month):
+            d = datetime(year, month, 1, tzinfo=timezone.utc)
+            return d + timedelta(days=(6 - d.weekday()) % 7)
+        y = utc_dt.year
+        dst_start = first_sunday(y, 10) - timedelta(hours=8)   # Sat 16:00 UTC
+        dst_end = first_sunday(y, 4) - timedelta(hours=8)      # Sat 16:00 UTC
+        dst = utc_dt >= dst_start or utc_dt < dst_end
+        offset = 11 if dst else 10
+        return utc_dt + timedelta(hours=offset), ("AEDT" if dst else "AEST"), offset
+
+    def _extraction_block(self, result, app, embed_images, seconds):
+        meta = result.get("report_metadata") or {}
+        try:
+            utc = datetime.fromisoformat(meta.get("extraction_timestamp"))
+        except (TypeError, ValueError):
+            utc = datetime.now(timezone.utc)
+        utc = utc.astimezone(timezone.utc)
+        local, zone, offset = self.sydney_time(utc)
+        missing = [label for field, label in (("address", "Property Address"),
+                                              ("tenant_name", "Tenant Name"),
+                                              ("landlord_name", "Landlord Name"))
+                   if not meta.get(field)]
+        areas = result.get("areas") or []
+        images = result.get("images") or []
+        try:
+            pdf_size = os.path.getsize(self.pdf_path)
+        except OSError:
+            pdf_size = None
+        return {
+            "extraction_id": str(uuid.uuid4()),
+            "extracted_at_utc": utc.strftime("%Y-%m-%dT%H:%M:%SZ"),
+            "extracted_at_sydney": local.strftime("%d/%m/%Y %H:%M:%S"),
+            "sydney_timezone": "{} (UTC+{}:00)".format(zone, offset),
+            "extractor_version": meta.get("extractor_version"),
+            "extractor_app": app,
+            "duration_seconds": round(seconds, 1),
+            "validation_status": "passed" if not missing else "review",
+            "validation_missing": missing,
+            "source_file": meta.get("source_file"),
+            "source_file_sha256": meta.get("source_file_sha256"),
+            "pdf_size_bytes": pdf_size,
+            "source_software": meta.get("source_software"),
+            "jurisdiction": result.get("jurisdiction"),
+            "document_type": result.get("document_type"),
+            "file_format": meta.get("file_format"),
+            "pages": meta.get("total_pages"),
+            "areas": len(areas),
+            "records": sum(len(a.get("components", [])) for a in areas),
+            "photos": len(images),
+            "photos_included": bool(embed_images) and any(im.get("data_base64") for im in images),
+        }
 
     def _get_full_text(self):
         texts = []
@@ -3543,7 +3607,9 @@ def detect_report_type_standalone(pdf_path):
 
 
 def extract_pdf(pdf_path, jurisdiction="NSW", report_type="auto", output_dir=None,
-                save_images=True, embed_images=False, enable_ocr=True):
+                save_images=True, embed_images=False, enable_ocr=True, app=None):
+    """app: which ORBAS extractor ran it ("desktop", "web", "cli"), recorded in the
+    JSON's extraction block."""
     extractor = ConditionReportExtractor(pdf_path, jurisdiction, report_type)
     return extractor.extract(output_dir=output_dir, save_images=save_images,
-                             embed_images=embed_images, enable_ocr=enable_ocr)
+                             embed_images=embed_images, enable_ocr=enable_ocr, app=app)
