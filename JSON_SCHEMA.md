@@ -183,6 +183,13 @@ Contains compliance (minimum standards, health issues, smoke alarms, safety),
 utilities, water efficiency, additional comments, maintenance dates, landlord
 promise, and signatures. All nested objects with Yes/No/date values.
 
+Statutory answers (`statutory.*`) are always one of:
+- `"Yes"` / `"No"`: the box ticked in the PDF
+- `"N/A"` (v3.7.37+): the N/A box ticked (NSW smoke alarm batteries, dual flush toilets)
+- `null`: nothing ticked (missing). Never guessed as "No", never the same as "N/A".
+
+Condition values (`clean`, `undamaged`, `working`, `tenant_agrees`) are `"Y"`, `"N"` or `null`.
+
 ## images  (one entry per inspection photo)
 
 Fields an importer uses to file each photo (v3.7.30+; `component` and `level` v3.7.34+). Example:

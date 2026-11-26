@@ -3219,9 +3219,11 @@ class ConditionReportExtractor:
     def _checkbox_rows(self, page_idx):
         """[{y, x0, answer}] for each Yes/No checkbox pair on a page.
 
-        answer is "Yes", "No", or None when the question was left blank - which
-        is a real and common state, and must stay null rather than becoming a
-        default "No".
+        answer is "Yes", "No", "N/A", or None when the question was left blank -
+        which is a real and common state, and must stay null rather than
+        becoming a default "No". N/A and blank must never be confused: the NSW
+        form offers a third N/A box on some statutory questions (smoke alarm
+        batteries, dual flush toilets), and a ticked N/A used to come out null.
         """
         cache = self._checkbox_cache
         if page_idx in cache:
@@ -3235,21 +3237,36 @@ class ConditionReportExtractor:
         # answer is simply whichever of the pair is on. Read straight from the
         # form: on a BLANK official form this returns rows with no answer, which
         # is what stopped it reporting 27 invented statutory values.
-        widget_rows = {}
+        widget_rows, na_on = {}, {}
         for widget in (page.widgets() or []):
             if widget.field_type_string != "CheckBox":
                 continue
             state = widget.on_state()
-            if state not in ("Yes", "No"):
+            # The N/A box shares the question's field name; its on-state is
+            # "N/A", which PDF names escape as "N#2FA".
+            is_na = state in ("N/A", "N#2FA")
+            if state not in ("Yes", "No") and not is_na:
                 continue
+            value = (widget.field_value or "").strip()
+            if is_na:
+                # The value may come back decoded ("N/A") or escaped ("N#2FA").
+                on = value in ("N/A", "N#2FA")
+                # It sits on the line BELOW Yes, so it must not move the row -
+                # the row's position is what ties it to its question.
+                na_on.setdefault(widget.field_name, False)
+                na_on[widget.field_name] |= on
+                continue
+            on = bool(value) and value != "Off" and value == state
             row = widget_rows.setdefault(
                 widget.field_name,
                 {"y": (widget.rect.y0 + widget.rect.y1) / 2,
                  "x0": widget.rect.x0, "answer": None})
             row["x0"] = min(row["x0"], widget.rect.x0)
-            value = (widget.field_value or "").strip()
-            if value and value != "Off" and value == state:
+            if on:
                 row["answer"] = state
+        for name, on in na_on.items():
+            if on and name in widget_rows and widget_rows[name]["answer"] is None:
+                widget_rows[name]["answer"] = "N/A"
         if widget_rows:
             rows = sorted(widget_rows.values(), key=lambda r: (r["x0"], r["y"]))
             cache[page_idx] = rows
@@ -3295,6 +3312,23 @@ class ConditionReportExtractor:
             if is_ticked(box):
                 row["answer"] = word[4]
 
+        # A ticked N/A box (printed under the Yes box) answers the question on
+        # the line above it in the same column. It never forms a row of its
+        # own, so it cannot be matched to a question by mistake.
+        for word in page.get_text("words"):
+            if word[4] not in ("N/A", "NA"):
+                continue
+            box = box_left_of(word)
+            if box is None or not is_ticked(box):
+                continue
+            y = (word[1] + word[3]) / 2
+            above = [r for r in pairs.values()
+                     if abs(r["x0"] - box.x0) < 15 and 0 < y - r["y"] <= self._ANSWER_MAX_DY]
+            if above:
+                row = min(above, key=lambda r: y - r["y"])
+                if row["answer"] is None:
+                    row["answer"] = "N/A"
+
         rows = sorted(pairs.values(), key=lambda r: (r["x0"], r["y"]))
         cache[page_idx] = rows
         return rows
@@ -3333,14 +3367,17 @@ class ConditionReportExtractor:
         runs = []
         for i, (text, rect) in enumerate(lines):
             merged, box = text, fitz.Rect(rect)
+            parts = [(0, len(text), fitz.Rect(rect))]
             # The official form interleaves the "Yes" and "No" labels INTO the
             # question text, so a two-part question can run five lines:
             #   "...any leaking taps or toilets" / "Yes" / "No" /
             #   "on the residential premises have been fixed"
             for nxt_text, nxt_rect in lines[i + 1:i + 6]:
+                start = len(merged) + 1
                 merged += " " + nxt_text
                 box = box | nxt_rect
-                runs.append((merged, fitz.Rect(box)))
+                parts = parts + [(start, len(merged), fitz.Rect(nxt_rect))]
+                runs.append((merged, fitz.Rect(box), parts))
         cache[page_idx] = (lines, runs)
         return cache[page_idx]
 
@@ -3384,9 +3421,22 @@ class ConditionReportExtractor:
                 rows = self._checkbox_rows(page_idx)
                 if not rows:
                     continue
-                for text, rect in self._lines_with_boxes(page_idx)[which]:
-                    if not rx.search(text):
+                for entry in self._lines_with_boxes(page_idx)[which]:
+                    text, rect = entry[0], entry[1]
+                    m = rx.search(text)
+                    if not m:
                         continue
+                    if len(entry) > 2:
+                        # Only the lines the question's words are on. The run
+                        # also spans neighbouring lines such as a date box
+                        # ("/ /") that reach past the checkbox column, which
+                        # sent the smoke alarm lithium question to the
+                        # Communications boxes in the right-hand column.
+                        hit = [r for a, b, r in entry[2] if a < m.end() and b > m.start()]
+                        if hit:
+                            rect = fitz.Rect(hit[0])
+                            for r in hit[1:]:
+                                rect |= r
                     answer, found = self._answer_for_rect(rows, rect)
                     if found:
                         return answer, True
